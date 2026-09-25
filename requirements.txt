@@ -1,0 +1,11 @@
+asgiref==3.12.1
+astroid==4.0.4
+Django==5.2.17
+django-ckeditor==6.7.3
+django-js-asset==4.2.0
+pillow==12.3.0
+pylint==4.0.9
+pylint-celery==0.3
+pylint-django==2.8.0
+pylint-plugin-utils==0.9.0
+sqlparse==0.6.0
