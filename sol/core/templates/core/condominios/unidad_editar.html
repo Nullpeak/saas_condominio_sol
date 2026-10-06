@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Editar unidad</title>
+
+</head>
+
+
+<body>
+
+    <header>
+
+        <h1>
+            Editar unidad
+        </h1>
+
+        <p>
+            Condominio:
+            <strong>
+                {{ unidad.edificio.condominio.nombre }}
+            </strong>
+        </p>
+
+        <p>
+            Edificio:
+            <strong>
+                {{ unidad.edificio.nombre }}
+            </strong>
+        </p>
+
+        <p>
+            Unidad:
+            <strong>
+                {{ unidad.numero_unidad }}
+            </strong>
+        </p>
+
+    </header>
+
+
+    <main>
+
+        <form method="post">
+
+            {% csrf_token %}
+
+
+            <p>
+
+                <label for="dueno_id">
+                    Propietario:
+                </label>
+
+                <br>
+
+                <select
+                    id="dueno_id"
+                    name="dueno_id"
+                >
+
+                    <option value="">
+                        Sin propietario
+                    </option>
+
+
+                    {% for usuario in usuarios %}
+
+                        <option
+                            value="{{ usuario.id }}"
+                            {% if unidad.dueno_id == usuario.id %}
+                                selected
+                            {% endif %}
+                        >
+
+                            {{ usuario.nombre }}
+                            {{ usuario.nombre2 }}
+                            {{ usuario.apellido }}
+                            {{ usuario.apellido2 }}
+
+                            -
+                            {{ usuario.rol.nombre }}
+
+                        </option>
+
+                    {% endfor %}
+
+                </select>
+
+            </p>
+
+
+            <p>
+
+                <label for="arrendatario_id">
+                    Arrendatario:
+                </label>
+
+                <br>
+
+                <select
+                    id="arrendatario_id"
+                    name="arrendatario_id"
+                >
+
+                    <option value="">
+                        Sin arrendatario
+                    </option>
+
+
+                    {% for usuario in usuarios %}
+
+                        <option
+                            value="{{ usuario.id }}"
+                            {% if unidad.arrendatario_id == usuario.id %}
+                                selected
+                            {% endif %}
+                        >
+
+                            {{ usuario.nombre }}
+                            {{ usuario.nombre2 }}
+                            {{ usuario.apellido }}
+                            {{ usuario.apellido2 }}
+
+                            -
+                            {{ usuario.rol.nombre }}
+
+                        </option>
+
+                    {% endfor %}
+
+                </select>
+
+            </p>
+
+
+            <button type="submit">
+                Guardar cambios
+            </button>
+
+        </form>
+
+
+        <br>
+
+
+        <a href="{% url 'unidades_lista' unidad.edificio.id %}">
+            Volver a unidades
+        </a>
+
+    </main>
+
+
+    <footer>
+
+        <br>
+
+        <hr>
+
+        <a href="{% url 'inicio' %}">
+            Inicio
+        </a>
+
+        |
+
+        <a href="{% url 'logout' %}">
+            Cerrar sesión
+        </a>
+
+    </footer>
+
+
+</body>
+
+</html>

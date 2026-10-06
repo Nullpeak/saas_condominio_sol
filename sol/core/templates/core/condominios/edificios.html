@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>Edificios</title>
+
+</head>
+
+<body>
+
+    <h1>
+        {{ condominio.nombre }}
+    </h1>
+
+    <h2>
+        Edificios
+    </h2>
+
+
+    <p>
+        Dirección:
+        {{ condominio.direccion }}
+    </p>
+
+
+    <hr>
+
+
+    {% for edificio in edificios %}
+
+        <div>
+
+            <h3>
+                {{ edificio.nombre }}
+            </h3>
+
+            <p>
+                Número:
+                {{ edificio.numero }}
+            </p>
+
+            <p>
+                Pisos:
+                {{ edificio.numero_pisos|default:"No configurado" }}
+            </p>
+
+            <p>
+                Viviendas por piso:
+                {{ edificio.viviendas_por_piso|default:"No configurado" }}
+            </p>
+
+            <p>
+
+                Subterráneo:
+
+                {% if edificio.subterraneo %}
+                    Sí
+                {% else %}
+                    No
+                {% endif %}
+
+            </p>
+
+            <p>
+                Unidades generadas:
+                {{ edificio.unidades.count }}
+            </p>
+
+
+            <a href="{% url 'unidades_lista' edificio.id %}">
+                Ver unidades
+            </a>
+
+            |
+
+            <a href="{% url 'edificio_editar' edificio.id %}">
+                Configurar edificio
+            </a>
+
+        </div>
+
+        <hr>
+
+    {% empty %}
+
+        <p>
+            Este condominio no tiene edificios registrados.
+        </p>
+
+    {% endfor %}
+
+
+    <a href="{% url 'condominios_lista' %}">
+        Volver a condominios
+    </a>
+
+
+</body>
+
+</html>

@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>Condominios</title>
+
+</head>
+
+<body>
+
+    <h1>Condominios</h1>
+
+    <p>
+        Usuario:
+        <strong>
+            {{ usuario_actual.nombre }}
+            {{ usuario_actual.apellido }}
+        </strong>
+    </p>
+
+    <p>
+        Rol:
+        <strong>
+            {{ usuario_actual.rol.nombre }}
+        </strong>
+    </p>
+
+
+    <hr>
+
+
+    {% if tiene_rol == "Super Administrador" %}
+
+    {% endif %}
+
+
+    {% if usuario_actual.rol.nombre == "Super Administrador" %}
+
+        <a href="{% url 'condominio_crear' %}">
+            Crear condominio
+        </a>
+
+        <br><br>
+
+    {% endif %}
+
+
+    <table border="1"
+           cellpadding="10"
+           cellspacing="0">
+
+        <thead>
+
+            <tr>
+
+                <th>Nombre</th>
+
+                <th>Dirección</th>
+
+                <th>Ciudad</th>
+
+                <th>Edificios</th>
+
+                <th>Estado</th>
+
+                <th>Acciones</th>
+
+            </tr>
+
+        </thead>
+
+
+        <tbody>
+
+            {% for condominio in condominios %}
+
+                <tr>
+
+                    <td>
+                        {{ condominio.nombre }}
+                    </td>
+
+                    <td>
+                        {{ condominio.direccion }}
+                    </td>
+
+                    <td>
+                        {{ condominio.ciudad }}
+                    </td>
+
+                    <td>
+                        {{ condominio.edificios }}
+                    </td>
+
+                    <td>
+
+                        {% if condominio.activo %}
+
+                            Activo
+
+                        {% else %}
+
+                            Inactivo
+
+                        {% endif %}
+
+                    </td>
+
+                    <td>
+
+                        <a href="{% url 'edificios_lista' condominio.id %}">
+                            Ver edificios
+                        </a>
+
+                        |
+
+                        <a href="{% url 'condominio_editar' condominio.id %}">
+                            Editar
+                        </a>
+
+                    </td>
+
+                </tr>
+
+            {% empty %}
+
+                <tr>
+
+                    <td colspan="6">
+
+                        No existen condominios registrados.
+
+                    </td>
+
+                </tr>
+
+            {% endfor %}
+
+        </tbody>
+
+    </table>
+
+
+    <br>
+
+    <a href="{% url 'administracion' %}">
+        Volver a administración
+    </a>
+
+    <br><br>
+
+    <a href="{% url 'inicio' %}">
+        Volver al inicio
+    </a>
+
+
+</body>
+
+</html>

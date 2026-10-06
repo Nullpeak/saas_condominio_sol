@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>Editar condominio</title>
+
+</head>
+
+<body>
+
+    <h1>Editar condominio</h1>
+
+
+    {% if errores %}
+
+        <div>
+
+            <h3>Errores:</h3>
+
+            <ul>
+
+                {% for error in errores %}
+
+                    <li>
+                        {{ error }}
+                    </li>
+
+                {% endfor %}
+
+            </ul>
+
+        </div>
+
+    {% endif %}
+
+
+    <form method="post">
+
+        {% csrf_token %}
+
+
+        <label for="nombre">
+            Nombre:
+        </label>
+
+        <br>
+
+        <input
+            type="text"
+            id="nombre"
+            name="nombre"
+            value="{{ condominio.nombre }}"
+            required
+        >
+
+        <br><br>
+
+
+        <label for="direccion">
+            Dirección:
+        </label>
+
+        <br>
+
+        <input
+            type="text"
+            id="direccion"
+            name="direccion"
+            value="{{ condominio.direccion }}"
+            required
+        >
+
+        <br><br>
+
+
+        <label for="ciudad">
+            Ciudad:
+        </label>
+
+        <br>
+
+        <select
+            id="ciudad"
+            name="ciudad"
+            required
+        >
+
+            {% for ciudad in ciudades %}
+
+                <option
+                    value="{{ ciudad.id }}"
+                    {% if condominio.ciudad_id == ciudad.id %}
+                        selected
+                    {% endif %}
+                >
+
+                    {{ ciudad }}
+
+                </option>
+
+            {% endfor %}
+
+        </select>
+
+        <br><br>
+
+
+        <label>
+
+            <input
+                type="checkbox"
+                name="activo"
+                {% if condominio.activo %}
+                    checked
+                {% endif %}
+            >
+
+            Condominio activo
+
+        </label>
+
+        <br><br>
+
+
+        <button type="submit">
+            Guardar cambios
+        </button>
+
+    </form>
+
+
+    <br>
+
+    <a href="{% url 'condominios_lista' %}">
+        Cancelar
+    </a>
+
+
+</body>
+
+</html>

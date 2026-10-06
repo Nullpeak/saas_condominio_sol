@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>Crear condominio</title>
+
+</head>
+
+<body>
+
+    <h1>Crear condominio</h1>
+
+
+    {% if errores %}
+
+        <div>
+
+            <h3>Errores:</h3>
+
+            <ul>
+
+                {% for error in errores %}
+
+                    <li>
+                        {{ error }}
+                    </li>
+
+                {% endfor %}
+
+            </ul>
+
+        </div>
+
+    {% endif %}
+
+
+    <form method="post">
+
+        {% csrf_token %}
+
+
+        <label for="nombre">
+            Nombre del condominio:
+        </label>
+
+        <br>
+
+        <input
+            type="text"
+            id="nombre"
+            name="nombre"
+            value="{{ datos.nombre|default:'' }}"
+            required
+        >
+
+        <br><br>
+
+
+        <label for="direccion">
+            Dirección:
+        </label>
+
+        <br>
+
+        <input
+            type="text"
+            id="direccion"
+            name="direccion"
+            value="{{ datos.direccion|default:'' }}"
+            required
+        >
+
+        <br><br>
+
+
+        <label for="ciudad">
+            Ciudad:
+        </label>
+
+        <br>
+
+        <select
+            id="ciudad"
+            name="ciudad"
+            required
+        >
+
+            <option value="">
+                Seleccionar ciudad
+            </option>
+
+            {% for ciudad in ciudades %}
+
+                <option
+                    value="{{ ciudad.id }}"
+                    {% if datos.ciudad == ciudad.id|stringformat:"s" %}
+                        selected
+                    {% endif %}
+                >
+
+                    {{ ciudad }}
+
+                </option>
+
+            {% endfor %}
+
+        </select>
+
+        <br><br>
+
+
+        <label for="edificios">
+            Cantidad de edificios:
+        </label>
+
+        <br>
+
+        <input
+            type="number"
+            id="edificios"
+            name="edificios"
+            min="1"
+            value="{{ datos.edificios|default:'1' }}"
+            required
+        >
+
+        <br><br>
+
+
+        <button type="submit">
+            Crear condominio
+        </button>
+
+    </form>
+
+
+    <br>
+
+    <a href="{% url 'condominios_lista' %}">
+        Cancelar
+    </a>
+
+
+</body>
+
+</html>

@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Usuarios</title>
+
+</head>
+
+<body>
+
+    <h1>
+        Usuarios
+    </h1>
+
+    <p>
+        Gestión de usuarios del sistema.
+    </p>
+
+
+    <p>
+
+        <a href="{% url 'usuario_crear' %}">
+            + Crear usuario
+        </a>
+
+    </p>
+
+
+    {% if usuarios %}
+
+        <table border="1">
+
+            <thead>
+
+                <tr>
+
+                    <th>
+                        Usuario
+                    </th>
+
+                    <th>
+                        Nombre
+                    </th>
+
+                    <th>
+                        Rol
+                    </th>
+
+                    <th>
+                        Condominio
+                    </th>
+
+                    <th>
+                        Estado
+                    </th>
+
+                    <th>
+                        Acción
+                    </th>
+
+                </tr>
+
+            </thead>
+
+
+            <tbody>
+
+                {% for usuario in usuarios %}
+
+                    <tr>
+
+                        <td>
+                            {{ usuario.user.username }}
+                        </td>
+
+                        <td>
+                            {{ usuario.nombre }}
+                            {{ usuario.apellido }}
+                        </td>
+
+                        <td>
+                            {{ usuario.rol.nombre }}
+                        </td>
+
+                        <td>
+
+                            {% if usuario.condominio %}
+
+                                {{ usuario.condominio.nombre }}
+
+                            {% else %}
+
+                                Sin condominio
+
+                            {% endif %}
+
+                        </td>
+
+                        <td>
+
+                            {% if usuario.activo %}
+
+                                Activo
+
+                            {% else %}
+
+                                Inactivo
+
+                            {% endif %}
+
+                        </td>
+
+                        <td>
+
+                            <a href="{% url 'usuario_editar' usuario.id %}">
+                                Editar
+                            </a>
+
+                        </td>
+
+                    </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    {% else %}
+
+        <p>
+            No hay usuarios registrados.
+        </p>
+
+    {% endif %}
+
+
+    <br>
+
+    <a href="{% url 'administracion' %}">
+        Volver a administración
+    </a>
+
+    <br>
+
+    <a href="{% url 'inicio' %}">
+        Volver al inicio
+    </a>
+
+</body>
+
+</html>

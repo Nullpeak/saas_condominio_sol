@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Inicio</title>
+</head>
+
+<body>
+
+    <header>
+
+        <h1>
+            Sistema de Gestión de Condominios
+        </h1>
+
+        <p>
+            Bienvenido,
+            {{ usuario.nombre }}
+            {{ usuario.apellido }}
+        </p>
+
+        <p>
+            Rol:
+            <strong>
+                {{ usuario.rol.nombre }}
+            </strong>
+        </p>
+
+    </header>
+
+
+    <main>
+
+        <!-- ========================================= -->
+        <!-- SUPER ADMINISTRADOR -->
+        <!-- ========================================= -->
+
+        {% if usuario.rol.nombre == "Super Administrador" %}
+
+            <h2>
+                Panel de Super Administrador
+            </h2>
+
+            <p>
+                Administración global del sistema.
+            </p>
+
+
+            <h3>
+                Administración
+            </h3>
+
+            <a href="{% url 'administracion' %}">
+                Administración de usuarios
+            </a>
+
+            <br><br>
+
+            <a href="{% url 'condominios_lista' %}">
+                Gestionar condominios
+            </a>
+
+
+        <!-- ========================================= -->
+        <!-- ADMINISTRADOR -->
+        <!-- ========================================= -->
+
+        {% elif usuario.rol.nombre == "Administrador" %}
+
+            <h2>
+                Panel de Administrador
+            </h2>
+
+            <p>
+                Administración del condominio.
+            </p>
+
+
+            <h3>
+                Administración
+            </h3>
+
+            <a href="{% url 'administracion' %}">
+                Administración de usuarios
+            </a>
+
+            <br><br>
+
+            <a href="{% url 'condominios_lista' %}">
+                Gestionar condominio
+            </a>
+
+
+        <!-- ========================================= -->
+        <!-- GESTOR -->
+        <!-- ========================================= -->
+
+        {% elif usuario.rol.nombre == "Gestor" %}
+
+            <h2>
+                Panel de Gestor
+            </h2>
+
+            <p>
+                Gestión operativa del condominio.
+            </p>
+
+
+        <!-- ========================================= -->
+        <!-- RESIDENTE -->
+        <!-- ========================================= -->
+
+        {% elif usuario.rol.nombre == "Residente" %}
+
+            <h2>
+                Panel de Residente
+            </h2>
+
+            <p>
+                Acceso a los servicios del condominio.
+            </p>
+
+        {% endif %}
+
+    </main>
+
+
+    <footer>
+
+        <br>
+        <hr>
+
+        <a href="{% url 'logout' %}">
+            Cerrar sesión
+        </a>
+
+    </footer>
+
+</body>
+
+</html>
