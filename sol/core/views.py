@@ -742,14 +742,14 @@ def edificio_editar(request, edificio_id):
                 condominio_id=condominio.id
             )
 
-        return render(request, "core/condominios/edificio_editar.html", {
+        return render(request, "core/condominios/editar.html", {
             "usuario_actual": usuario_actual,
             "edificio": edificio,
             "condominio": condominio,
             "errores": errores,
         })
 
-    return render(request, "core/condominios/edificio_editar.html", {
+    return render(request, "core/condominios/editar.html", {
         "usuario_actual": usuario_actual,
         "edificio": edificio,
         "condominio": condominio,
