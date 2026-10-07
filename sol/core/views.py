@@ -7,7 +7,7 @@ from django.urls import reverse_lazy
 from django.db import transaction
 from django.core.exceptions import ValidationError
 
-from .validators import validar_rut, formatear_rut, validar_telefono, formatear_telefono
+from .validators import *
 from .models import Usuario, Rol, Condominio
 
 
@@ -95,7 +95,7 @@ def login_view(request):
 @login_required
 def logout_view(request):
     logout(request)
-    return redirect("login")
+    return redirect("landing")
 
 
 #============================== HU-010: RECUPERAR CONTRASEÑA ==============================
@@ -357,12 +357,24 @@ def usuario_crear(request):
 
         #============================== VALIDAR CORREO ==============================
 
-        if email and Usuario.objects.filter(
-            email=email
-        ).exists():
+        if not email:
             errores.append(
-                "El correo electrónico ya está registrado."
+                "Debes ingresar un correo electrónico."
             )
+
+        else:
+            try:
+                validar_email(email)
+
+            except ValidationError as error:
+                errores.extend(error.messages)
+
+            if Usuario.objects.filter(
+                email=email
+            ).exists():
+                errores.append(
+                    "El correo electrónico ya está registrado."
+                )
 
         #============================== OBTENER ROL ==============================
 
@@ -574,14 +586,22 @@ def usuario_editar(request, usuario_id):
 
         #============================== VALIDAR CORREO ==============================
 
-        if Usuario.objects.filter(
-            email=email
-        ).exclude(
-            id=usuario.id
-        ).exists():
-            errores.append(
-                "El correo electrónico ya está registrado."
-            )
+        if email:
+
+            try:
+                validar_email(email)
+
+            except ValidationError as error:
+                errores.extend(error.messages)
+
+            if Usuario.objects.filter(
+                email=email
+            ).exclude(
+                id=usuario.id
+            ).exists():
+                errores.append(
+                    "El correo electrónico ya está registrado."
+                )
 
         #============================== OBTENER ROL ==============================
 

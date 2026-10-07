@@ -1,7 +1,7 @@
 import re
 
 from django.core.exceptions import ValidationError
-
+from django.core.validators import validate_email
 
 #============================== VALIDACIÓN RUT ==============================
 
@@ -87,4 +87,23 @@ def validar_telefono(valor):
         raise ValidationError(
             "El teléfono no tiene un formato válido. "
             "Ejemplo: +56 9 1234 5678"
+        )
+
+#============================== VALIDACIÓN CORREO ==============================
+
+def validar_email(valor):
+    """Valida que el correo electrónico tenga un formato válido."""
+    valor = valor.strip()
+
+    if not valor:
+        raise ValidationError(
+            "Debes ingresar un correo electrónico."
+        )
+
+    try:
+        validate_email(valor)
+
+    except ValidationError:
+        raise ValidationError(
+            "El correo electrónico no tiene un formato válido."
         )
