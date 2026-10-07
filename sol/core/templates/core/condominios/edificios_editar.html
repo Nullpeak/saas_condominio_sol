@@ -1,153 +1,246 @@
-<!DOCTYPE html>
-<html lang="es">
+{% extends "core/base.html" %}
 
-<head>
-    <meta charset="UTF-8">
+{% block title %}
+Configurar edificio - CondoGestión
+{% endblock %}
 
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
+{% block page_title %}
+Configurar edificio
+{% endblock %}
 
-    <title>Editar edificio</title>
-</head>
+{% block content %}
 
-<body>
+<!-- ============================== ENCABEZADO ============================== -->
 
-    <header>
+<div class="card">
 
-        <h1>
-            Editar edificio
-        </h1>
+    <h2>
+        Configurar edificio
+    </h2>
 
-        <p>
-            Condominio:
-            <strong>
-                {{ edificio.condominio.nombre }}
-            </strong>
-        </p>
+    <p style="color: #64748b;">
+        Modifica la configuración y características del edificio.
+    </p>
 
-    </header>
+    <p style="margin-top: 12px;">
+        <strong>Condominio:</strong>
+        {{ edificio.condominio.nombre }}
+    </p>
 
+    <p style="margin-top: 6px;">
+        <strong>Edificio:</strong>
+        {{ edificio.nombre }}
+    </p>
 
-    <main>
-
-        <form method="post">
-
-            {% csrf_token %}
+</div>
 
 
-            <p>
+<!-- ============================== ERRORES ============================== -->
 
-                <label for="nombre">
-                    Nombre del edificio:
-                </label>
+{% if errores %}
 
-                <br>
+    <div class="card">
 
-                <input
-                    type="text"
-                    id="nombre"
-                    name="nombre"
-                    value="{{ edificio.nombre }}"
-                    maxlength="50"
-                    required
-                >
+        <h3 style="margin-top: 0;">
+            No se pudieron guardar los cambios
+        </h3>
 
+        <ul style="color: #b91c1c;">
+
+            {% for error in errores %}
+
+                <li>
+                    {{ error }}
+                </li>
+
+            {% endfor %}
+
+        </ul>
+
+    </div>
+
+{% endif %}
+
+
+<!-- ============================== FORMULARIO ============================== -->
+
+<div class="card">
+
+    <h3>
+        Información del edificio
+    </h3>
+
+    <form method="post">
+
+        {% csrf_token %}
+
+
+        <!-- ============================== NOMBRE ============================== -->
+
+        <div style="margin-top: 20px;">
+
+            <label for="nombre">
+                <strong>Nombre del edificio</strong>
+            </label>
+
+            <p style="color: #64748b; margin-top: 5px;">
+                Nombre utilizado para identificar el edificio dentro del condominio.
             </p>
 
+            <input
+                type="text"
+                id="nombre"
+                name="nombre"
+                value="{{ edificio.nombre }}"
+                maxlength="50"
+                required
+                style="
+                    width: 100%;
+                    padding: 10px;
+                    margin-top: 8px;
+                    box-sizing: border-box;
+                "
+            >
 
-            <p>
+        </div>
 
-                <label for="numero_pisos">
-                    Número de pisos:
-                </label>
 
-                <br>
+        <!-- ============================== PISOS ============================== -->
 
-                <input
-                    type="number"
-                    id="numero_pisos"
-                    name="numero_pisos"
-                    value="{{ edificio.numero_pisos|default:'' }}"
-                    min="2"
-                    max="20"
-                    required
-                >
+        <div style="margin-top: 22px;">
 
+            <label for="numero_pisos">
+                <strong>Número de pisos</strong>
+            </label>
+
+            <p style="color: #64748b; margin-top: 5px;">
+                Cantidad de pisos que tiene el edificio.
             </p>
 
+            <input
+                type="number"
+                id="numero_pisos"
+                name="numero_pisos"
+                value="{{ edificio.numero_pisos|default:'' }}"
+                min="2"
+                max="20"
+                required
+                style="
+                    width: 100%;
+                    padding: 10px;
+                    margin-top: 8px;
+                    box-sizing: border-box;
+                "
+            >
 
-            <p>
+        </div>
 
-                <label for="viviendas_por_piso">
-                    Viviendas por piso:
-                </label>
 
-                <br>
+        <!-- ============================== VIVIENDAS ============================== -->
 
-                <input
-                    type="number"
-                    id="viviendas_por_piso"
-                    name="viviendas_por_piso"
-                    value="{{ edificio.viviendas_por_piso|default:'' }}"
-                    min="1"
-                    required
-                >
+        <div style="margin-top: 22px;">
 
+            <label for="viviendas_por_piso">
+                <strong>Viviendas por piso</strong>
+            </label>
+
+            <p style="color: #64748b; margin-top: 5px;">
+                Cantidad de viviendas que tendrá cada piso.
             </p>
 
+            <input
+                type="number"
+                id="viviendas_por_piso"
+                name="viviendas_por_piso"
+                value="{{ edificio.viviendas_por_piso|default:'' }}"
+                min="1"
+                required
+                style="
+                    width: 100%;
+                    padding: 10px;
+                    margin-top: 8px;
+                    box-sizing: border-box;
+                "
+            >
 
-            <p>
+        </div>
 
-                <label>
 
-                    <input
-                        type="checkbox"
-                        name="subterraneo"
-                        {% if edificio.subterraneo %}checked{% endif %}
-                    >
+        <!-- ============================== SUBTERRÁNEO ============================== -->
 
+        <div style="margin-top: 22px;">
+
+            <label
+                style="
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                    cursor: pointer;
+                "
+            >
+
+                <input
+                    type="checkbox"
+                    name="subterraneo"
+                    {% if edificio.subterraneo %}checked{% endif %}
+                >
+
+                <strong>
                     Tiene subterráneo
+                </strong>
 
-                </label>
+            </label>
 
+            <p style="color: #64748b; margin-top: 6px;">
+                Indica si el edificio cuenta con niveles subterráneos.
             </p>
 
+        </div>
 
-            <button type="submit">
+
+        <!-- ============================== ACCIONES ============================== -->
+
+        <div
+            style="
+                margin-top: 28px;
+                display: flex;
+                gap: 10px;
+                flex-wrap: wrap;
+            "
+        >
+
+            <button
+                type="submit"
+                class="button"
+            >
                 Guardar cambios
             </button>
 
-        </form>
+            <a
+                href="{% url 'edificios_lista' edificio.condominio.id %}"
+                class="button button-secondary"
+            >
+                Cancelar
+            </a>
+
+        </div>
+
+    </form>
+
+</div>
 
 
-        <br>
+<!-- ============================== NAVEGACIÓN ============================== -->
 
+<div style="margin-top: 20px;">
 
-        <a href="{% url 'edificios_lista' edificio.condominio.id %}">
-            Volver a edificios
-        </a>
+    <a
+        href="{% url 'edificios_lista' edificio.condominio.id %}"
+        class="button button-secondary"
+    >
+        Volver a edificios
+    </a>
 
-    </main>
+</div>
 
-
-    <footer>
-
-        <hr>
-
-        <a href="{% url 'inicio' %}">
-            Inicio
-        </a>
-
-        |
-
-        <a href="{% url 'logout' %}">
-            Cerrar sesión
-        </a>
-
-    </footer>
-
-</body>
-
-</html>
+{% endblock %}

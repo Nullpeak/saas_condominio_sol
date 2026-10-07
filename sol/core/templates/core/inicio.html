@@ -1,148 +1,136 @@
-<!DOCTYPE html>
-<html lang="es">
+{% extends "core/base.html" %}
 
-<head>
-    <meta charset="UTF-8">
+{% block title %}
+Inicio - CondoGestión
+{% endblock %}
 
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
+{% block page_title %}
+Inicio
+{% endblock %}
 
-    <title>Inicio</title>
-</head>
+{% block content %}
 
-<body>
+<div class="card">
 
-    <header>
+    <h1>
+        Bienvenido, {{ usuario.nombre }} {{ usuario.apellido }}
+    </h1>
 
-        <h1>
-            Sistema de Gestión de Condominios
-        </h1>
+    <p>
+        Has iniciado sesión como
+        <strong>{{ usuario.rol.nombre }}</strong>.
+    </p>
 
-        <p>
-            Bienvenido,
-            {{ usuario.nombre }}
-            {{ usuario.apellido }}
-        </p>
-
-        <p>
-            Rol:
-            <strong>
-                {{ usuario.rol.nombre }}
-            </strong>
-        </p>
-
-    </header>
+</div>
 
 
-    <main>
+{% if usuario.rol.nombre == "Super Administrador" %}
 
-        <!-- ========================================= -->
-        <!-- SUPER ADMINISTRADOR -->
-        <!-- ========================================= -->
+<div class="card">
 
-        {% if usuario.rol.nombre == "Super Administrador" %}
+    <h2>
+        Panel de Super Administrador
+    </h2>
 
-            <h2>
-                Panel de Super Administrador
-            </h2>
+    <p>
+        Administración global del sistema.
+    </p>
 
-            <p>
-                Administración global del sistema.
-            </p>
+    <div class="grid">
 
-
-            <h3>
+        <div class="stat">
+            <div class="stat-title">
                 Administración
-            </h3>
+            </div>
 
-            <a href="{% url 'administracion' %}">
-                Administración de usuarios
+            <a class="button" href="{% url 'administracion' %}">
+                Gestionar usuarios
             </a>
+        </div>
 
-            <br><br>
+        <div class="stat">
+            <div class="stat-title">
+                Condominios
+            </div>
 
-            <a href="{% url 'condominios_lista' %}">
+            <a class="button" href="{% url 'condominios_lista' %}">
                 Gestionar condominios
             </a>
+        </div>
+
+    </div>
+
+</div>
 
 
-        <!-- ========================================= -->
-        <!-- ADMINISTRADOR -->
-        <!-- ========================================= -->
+{% elif usuario.rol.nombre == "Administrador" %}
 
-        {% elif usuario.rol.nombre == "Administrador" %}
+<div class="card">
 
-            <h2>
-                Panel de Administrador
-            </h2>
+    <h2>
+        Panel de Administrador
+    </h2>
 
-            <p>
-                Administración del condominio.
-            </p>
+    <p>
+        Administración del condominio.
+    </p>
 
+    <div class="grid">
 
-            <h3>
+        <div class="stat">
+            <div class="stat-title">
                 Administración
-            </h3>
+            </div>
 
-            <a href="{% url 'administracion' %}">
-                Administración de usuarios
+            <a class="button" href="{% url 'administracion' %}">
+                Gestionar usuarios
             </a>
+        </div>
 
-            <br><br>
+        <div class="stat">
+            <div class="stat-title">
+                Condominio
+            </div>
 
-            <a href="{% url 'condominios_lista' %}">
+            <a class="button" href="{% url 'condominios_lista' %}">
                 Gestionar condominio
             </a>
+        </div>
+
+    </div>
+
+</div>
 
 
-        <!-- ========================================= -->
-        <!-- GESTOR -->
-        <!-- ========================================= -->
+{% elif usuario.rol.nombre == "Gestor" %}
 
-        {% elif usuario.rol.nombre == "Gestor" %}
+<div class="card">
 
-            <h2>
-                Panel de Gestor
-            </h2>
+    <h2>
+        Panel de Gestor
+    </h2>
 
-            <p>
-                Gestión operativa del condominio.
-            </p>
+    <p>
+        Gestión operativa del condominio.
+    </p>
 
-
-        <!-- ========================================= -->
-        <!-- RESIDENTE -->
-        <!-- ========================================= -->
-
-        {% elif usuario.rol.nombre == "Residente" %}
-
-            <h2>
-                Panel de Residente
-            </h2>
-
-            <p>
-                Acceso a los servicios del condominio.
-            </p>
-
-        {% endif %}
-
-    </main>
+</div>
 
 
-    <footer>
+{% elif usuario.rol.nombre == "Residente" %}
 
-        <br>
-        <hr>
+<div class="card">
 
-        <a href="{% url 'logout' %}">
-            Cerrar sesión
-        </a>
+    <h2>
+        Panel de Residente
+    </h2>
 
-    </footer>
+    <p>
+        Acceso a los servicios del condominio.
+    </p>
 
-</body>
+</div>
 
-</html>
+{% endif %}
+
+{% endblock %}

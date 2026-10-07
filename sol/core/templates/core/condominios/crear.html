@@ -1,152 +1,233 @@
-<!DOCTYPE html>
-<html lang="es">
+{% extends "core/base.html" %}
 
-<head>
+{% block title %}
+Nuevo condominio - CondoGestión
+{% endblock %}
 
-    <meta charset="UTF-8">
+{% block page_title %}
+Nuevo condominio
+{% endblock %}
 
-    <meta name="viewport"
-          content="width=device-width, initial-scale=1.0">
+{% block content %}
 
-    <title>Crear condominio</title>
+<!-- ============================== ENCABEZADO ============================== -->
 
-</head>
+<div class="card">
 
-<body>
+```
+<h2>
+    Crear condominio
+</h2>
 
-    <h1>Crear condominio</h1>
+<p style="color: #64748b;">
+    Completa los datos para registrar un nuevo condominio en el sistema.
+</p>
+```
+
+</div>
+
+<!-- ============================== FORMULARIO ============================== -->
+
+<div class="card">
+
+```
+<form method="post" enctype="multipart/form-data">
+
+    {% csrf_token %}
 
 
-    {% if errores %}
+    <!-- ============================== INFORMACIÓN GENERAL ============================== -->
+
+    <h3>
+        Información general
+    </h3>
+
+    <div class="grid">
 
         <div>
 
-            <h3>Errores:</h3>
+            <label
+                for="nombre"
+                style="display: block; margin-bottom: 6px; font-weight: 600;"
+            >
+                Nombre del condominio
+            </label>
 
-            <ul>
+            <input
+                type="text"
+                id="nombre"
+                name="nombre"
+                value="{{ datos.nombre|default:'' }}"
+                required
+                placeholder="Ej. Condominio Portal del Sol"
+                style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 7px;"
+            >
 
-                {% for error in errores %}
+        </div>
 
-                    <li>
-                        {{ error }}
-                    </li>
+
+        <div>
+
+            <label
+                for="direccion"
+                style="display: block; margin-bottom: 6px; font-weight: 600;"
+            >
+                Dirección
+            </label>
+
+            <input
+                type="text"
+                id="direccion"
+                name="direccion"
+                value="{{ datos.direccion|default:'' }}"
+                required
+                placeholder="Ej. Avenida Principal 123"
+                style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 7px;"
+            >
+
+        </div>
+
+
+        <div>
+
+            <label
+                for="ciudad"
+                style="display: block; margin-bottom: 6px; font-weight: 600;"
+            >
+                Ciudad
+            </label>
+
+            <select
+                id="ciudad"
+                name="ciudad"
+                required
+                style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 7px;"
+            >
+
+                <option value="">
+                    Seleccionar ciudad
+                </option>
+
+                {% for ciudad in ciudades %}
+
+                    <option
+                        value="{{ ciudad.id }}"
+                        {% if datos.ciudad == ciudad.id|stringformat:"s" %}selected{% endif %}
+                    >
+                        {{ ciudad.nombre }}
+                    </option>
 
                 {% endfor %}
 
-            </ul>
+            </select>
+
+        </div>
+
+
+        <div>
+
+            <label
+                for="edificios"
+                style="display: block; margin-bottom: 6px; font-weight: 600;"
+            >
+                Cantidad de edificios
+            </label>
+
+            <input
+                type="number"
+                id="edificios"
+                name="edificios"
+                value="{{ datos.edificios|default:'1' }}"
+                min="1"
+                required
+                style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 7px;"
+            >
+
+            <small style="display: block; margin-top: 6px; color: #64748b;">
+                Se crearán automáticamente los edificios iniciales.
+            </small>
+
+        </div>
+
+    </div>
+
+
+    <!-- ============================== PORTADA ============================== -->
+
+    <h3 style="margin-top: 30px;">
+        Imagen del condominio
+    </h3>
+
+    <div>
+
+        <label
+            for="portada"
+            style="display: block; margin-bottom: 6px; font-weight: 600;"
+        >
+            Portada
+        </label>
+
+        <input
+            type="file"
+            id="portada"
+            name="portada"
+            accept="image/*"
+            style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 7px; background: white;"
+        >
+
+        <small style="display: block; margin-top: 6px; color: #64748b;">
+            Puedes agregar una imagen representativa del condominio.
+        </small>
+
+    </div>
+
+
+    <!-- ============================== ERRORES ============================== -->
+
+    {% if errores %}
+
+        <div
+            style="margin-top: 25px; padding: 12px 15px; border-radius: 7px; background: #fee2e2; color: #991b1b;"
+        >
+
+            {% for error in errores %}
+
+                <div style="margin-bottom: 5px;">
+                    {{ error }}
+                </div>
+
+            {% endfor %}
 
         </div>
 
     {% endif %}
 
 
-    <form method="post">
+    <!-- ============================== BOTONES ============================== -->
 
-        {% csrf_token %}
+    <div
+        style="margin-top: 30px; display: flex; gap: 10px; flex-wrap: wrap;"
+    >
 
-
-        <label for="nombre">
-            Nombre del condominio:
-        </label>
-
-        <br>
-
-        <input
-            type="text"
-            id="nombre"
-            name="nombre"
-            value="{{ datos.nombre|default:'' }}"
-            required
+        <button
+            type="submit"
+            class="button"
         >
-
-        <br><br>
-
-
-        <label for="direccion">
-            Dirección:
-        </label>
-
-        <br>
-
-        <input
-            type="text"
-            id="direccion"
-            name="direccion"
-            value="{{ datos.direccion|default:'' }}"
-            required
-        >
-
-        <br><br>
-
-
-        <label for="ciudad">
-            Ciudad:
-        </label>
-
-        <br>
-
-        <select
-            id="ciudad"
-            name="ciudad"
-            required
-        >
-
-            <option value="">
-                Seleccionar ciudad
-            </option>
-
-            {% for ciudad in ciudades %}
-
-                <option
-                    value="{{ ciudad.id }}"
-                    {% if datos.ciudad == ciudad.id|stringformat:"s" %}
-                        selected
-                    {% endif %}
-                >
-
-                    {{ ciudad }}
-
-                </option>
-
-            {% endfor %}
-
-        </select>
-
-        <br><br>
-
-
-        <label for="edificios">
-            Cantidad de edificios:
-        </label>
-
-        <br>
-
-        <input
-            type="number"
-            id="edificios"
-            name="edificios"
-            min="1"
-            value="{{ datos.edificios|default:'1' }}"
-            required
-        >
-
-        <br><br>
-
-
-        <button type="submit">
             Crear condominio
         </button>
 
-    </form>
+        <a
+            href="{% url 'condominios_lista' %}"
+            class="button button-secondary"
+        >
+            Cancelar
+        </a>
 
+    </div>
 
-    <br>
+</form>
+```
 
-    <a href="{% url 'condominios_lista' %}">
-        Cancelar
-    </a>
+</div>
 
-
-</body>
-
-</html>
+{% endblock %}

@@ -34,6 +34,7 @@ urlpatterns = [
 
     #============== AUTENTICACIÓN ==============
 
+    path("", landing, name="landing"),
     path("login/", login_view, name="login"),
     path("logout/", logout_view, name="logout"),
     path("recuperar-contrasena/",password_reset_request,name="password_reset_request"),
@@ -71,5 +72,5 @@ urlpatterns = [
 
     path("edificios/<int:edificio_id>/unidades/", unidades_lista, name="unidades_lista"),
     path("unidades/<int:unidad_id>/editar/", unidad_editar, name="unidad_editar"),
-
+    
 ]

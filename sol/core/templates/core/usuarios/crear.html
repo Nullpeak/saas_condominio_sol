@@ -1,282 +1,333 @@
-<!DOCTYPE html>
-<html lang="es">
+{% extends "core/base.html" %}
 
-<head>
+{% block title %}
+Nuevo usuario - CondoGestión
+{% endblock %}
 
-    <meta charset="UTF-8">
+{% block page_title %}
+Nuevo usuario
+{% endblock %}
 
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
+{% block content %}
 
-    <title>Crear usuario</title>
+<!-- ============================== ENCABEZADO ============================== -->
 
-</head>
+<div class="card">
 
-<body>
+```
+<h2>
+    Crear usuario
+</h2>
 
-    <h1>
-        Crear usuario
-    </h1>
+<p style="color: #64748b;">
+    Completa los datos para registrar un nuevo usuario en el sistema.
+</p>
+```
+
+</div>
+
+<!-- ============================== FORMULARIO ============================== -->
+
+<div class="card">
+
+```
+<form method="post">
+
+    {% csrf_token %}
 
 
-    {% if errores %}
+    <!-- ============================== DATOS PERSONALES ============================== -->
+
+    <h3>
+        Datos personales
+    </h3>
+
+    <div class="grid">
 
         <div>
+            <label for="nombre" style="display: block; margin-bottom: 6px; font-weight: 600;">
+                Primer nombre
+            </label>
 
-            <h3>
-                Errores:
-            </h3>
+            <input
+                type="text"
+                id="nombre"
+                name="nombre"
+                value="{{ datos.nombre|default:'' }}"
+                required
+                style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 7px;"
+            >
+        </div>
 
-            <ul>
 
-                {% for error in errores %}
+        <div>
+            <label for="nombre2" style="display: block; margin-bottom: 6px; font-weight: 600;">
+                Segundo nombre
+            </label>
 
-                    <li>
-                        {{ error }}
-                    </li>
+            <input
+                type="text"
+                id="nombre2"
+                name="nombre2"
+                value="{{ datos.nombre2|default:'' }}"
+                style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 7px;"
+            >
+        </div>
+
+
+        <div>
+            <label for="apellido" style="display: block; margin-bottom: 6px; font-weight: 600;">
+                Primer apellido
+            </label>
+
+            <input
+                type="text"
+                id="apellido"
+                name="apellido"
+                value="{{ datos.apellido|default:'' }}"
+                required
+                style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 7px;"
+            >
+        </div>
+
+
+        <div>
+            <label for="apellido2" style="display: block; margin-bottom: 6px; font-weight: 600;">
+                Segundo apellido
+            </label>
+
+            <input
+                type="text"
+                id="apellido2"
+                name="apellido2"
+                value="{{ datos.apellido2|default:'' }}"
+                style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 7px;"
+            >
+        </div>
+
+
+        <div>
+            <label for="rut" style="display: block; margin-bottom: 6px; font-weight: 600;">
+                RUT
+            </label>
+
+            <input
+                type="text"
+                id="rut"
+                name="rut"
+                value="{{ datos.rut|default:'' }}"
+                placeholder="12.345.678-9"
+                style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 7px;"
+            >
+        </div>
+
+
+        <div>
+            <label for="telefono" style="display: block; margin-bottom: 6px; font-weight: 600;">
+                Teléfono
+            </label>
+
+            <input
+                type="text"
+                id="telefono"
+                name="telefono"
+                value="{{ datos.telefono|default:'' }}"
+                placeholder="+56 9 1234 5678"
+                style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 7px;"
+            >
+        </div>
+
+    </div>
+
+
+    <!-- ============================== DATOS DE ACCESO ============================== -->
+
+    <h3 style="margin-top: 30px;">
+        Datos de acceso
+    </h3>
+
+    <div class="grid">
+
+        <div>
+            <label for="email" style="display: block; margin-bottom: 6px; font-weight: 600;">
+                Correo electrónico
+            </label>
+
+            <input
+                type="email"
+                id="email"
+                name="email"
+                value="{{ datos.email|default:'' }}"
+                required
+                style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 7px;"
+            >
+        </div>
+
+
+        <div>
+            <label for="username" style="display: block; margin-bottom: 6px; font-weight: 600;">
+                Nombre de usuario
+            </label>
+
+            <input
+                type="text"
+                id="username"
+                name="username"
+                value="{{ datos.username|default:'' }}"
+                required
+                style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 7px;"
+            >
+        </div>
+
+
+        <div>
+            <label for="password" style="display: block; margin-bottom: 6px; font-weight: 600;">
+                Contraseña
+            </label>
+
+            <input
+                type="password"
+                id="password"
+                name="password"
+                required
+                style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 7px;"
+            >
+        </div>
+
+
+        <div>
+            <label for="password_confirmacion" style="display: block; margin-bottom: 6px; font-weight: 600;">
+                Confirmar contraseña
+            </label>
+
+            <input
+                type="password"
+                id="password_confirmacion"
+                name="password_confirmacion"
+                required
+                style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 7px;"
+            >
+        </div>
+
+    </div>
+
+
+    <!-- ============================== CONFIGURACIÓN ============================== -->
+
+    <h3 style="margin-top: 30px;">
+        Configuración del usuario
+    </h3>
+
+    <div class="grid">
+
+        <div>
+            <label for="rol" style="display: block; margin-bottom: 6px; font-weight: 600;">
+                Rol
+            </label>
+
+            <select
+                id="rol"
+                name="rol"
+                required
+                style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 7px;"
+            >
+
+                <option value="">
+                    Seleccionar rol
+                </option>
+
+                {% for rol in roles %}
+
+                    <option
+                        value="{{ rol.id }}"
+                        {% if datos.rol == rol.id|stringformat:"s" %}selected{% endif %}
+                    >
+                        {{ rol.nombre }}
+                    </option>
 
                 {% endfor %}
 
-            </ul>
+            </select>
+        </div>
+
+
+        {% if condominios %}
+
+            <div>
+
+                <label for="condominio" style="display: block; margin-bottom: 6px; font-weight: 600;">
+                    Condominio
+                </label>
+
+                <select
+                    id="condominio"
+                    name="condominio"
+                    style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 7px;"
+                >
+
+                    <option value="">
+                        Sin condominio
+                    </option>
+
+                    {% for condominio in condominios %}
+
+                        <option
+                            value="{{ condominio.id }}"
+                            {% if datos.condominio == condominio.id|stringformat:"s" %}selected{% endif %}
+                        >
+                            {{ condominio.nombre }}
+                        </option>
+
+                    {% endfor %}
+
+                </select>
+
+            </div>
+
+        {% endif %}
+
+    </div>
+
+
+    <!-- ============================== ERRORES ============================== -->
+
+    {% if errores %}
+
+        <div style="margin-top: 25px; padding: 12px 15px; border-radius: 7px; background: #fee2e2; color: #991b1b;">
+
+            {% for error in errores %}
+
+                <div style="margin-bottom: 5px;">
+                    {{ error }}
+                </div>
+
+            {% endfor %}
 
         </div>
 
     {% endif %}
 
 
-    <form method="post">
+    <!-- ============================== BOTONES ============================== -->
 
-        {% csrf_token %}
+    <div style="margin-top: 30px; display: flex; gap: 10px; flex-wrap: wrap;">
 
-
-        <h2>
-            Datos de acceso
-        </h2>
-
-
-        <label for="username">
-            Nombre de usuario:
-        </label>
-
-        <input
-            type="text"
-            id="username"
-            name="username"
-            value="{{ datos.username|default:'' }}"
-            required
-        >
-
-        <br><br>
-
-
-        <label for="password">
-            Contraseña:
-        </label>
-
-        <input
-            type="password"
-            id="password"
-            name="password"
-            required
-        >
-
-        <br><br>
-
-
-        <label for="password_confirmacion">
-            Confirmar contraseña:
-        </label>
-
-        <input
-            type="password"
-            id="password_confirmacion"
-            name="password_confirmacion"
-            required
-        >
-
-
-        <h2>
-            Datos personales
-        </h2>
-
-
-        <label for="nombre">
-            Nombre:
-        </label>
-
-        <input
-            type="text"
-            id="nombre"
-            name="nombre"
-            value="{{ datos.nombre|default:'' }}"
-            required
-        >
-
-        <br><br>
-
-
-        <label for="nombre2">
-            Segundo nombre:
-        </label>
-
-        <input
-            type="text"
-            id="nombre2"
-            name="nombre2"
-            value="{{ datos.nombre2|default:'' }}"
-        >
-
-        <br><br>
-
-
-        <label for="apellido">
-            Apellido:
-        </label>
-
-        <input
-            type="text"
-            id="apellido"
-            name="apellido"
-            value="{{ datos.apellido|default:'' }}"
-            required
-        >
-
-        <br><br>
-
-
-        <label for="apellido2">
-            Segundo apellido:
-        </label>
-
-        <input
-            type="text"
-            id="apellido2"
-            name="apellido2"
-            value="{{ datos.apellido2|default:'' }}"
-        >
-
-        <br><br>
-
-
-        <label for="rut">
-            RUT:
-        </label>
-
-        <input
-            type="text"
-            id="rut"
-            name="rut"
-            value="{{ datos.rut|default:'' }}"
-        >
-
-        <br><br>
-
-
-        <label for="email">
-            Correo electrónico:
-        </label>
-
-        <input
-            type="email"
-            id="email"
-            name="email"
-            value="{{ datos.email|default:'' }}"
-            required
-        >
-
-        <br><br>
-
-
-        <label for="telefono">
-            Teléfono:
-        </label>
-
-        <input
-            type="text"
-            id="telefono"
-            name="telefono"
-            value="{{ datos.telefono|default:'' }}"
-        >
-
-
-        <h2>
-            Configuración
-        </h2>
-
-
-        <label for="rol">
-            Rol:
-        </label>
-
-        <select
-            id="rol"
-            name="rol"
-            required
-        >
-
-            <option value="">
-                Seleccionar rol
-            </option>
-
-            {% for rol in roles %}
-
-                <option
-                    value="{{ rol.id }}"
-                >
-                    {{ rol.nombre }}
-                </option>
-
-            {% endfor %}
-
-        </select>
-
-        <br><br>
-
-
-        <label for="condominio">
-            Condominio:
-        </label>
-
-        <select
-            id="condominio"
-            name="condominio"
-        >
-
-            <option value="">
-                Sin condominio
-            </option>
-
-            {% for condominio in condominios %}
-
-                <option
-                    value="{{ condominio.id }}"
-                >
-                    {{ condominio.nombre }}
-                </option>
-
-            {% endfor %}
-
-        </select>
-
-
-        <br><br>
-
-
-        <button type="submit">
+        <button type="submit" class="button">
             Crear usuario
         </button>
 
-    </form>
+        <a
+            href="{% url 'usuarios_lista' %}"
+            class="button button-secondary"
+        >
+            Cancelar
+        </a>
 
+    </div>
 
-    <br>
+</form>
+```
 
-    <a href="{% url 'usuarios_lista' %}">
-        Cancelar
-    </a>
+</div>
 
-</body>
-
-</html>
+{% endblock %}

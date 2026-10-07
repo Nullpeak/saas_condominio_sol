@@ -1,147 +1,245 @@
-<!DOCTYPE html>
-<html lang="es">
+{% extends "core/base.html" %}
 
-<head>
+{% block title %}
+Editar condominio - CondoGestión
+{% endblock %}
 
-    <meta charset="UTF-8">
+{% block page_title %}
+Editar condominio
+{% endblock %}
 
-    <meta name="viewport"
-          content="width=device-width, initial-scale=1.0">
+{% block content %}
 
-    <title>Editar condominio</title>
+<!-- ============================== ENCABEZADO ============================== -->
 
-</head>
+<div class="card">
 
-<body>
+```
+<h2>
+    Editar condominio
+</h2>
 
-    <h1>Editar condominio</h1>
+<p style="color: #64748b;">
+    Modifica los datos que necesites y guarda los cambios.
+</p>
+```
+
+</div>
+
+<!-- ============================== FORMULARIO ============================== -->
+
+<div class="card">
+
+```
+<form method="post" enctype="multipart/form-data">
+
+    {% csrf_token %}
 
 
-    {% if errores %}
+    <!-- ============================== INFORMACIÓN GENERAL ============================== -->
+
+    <h3>
+        Información general
+    </h3>
+
+    <div class="grid">
 
         <div>
 
-            <h3>Errores:</h3>
+            <label
+                for="nombre"
+                style="display: block; margin-bottom: 6px; font-weight: 600;"
+            >
+                Nombre del condominio
+            </label>
 
-            <ul>
+            <input
+                type="text"
+                id="nombre"
+                name="nombre"
+                value="{{ condominio.nombre }}"
+                required
+                style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 7px;"
+            >
 
-                {% for error in errores %}
+        </div>
 
-                    <li>
-                        {{ error }}
-                    </li>
+
+        <div>
+
+            <label
+                for="direccion"
+                style="display: block; margin-bottom: 6px; font-weight: 600;"
+            >
+                Dirección
+            </label>
+
+            <input
+                type="text"
+                id="direccion"
+                name="direccion"
+                value="{{ condominio.direccion }}"
+                required
+                style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 7px;"
+            >
+
+        </div>
+
+
+        <div>
+
+            <label
+                for="ciudad"
+                style="display: block; margin-bottom: 6px; font-weight: 600;"
+            >
+                Ciudad
+            </label>
+
+            <select
+                id="ciudad"
+                name="ciudad"
+                required
+                style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 7px;"
+            >
+
+                {% for ciudad in ciudades %}
+
+                    <option
+                        value="{{ ciudad.id }}"
+                        {% if condominio.ciudad_id == ciudad.id %}selected{% endif %}
+                    >
+                        {{ ciudad.nombre }}
+                    </option>
 
                 {% endfor %}
 
-            </ul>
+            </select>
+
+        </div>
+
+    </div>
+
+
+    <!-- ============================== PORTADA ============================== -->
+
+    <h3 style="margin-top: 30px;">
+        Imagen del condominio
+    </h3>
+
+    {% if condominio.portada %}
+
+        <div style="margin-bottom: 15px;">
+
+            <p style="margin-bottom: 8px; color: #64748b;">
+                Portada actual:
+            </p>
+
+            <img
+                src="{{ condominio.portada.url }}"
+                alt="Portada de {{ condominio.nombre }}"
+                style="max-width: 300px; max-height: 180px; object-fit: cover; border-radius: 8px; border: 1px solid #d1d5db;"
+            >
 
         </div>
 
     {% endif %}
 
 
-    <form method="post">
+    <div>
 
-        {% csrf_token %}
-
-
-        <label for="nombre">
-            Nombre:
+        <label
+            for="portada"
+            style="display: block; margin-bottom: 6px; font-weight: 600;"
+        >
+            {% if condominio.portada %}
+                Cambiar portada
+            {% else %}
+                Agregar portada
+            {% endif %}
         </label>
-
-        <br>
 
         <input
-            type="text"
-            id="nombre"
-            name="nombre"
-            value="{{ condominio.nombre }}"
-            required
+            type="file"
+            id="portada"
+            name="portada"
+            accept="image/*"
+            style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 7px; background: white;"
         >
 
-        <br><br>
+        <small style="display: block; margin-top: 6px; color: #64748b;">
+            Si no seleccionas una imagen, se conservará la portada actual.
+        </small>
+
+    </div>
 
 
-        <label for="direccion">
-            Dirección:
-        </label>
+    <!-- ============================== ESTADO ============================== -->
 
-        <br>
+    <h3 style="margin-top: 30px;">
+        Estado
+    </h3>
+
+    <label
+        style="display: flex; align-items: center; gap: 8px; font-weight: 600;"
+    >
 
         <input
-            type="text"
-            id="direccion"
-            name="direccion"
-            value="{{ condominio.direccion }}"
-            required
+            type="checkbox"
+            name="activo"
+            {% if condominio.activo %}checked{% endif %}
         >
 
-        <br><br>
+        Condominio activo
+
+    </label>
 
 
-        <label for="ciudad">
-            Ciudad:
-        </label>
+    <!-- ============================== ERRORES ============================== -->
 
-        <br>
+    {% if errores %}
 
-        <select
-            id="ciudad"
-            name="ciudad"
-            required
+        <div
+            style="margin-top: 25px; padding: 12px 15px; border-radius: 7px; background: #fee2e2; color: #991b1b;"
         >
 
-            {% for ciudad in ciudades %}
+            {% for error in errores %}
 
-                <option
-                    value="{{ ciudad.id }}"
-                    {% if condominio.ciudad_id == ciudad.id %}
-                        selected
-                    {% endif %}
-                >
-
-                    {{ ciudad }}
-
-                </option>
+                <div style="margin-bottom: 5px;">
+                    {{ error }}
+                </div>
 
             {% endfor %}
 
-        </select>
+        </div>
 
-        <br><br>
-
-
-        <label>
-
-            <input
-                type="checkbox"
-                name="activo"
-                {% if condominio.activo %}
-                    checked
-                {% endif %}
-            >
-
-            Condominio activo
-
-        </label>
-
-        <br><br>
+    {% endif %}
 
 
-        <button type="submit">
+    <!-- ============================== BOTONES ============================== -->
+
+    <div
+        style="margin-top: 30px; display: flex; gap: 10px; flex-wrap: wrap;"
+    >
+
+        <button
+            type="submit"
+            class="button"
+        >
             Guardar cambios
         </button>
 
-    </form>
+        <a
+            href="{% url 'condominios_lista' %}"
+            class="button button-secondary"
+        >
+            Cancelar
+        </a>
 
+    </div>
 
-    <br>
+</form>
+```
 
-    <a href="{% url 'condominios_lista' %}">
-        Cancelar
-    </a>
+</div>
 
-
-</body>
-
-</html>
+{% endblock %}

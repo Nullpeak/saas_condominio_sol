@@ -5,7 +5,9 @@ from django.contrib.auth.models import User
 from django.contrib.auth.views import PasswordResetView, PasswordResetDoneView, PasswordResetConfirmView, PasswordResetCompleteView
 from django.urls import reverse_lazy
 from django.db import transaction
+from django.core.exceptions import ValidationError
 
+from .validators import validar_rut, formatear_rut, validar_telefono, formatear_telefono
 from .models import Usuario, Rol, Condominio
 
 
@@ -14,26 +16,34 @@ from .models import Usuario, Rol, Condominio
 def obtener_usuario(request):
     return request.user.usuario
 
+
 def tiene_rol(usuario, *roles):
     return usuario.rol.nombre in roles
+
 
 def es_super_administrador(usuario):
     return tiene_rol(usuario, "Super Administrador")
 
+
 def es_administrador(usuario):
     return tiene_rol(usuario, "Administrador")
+
 
 def es_gestor(usuario):
     return tiene_rol(usuario, "Gestor")
 
+
 def es_residente(usuario):
     return tiene_rol(usuario, "Residente")
+
 
 def puede_gestionar_usuarios(usuario):
     return tiene_rol(usuario, "Super Administrador", "Administrador")
 
+
 def puede_gestionar_condominio(usuario):
     return tiene_rol(usuario, "Super Administrador", "Administrador")
+
 
 def puede_gestionar_roles(usuario):
     return es_super_administrador(usuario)
@@ -49,11 +59,19 @@ def login_view(request):
         username = request.POST.get("username", "").strip()
         password = request.POST.get("password", "")
 
-        usuario_django = authenticate(request, username=username, password=password)
+        usuario_django = authenticate(
+            request,
+            username=username,
+            password=password
+        )
 
         if usuario_django is not None:
             try:
-                usuario = Usuario.objects.select_related("rol", "condominio").get(user=usuario_django)
+                usuario = Usuario.objects.select_related(
+                    "rol",
+                    "condominio"
+                ).get(user=usuario_django)
+
             except Usuario.DoesNotExist:
                 return render(request, "core/login.html", {
                     "error": "La cuenta no está configurada correctamente."
@@ -85,7 +103,9 @@ def logout_view(request):
 def password_reset_request(request):
     # Sincroniza los correos del perfil con el usuario de Django.
     # Esto permite que Django encuentre correctamente la cuenta.
-    for usuario in Usuario.objects.select_related("user").filter(user__isnull=False):
+    for usuario in Usuario.objects.select_related("user").filter(
+        user__isnull=False
+    ):
         if usuario.user.email != usuario.email:
             usuario.user.email = usuario.email
             usuario.user.save(update_fields=["email"])
@@ -117,7 +137,11 @@ def password_reset_confirm(request, uidb64, token):
         success_url=reverse_lazy("password_reset_complete")
     )
 
-    return vista(request, uidb64=uidb64, token=token)
+    return vista(
+        request,
+        uidb64=uidb64,
+        token=token
+    )
 
 
 def password_reset_complete(request):
@@ -150,15 +174,26 @@ def administracion(request):
 
     if es_super_administrador(usuario):
         condominios = Condominio.objects.filter(activo=True)
-        usuarios = Usuario.objects.select_related("user", "rol", "condominio").all()
+
+        usuarios = Usuario.objects.select_related(
+            "user",
+            "rol",
+            "condominio"
+        ).all()
+
     else:
         condominios = Condominio.objects.filter(
             id=usuario.condominio_id,
             activo=True
         )
+
         usuarios = Usuario.objects.select_related(
-            "user", "rol", "condominio"
-        ).filter(condominio=usuario.condominio)
+            "user",
+            "rol",
+            "condominio"
+        ).filter(
+            condominio=usuario.condominio
+        )
 
     return render(request, "core/administracion.html", {
         "usuario": usuario,
@@ -178,15 +213,22 @@ def usuarios_lista(request):
 
     if es_super_administrador(usuario_actual):
         usuarios = Usuario.objects.select_related(
-            "user", "rol", "condominio"
+            "user",
+            "rol",
+            "condominio"
         ).all()
+
     else:
         usuarios = Usuario.objects.select_related(
-            "user", "rol", "condominio"
-        ).filter(condominio=usuario_actual.condominio)
+            "user",
+            "rol",
+            "condominio"
+        ).filter(
+            condominio=usuario_actual.condominio
+        )
 
     return render(request, "core/usuarios/lista.html", {
-        "usuario_actual": usuario_actual,
+        "usuario": usuario_actual,
         "usuarios": usuarios,
     })
 
@@ -204,6 +246,7 @@ def usuario_crear(request):
 
     if es_super_administrador(usuario_actual):
         condominios = Condominio.objects.filter(activo=True)
+
     else:
         condominios = Condominio.objects.filter(
             id=usuario_actual.condominio_id,
@@ -213,7 +256,10 @@ def usuario_crear(request):
     if request.method == "POST":
         username = request.POST.get("username", "").strip()
         password = request.POST.get("password", "")
-        password_confirmacion = request.POST.get("password_confirmacion", "")
+        password_confirmacion = request.POST.get(
+            "password_confirmacion",
+            ""
+        )
         nombre = request.POST.get("nombre", "").strip()
         nombre2 = request.POST.get("nombre2", "").strip()
         apellido = request.POST.get("apellido", "").strip()
@@ -226,50 +272,132 @@ def usuario_crear(request):
 
         errores = []
 
+        #============================== DATOS BÁSICOS ==============================
+
         if not username:
-            errores.append("Debes ingresar un nombre de usuario.")
+            errores.append(
+                "Debes ingresar un nombre de usuario."
+            )
 
         if not password:
-            errores.append("Debes ingresar una contraseña.")
+            errores.append(
+                "Debes ingresar una contraseña."
+            )
 
         if password != password_confirmacion:
-            errores.append("Las contraseñas no coinciden.")
+            errores.append(
+                "Las contraseñas no coinciden."
+            )
 
         if not nombre:
-            errores.append("Debes ingresar el nombre.")
+            errores.append(
+                "Debes ingresar el nombre."
+            )
 
         if not apellido:
-            errores.append("Debes ingresar el apellido.")
+            errores.append(
+                "Debes ingresar el apellido."
+            )
 
         if not email:
-            errores.append("Debes ingresar un correo electrónico.")
+            errores.append(
+                "Debes ingresar un correo electrónico."
+            )
 
         if not rol_id:
-            errores.append("Debes seleccionar un rol.")
+            errores.append(
+                "Debes seleccionar un rol."
+            )
 
-        if username and User.objects.filter(username=username).exists():
-            errores.append("El nombre de usuario ya está registrado.")
+        #============================== VALIDAR RUT ==============================
 
-        if email and Usuario.objects.filter(email=email).exists():
-            errores.append("El correo electrónico ya está registrado.")
+        rut_normalizado = None
+
+        if not rut:
+            errores.append(
+                "Debes ingresar el RUT."
+            )
+
+        else:
+            try:
+                validar_rut(rut)
+
+                rut_normalizado = formatear_rut(rut)
+
+                if Usuario.objects.filter(
+                    rut=rut_normalizado
+                ).exists():
+                    errores.append(
+                        "El RUT ya está registrado."
+                    )
+
+            except ValidationError as error:
+                errores.extend(error.messages)
+
+        #============================== VALIDAR TELÉFONO ==============================
+
+        telefono_normalizado = None
+
+        if telefono:
+            try:
+                validar_telefono(telefono)
+                telefono_normalizado = formatear_telefono(telefono)
+
+            except ValidationError as error:
+                errores.extend(error.messages)
+
+        #============================== VALIDAR USUARIO ==============================
+
+        if username and User.objects.filter(
+            username=username
+        ).exists():
+            errores.append(
+                "El nombre de usuario ya está registrado."
+            )
+
+        #============================== VALIDAR CORREO ==============================
+
+        if email and Usuario.objects.filter(
+            email=email
+        ).exists():
+            errores.append(
+                "El correo electrónico ya está registrado."
+            )
+
+        #============================== OBTENER ROL ==============================
 
         rol = None
 
         if rol_id:
             try:
-                rol = Rol.objects.get(id=int(rol_id))
+                rol = Rol.objects.get(
+                    id=int(rol_id)
+                )
+
             except (Rol.DoesNotExist, ValueError):
-                errores.append("El rol seleccionado no es válido.")
+                errores.append(
+                    "El rol seleccionado no es válido."
+                )
+
+        #============================== OBTENER CONDOMINIO ==============================
 
         condominio = None
 
         if condominio_id:
             try:
-                condominio = Condominio.objects.get(id=int(condominio_id))
+                condominio = Condominio.objects.get(
+                    id=int(condominio_id)
+                )
+
             except (Condominio.DoesNotExist, ValueError):
-                errores.append("El condominio seleccionado no es válido.")
+                errores.append(
+                    "El condominio seleccionado no es válido."
+                )
+
+        #============================== PERMISOS DEL ADMINISTRADOR ==============================
 
         if es_administrador(usuario_actual):
+
             if rol and rol.nombre == "Super Administrador":
                 errores.append(
                     "Un Administrador no puede crear un Super Administrador."
@@ -286,13 +414,20 @@ def usuario_crear(request):
                         errores.append(
                             "Solo puedes crear usuarios dentro de tu propio condominio."
                         )
+
                 except ValueError:
-                    errores.append("El condominio seleccionado no es válido.")
+                    errores.append(
+                        "El condominio seleccionado no es válido."
+                    )
 
             condominio = usuario_actual.condominio
 
+        #============================== CREAR USUARIO ==============================
+
         if not errores:
+
             with transaction.atomic():
+
                 user = User.objects.create_user(
                     username=username,
                     password=password,
@@ -308,15 +443,15 @@ def usuario_crear(request):
                     apellido2=apellido2,
                     rol=rol,
                     email=email,
-                    telefono=telefono,
-                    rut=rut or None,
+                    telefono=telefono_normalizado,
+                    rut=rut_normalizado,
                     activo=True,
                 )
 
             return redirect("usuarios_lista")
 
         return render(request, "core/usuarios/crear.html", {
-            "usuario_actual": usuario_actual,
+            "usuario": usuario_actual,
             "roles": roles,
             "condominios": condominios,
             "errores": errores,
@@ -324,7 +459,7 @@ def usuario_crear(request):
         })
 
     return render(request, "core/usuarios/crear.html", {
-        "usuario_actual": usuario_actual,
+        "usuario": usuario_actual,
         "roles": roles,
         "condominios": condominios,
     })
@@ -340,11 +475,16 @@ def usuario_editar(request, usuario_id):
         return redirect("inicio")
 
     usuario = get_object_or_404(
-        Usuario.objects.select_related("user", "rol", "condominio"),
+        Usuario.objects.select_related(
+            "user",
+            "rol",
+            "condominio"
+        ),
         id=usuario_id
     )
 
     if es_administrador(usuario_actual):
+
         if usuario.condominio_id != usuario_actual.condominio_id:
             return redirect("usuarios_lista")
 
@@ -355,6 +495,7 @@ def usuario_editar(request, usuario_id):
 
     if es_super_administrador(usuario_actual):
         condominios = Condominio.objects.filter(activo=True)
+
     else:
         condominios = Condominio.objects.filter(
             id=usuario_actual.condominio_id,
@@ -375,68 +516,160 @@ def usuario_editar(request, usuario_id):
 
         errores = []
 
+        #============================== DATOS BÁSICOS ==============================
+
         if not nombre:
-            errores.append("Debes ingresar el nombre.")
+            errores.append(
+                "Debes ingresar el nombre."
+            )
 
         if not apellido:
-            errores.append("Debes ingresar el apellido.")
+            errores.append(
+                "Debes ingresar el apellido."
+            )
 
         if not email:
-            errores.append("Debes ingresar un correo.")
+            errores.append(
+                "Debes ingresar un correo."
+            )
 
-        if Usuario.objects.filter(email=email).exclude(id=usuario.id).exists():
-            errores.append("El correo electrónico ya está registrado.")
+        #============================== VALIDAR RUT ==============================
+
+        rut_normalizado = None
+
+        if not rut:
+            errores.append(
+                "Debes ingresar el RUT."
+            )
+
+        else:
+            try:
+                validar_rut(rut)
+
+                rut_normalizado = formatear_rut(rut)
+
+                if Usuario.objects.filter(
+                    rut=rut_normalizado
+                ).exclude(
+                    id=usuario.id
+                ).exists():
+                    errores.append(
+                        "El RUT ya está registrado."
+                    )
+
+            except ValidationError as error:
+                errores.extend(error.messages)
+
+        #============================== VALIDAR TELÉFONO ==============================
+
+        telefono_normalizado = None
+
+        if telefono:
+            try:
+                validar_telefono(telefono)
+                telefono_normalizado = formatear_telefono(telefono)
+
+            except ValidationError as error:
+                errores.extend(error.messages)
+
+        #============================== VALIDAR CORREO ==============================
+
+        if Usuario.objects.filter(
+            email=email
+        ).exclude(
+            id=usuario.id
+        ).exists():
+            errores.append(
+                "El correo electrónico ya está registrado."
+            )
+
+        #============================== OBTENER ROL ==============================
 
         rol = None
 
         if not rol_id:
-            errores.append("Debes seleccionar un rol.")
+            errores.append(
+                "Debes seleccionar un rol."
+            )
+
         else:
             try:
-                rol = Rol.objects.get(id=int(rol_id))
+                rol = Rol.objects.get(
+                    id=int(rol_id)
+                )
+
             except (Rol.DoesNotExist, ValueError):
-                errores.append("El rol seleccionado no es válido.")
+                errores.append(
+                    "El rol seleccionado no es válido."
+                )
+
+        #============================== OBTENER CONDOMINIO ==============================
 
         condominio = None
 
         if es_administrador(usuario_actual):
+
             condominio = usuario_actual.condominio
 
             if not condominio:
-                errores.append("El Administrador no tiene un condominio asociado.")
+                errores.append(
+                    "El Administrador no tiene un condominio asociado."
+                )
+
         else:
+
             if condominio_id:
                 try:
-                    condominio = Condominio.objects.get(id=int(condominio_id))
+                    condominio = Condominio.objects.get(
+                        id=int(condominio_id)
+                    )
+
                 except (Condominio.DoesNotExist, ValueError):
-                    errores.append("El condominio seleccionado no es válido.")
+                    errores.append(
+                        "El condominio seleccionado no es válido."
+                    )
+
             else:
                 condominio = None
 
+        #============================== PERMISOS DEL ADMINISTRADOR ==============================
+
         if es_administrador(usuario_actual):
+
             if rol and rol.nombre == "Super Administrador":
                 errores.append(
                     "Un Administrador no puede asignar el rol de Super Administrador."
                 )
 
+        #============================== GUARDAR CAMBIOS ==============================
+
         if not errores:
+
             with transaction.atomic():
+
                 usuario.nombre = nombre
                 usuario.nombre2 = nombre2
                 usuario.apellido = apellido
                 usuario.apellido2 = apellido2
                 usuario.email = email
-                usuario.telefono = telefono
-                usuario.rut = rut or None
+                usuario.telefono = telefono_normalizado
+                usuario.rut = rut_normalizado
                 usuario.rol = rol
                 usuario.condominio = condominio
                 usuario.activo = activo
+
                 usuario.save()
 
                 if usuario.user:
                     usuario.user.email = email
                     usuario.user.is_active = activo
-                    usuario.user.save(update_fields=["email", "is_active"])
+
+                    usuario.user.save(
+                        update_fields=[
+                            "email",
+                            "is_active"
+                        ]
+                    )
 
             return redirect("usuarios_lista")
 
@@ -466,11 +699,20 @@ def usuario_cambiar_estado(request, usuario_id):
         return redirect("inicio")
 
     usuario = get_object_or_404(
-        Usuario.objects.select_related("rol", "condominio", "user"),
+        Usuario.objects.select_related(
+            "rol",
+            "condominio",
+            "user"
+        ),
         id=usuario_id
     )
 
+    # Un usuario no puede desactivar su propia cuenta.
+    if usuario.id == usuario_actual.id:
+        return redirect("usuarios_lista")
+
     if es_administrador(usuario_actual):
+
         if usuario.condominio_id != usuario_actual.condominio_id:
             return redirect("usuarios_lista")
 
@@ -482,7 +724,9 @@ def usuario_cambiar_estado(request, usuario_id):
 
     if usuario.user:
         usuario.user.is_active = usuario.activo
-        usuario.user.save(update_fields=["is_active"])
+        usuario.user.save(
+            update_fields=["is_active"]
+        )
 
     return redirect("usuarios_lista")
 
@@ -497,7 +741,10 @@ def condominios_lista(request):
         return redirect("inicio")
 
     if es_super_administrador(usuario_actual):
-        condominios = Condominio.objects.filter(activo=True)
+        condominios = Condominio.objects.filter(
+            activo=True
+        )
+
     else:
         condominios = Condominio.objects.filter(
             id=usuario_actual.condominio_id,
@@ -528,17 +775,24 @@ def condominio_crear(request):
         direccion = request.POST.get("direccion", "").strip()
         ciudad_id = request.POST.get("ciudad", "").strip()
         edificios = request.POST.get("edificios", "1").strip()
+        portada = request.FILES.get("portada")
 
         errores = []
 
         if not nombre:
-            errores.append("Debes ingresar el nombre del condominio.")
+            errores.append(
+                "Debes ingresar el nombre del condominio."
+            )
 
         if not direccion:
-            errores.append("Debes ingresar la dirección.")
+            errores.append(
+                "Debes ingresar la dirección."
+            )
 
         if not ciudad_id:
-            errores.append("Debes seleccionar una ciudad.")
+            errores.append(
+                "Debes seleccionar una ciudad."
+            )
 
         try:
             edificios_numero = int(edificios)
@@ -547,38 +801,48 @@ def condominio_crear(request):
                 errores.append(
                     "El condominio debe tener al menos un edificio."
                 )
+
         except ValueError:
             edificios_numero = 1
-            errores.append("La cantidad de edificios no es válida.")
+            errores.append(
+                "La cantidad de edificios no es válida."
+            )
 
         ciudad = None
 
         if ciudad_id:
             try:
-                ciudad = Ciudad.objects.get(id=int(ciudad_id))
+                ciudad = Ciudad.objects.get(
+                    id=int(ciudad_id)
+                )
+
             except (Ciudad.DoesNotExist, ValueError):
-                errores.append("La ciudad seleccionada no es válida.")
+                errores.append(
+                    "La ciudad seleccionada no es válida."
+                )
 
         if not errores:
+
             Condominio.objects.create(
                 nombre=nombre,
                 direccion=direccion,
                 ciudad=ciudad,
                 edificios=edificios_numero,
+                portada=portada,
                 activo=True,
             )
 
             return redirect("condominios_lista")
 
         return render(request, "core/condominios/crear.html", {
-            "usuario_actual": usuario_actual,
+            "usuario": usuario_actual,
             "ciudades": ciudades,
             "errores": errores,
             "datos": request.POST,
         })
 
     return render(request, "core/condominios/crear.html", {
-        "usuario_actual": usuario_actual,
+        "usuario": usuario_actual,
         "ciudades": ciudades,
     })
 
@@ -592,9 +856,13 @@ def condominio_editar(request, condominio_id):
     if not puede_gestionar_condominio(usuario_actual):
         return redirect("inicio")
 
-    condominio = get_object_or_404(Condominio, id=condominio_id)
+    condominio = get_object_or_404(
+        Condominio,
+        id=condominio_id
+    )
 
     if es_administrador(usuario_actual):
+
         if condominio.id != usuario_actual.condominio_id:
             return redirect("condominios_lista")
 
@@ -607,43 +875,62 @@ def condominio_editar(request, condominio_id):
         direccion = request.POST.get("direccion", "").strip()
         ciudad_id = request.POST.get("ciudad", "").strip()
         activo = request.POST.get("activo") == "on"
+        portada = request.FILES.get("portada")
 
         errores = []
 
         if not nombre:
-            errores.append("Debes ingresar el nombre del condominio.")
+            errores.append(
+                "Debes ingresar el nombre del condominio."
+            )
 
         if not direccion:
-            errores.append("Debes ingresar la dirección.")
+            errores.append(
+                "Debes ingresar la dirección."
+            )
 
         ciudad = None
 
         if ciudad_id:
+
             try:
-                ciudad = Ciudad.objects.get(id=int(ciudad_id))
+                ciudad = Ciudad.objects.get(
+                    id=int(ciudad_id)
+                )
+
             except (Ciudad.DoesNotExist, ValueError):
-                errores.append("La ciudad seleccionada no es válida.")
+                errores.append(
+                    "La ciudad seleccionada no es válida."
+                )
+
         else:
-            errores.append("Debes seleccionar una ciudad.")
+            errores.append(
+                "Debes seleccionar una ciudad."
+            )
 
         if not errores:
+
             condominio.nombre = nombre
             condominio.direccion = direccion
             condominio.ciudad = ciudad
             condominio.activo = activo
+
+            if portada:
+                condominio.portada = portada
+
             condominio.save()
 
             return redirect("condominios_lista")
 
         return render(request, "core/condominios/editar.html", {
-            "usuario_actual": usuario_actual,
+            "usuario": usuario_actual,
             "condominio": condominio,
             "ciudades": ciudades,
             "errores": errores,
         })
 
     return render(request, "core/condominios/editar.html", {
-        "usuario_actual": usuario_actual,
+        "usuario": usuario_actual,
         "condominio": condominio,
         "ciudades": ciudades,
     })
@@ -660,13 +947,19 @@ def edificios_lista(request, condominio_id):
     if not puede_gestionar_condominio(usuario_actual):
         return redirect("inicio")
 
-    condominio = get_object_or_404(Condominio, id=condominio_id)
+    condominio = get_object_or_404(
+        Condominio,
+        id=condominio_id
+    )
 
     if es_administrador(usuario_actual):
+
         if condominio.id != usuario_actual.condominio_id:
             return redirect("condominios_lista")
 
-    edificios = condominio.edificios_set.all().prefetch_related("unidades")
+    edificios = condominio.edificios_set.all().prefetch_related(
+        "unidades"
+    )
 
     return render(request, "core/condominios/edificios.html", {
         "usuario_actual": usuario_actual,
@@ -694,19 +987,30 @@ def edificio_editar(request, edificio_id):
     condominio = edificio.condominio
 
     if es_administrador(usuario_actual):
+
         if condominio.id != usuario_actual.condominio_id:
             return redirect("condominios_lista")
 
     if request.method == "POST":
         nombre = request.POST.get("nombre", "").strip()
-        numero_pisos = request.POST.get("numero_pisos", "").strip()
-        viviendas_por_piso = request.POST.get("viviendas_por_piso", "").strip()
-        subterraneo = request.POST.get("subterraneo") == "on"
+        numero_pisos = request.POST.get(
+            "numero_pisos",
+            ""
+        ).strip()
+        viviendas_por_piso = request.POST.get(
+            "viviendas_por_piso",
+            ""
+        ).strip()
+        subterraneo = request.POST.get(
+            "subterraneo"
+        ) == "on"
 
         errores = []
 
         if not nombre:
-            errores.append("Debes ingresar el nombre del edificio.")
+            errores.append(
+                "Debes ingresar el nombre del edificio."
+            )
 
         try:
             pisos = int(numero_pisos)
@@ -715,9 +1019,12 @@ def edificio_editar(request, edificio_id):
                 errores.append(
                     "El número de pisos debe estar entre 2 y 20."
                 )
+
         except ValueError:
             pisos = None
-            errores.append("El número de pisos no es válido.")
+            errores.append(
+                "El número de pisos no es válido."
+            )
 
         try:
             viviendas = int(viviendas_por_piso)
@@ -726,15 +1033,20 @@ def edificio_editar(request, edificio_id):
                 errores.append(
                     "Debe existir al menos una vivienda por piso."
                 )
+
         except ValueError:
             viviendas = None
-            errores.append("La cantidad de viviendas no es válida.")
+            errores.append(
+                "La cantidad de viviendas no es válida."
+            )
 
         if not errores:
+
             edificio.nombre = nombre
             edificio.numero_pisos = pisos
             edificio.viviendas_por_piso = viviendas
             edificio.subterraneo = subterraneo
+
             edificio.save()
 
             return redirect(
@@ -742,18 +1054,26 @@ def edificio_editar(request, edificio_id):
                 condominio_id=condominio.id
             )
 
-        return render(request, "core/condominios/editar.html", {
-            "usuario_actual": usuario_actual,
+        return render(
+            request,
+            "core/condominios/edificios_editar.html",
+            {
+                "usuario": usuario_actual,
+                "edificio": edificio,
+                "condominio": condominio,
+                "errores": errores,
+            }
+        )
+
+    return render(
+        request,
+        "core/condominios/edificios_editar.html",
+        {
+            "usuario": usuario_actual,
             "edificio": edificio,
             "condominio": condominio,
-            "errores": errores,
-        })
-
-    return render(request, "core/condominios/editar.html", {
-        "usuario_actual": usuario_actual,
-        "edificio": edificio,
-        "condominio": condominio,
-    })
+        }
+    )
 
 
 #============================== UNIDADES DE UN EDIFICIO ==============================
@@ -773,20 +1093,28 @@ def unidades_lista(request, edificio_id):
     )
 
     if es_administrador(usuario_actual):
+
         if edificio.condominio_id != usuario_actual.condominio_id:
             return redirect("condominios_lista")
 
     unidades = edificio.unidades.select_related(
         "dueno",
         "arrendatario"
-    ).order_by("piso", "posicion")
+    ).order_by(
+        "piso",
+        "posicion"
+    )
 
-    return render(request, "core/condominios/unidades.html", {
-        "usuario_actual": usuario_actual,
-        "edificio": edificio,
-        "condominio": edificio.condominio,
-        "unidades": unidades,
-    })
+    return render(
+        request,
+        "core/condominios/unidades.html",
+        {
+            "usuario_actual": usuario_actual,
+            "edificio": edificio,
+            "condominio": edificio.condominio,
+            "unidades": unidades,
+        }
+    )
 
 
 #============================== EDITAR UNIDAD ==============================
@@ -812,6 +1140,7 @@ def unidad_editar(request, unidad_id):
     condominio = unidad.edificio.condominio
 
     if es_administrador(usuario_actual):
+
         if usuario_actual.condominio_id != condominio.id:
             return redirect("condominios_lista")
 
@@ -819,17 +1148,30 @@ def unidad_editar(request, unidad_id):
         condominio=condominio,
         activo=True,
         rol__nombre="Residente"
-    ).select_related("rol").order_by("apellido", "nombre")
+    ).select_related(
+        "rol"
+    ).order_by(
+        "apellido",
+        "nombre"
+    )
 
     if request.method == "POST":
-        dueno_id = request.POST.get("dueno_id", "").strip()
-        arrendatario_id = request.POST.get("arrendatario_id", "").strip()
+        dueno_id = request.POST.get(
+            "dueno_id",
+            ""
+        ).strip()
+
+        arrendatario_id = request.POST.get(
+            "arrendatario_id",
+            ""
+        ).strip()
 
         errores = []
         dueno = None
         arrendatario = None
 
         if dueno_id:
+
             try:
                 dueno = Usuario.objects.get(
                     id=int(dueno_id),
@@ -837,10 +1179,17 @@ def unidad_editar(request, unidad_id):
                     activo=True,
                     rol__nombre="Residente"
                 )
-            except (Usuario.DoesNotExist, ValueError):
-                errores.append("El propietario seleccionado no es válido.")
+
+            except (
+                Usuario.DoesNotExist,
+                ValueError
+            ):
+                errores.append(
+                    "El propietario seleccionado no es válido."
+                )
 
         if arrendatario_id:
+
             try:
                 arrendatario = Usuario.objects.get(
                     id=int(arrendatario_id),
@@ -848,12 +1197,20 @@ def unidad_editar(request, unidad_id):
                     activo=True,
                     rol__nombre="Residente"
                 )
-            except (Usuario.DoesNotExist, ValueError):
-                errores.append("El arrendatario seleccionado no es válido.")
+
+            except (
+                Usuario.DoesNotExist,
+                ValueError
+            ):
+                errores.append(
+                    "El arrendatario seleccionado no es válido."
+                )
 
         if not errores:
+
             unidad.dueno = dueno
             unidad.arrendatario = arrendatario
+
             unidad.save()
 
             return redirect(
@@ -861,15 +1218,35 @@ def unidad_editar(request, unidad_id):
                 edificio_id=unidad.edificio.id
             )
 
-        return render(request, "core/condominios/unidad_editar.html", {
+        return render(
+            request,
+            "core/condominios/unidad_editar.html",
+            {
+                "usuario_actual": usuario_actual,
+                "unidad": unidad,
+                "usuarios": usuarios,
+                "errores": errores,
+            }
+        )
+
+    return render(
+        request,
+        "core/condominios/unidad_editar.html",
+        {
             "usuario_actual": usuario_actual,
             "unidad": unidad,
             "usuarios": usuarios,
-            "errores": errores,
-        })
+        }
+    )
 
-    return render(request, "core/condominios/unidad_editar.html", {
-        "usuario_actual": usuario_actual,
-        "unidad": unidad,
-        "usuarios": usuarios,
-    })
+
+#============================== PÁGINA PÚBLICA ==============================
+
+def landing(request):
+    if request.user.is_authenticated:
+        return redirect("inicio")
+
+    return render(
+        request,
+        "core/landing.html"
+    )

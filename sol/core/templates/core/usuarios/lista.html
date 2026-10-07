@@ -1,160 +1,200 @@
-<!DOCTYPE html>
-<html lang="es">
+{% extends "core/base.html" %}
 
-<head>
+{% block title %}
+Usuarios - CondoGestión
+{% endblock %}
 
-    <meta charset="UTF-8">
+{% block page_title %}
+Usuarios
+{% endblock %}
 
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
+{% block content %}
 
-    <title>Usuarios</title>
+<!-- ============================== ENCABEZADO ============================== -->
 
-</head>
+<div class="card">
 
-<body>
+    <div style="display: flex; justify-content: space-between; align-items: center; gap: 15px; flex-wrap: wrap;">
 
-    <h1>
-        Usuarios
-    </h1>
+        <div>
+            <h2 style="margin-bottom: 5px;">
+                Gestión de usuarios
+            </h2>
 
-    <p>
-        Gestión de usuarios del sistema.
-    </p>
+            <p style="margin: 0; color: #64748b;">
+                Administra las cuentas y roles de los usuarios del sistema.
+            </p>
+        </div>
 
-
-    <p>
-
-        <a href="{% url 'usuario_crear' %}">
-            + Crear usuario
+        <a class="button" href="{% url 'usuario_crear' %}">
+            + Nuevo usuario
         </a>
 
-    </p>
+    </div>
 
+</div>
+
+
+<!-- ============================== LISTADO ============================== -->
+
+<div class="card">
+
+    <h2>
+        Usuarios registrados
+    </h2>
 
     {% if usuarios %}
 
-        <table border="1">
+        <div style="overflow-x: auto;">
 
-            <thead>
+            <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
 
-                <tr>
+                <thead>
 
-                    <th>
-                        Usuario
-                    </th>
+                    <tr style="border-bottom: 2px solid #e5e7eb; text-align: left;">
 
-                    <th>
-                        Nombre
-                    </th>
+                        <th style="padding: 12px 10px;">
+                            Nombre
+                        </th>
 
-                    <th>
-                        Rol
-                    </th>
+                        <th style="padding: 12px 10px;">
+                            RUT
+                        </th>
 
-                    <th>
-                        Condominio
-                    </th>
+                        <th style="padding: 12px 10px;">
+                            Correo
+                        </th>
 
-                    <th>
-                        Estado
-                    </th>
+                        <th style="padding: 12px 10px;">
+                            Rol
+                        </th>
 
-                    <th>
-                        Acción
-                    </th>
+                        <th style="padding: 12px 10px;">
+                            Condominio
+                        </th>
 
-                </tr>
+                        <th style="padding: 12px 10px;">
+                            Estado
+                        </th>
 
-            </thead>
-
-
-            <tbody>
-
-                {% for usuario in usuarios %}
-
-                    <tr>
-
-                        <td>
-                            {{ usuario.user.username }}
-                        </td>
-
-                        <td>
-                            {{ usuario.nombre }}
-                            {{ usuario.apellido }}
-                        </td>
-
-                        <td>
-                            {{ usuario.rol.nombre }}
-                        </td>
-
-                        <td>
-
-                            {% if usuario.condominio %}
-
-                                {{ usuario.condominio.nombre }}
-
-                            {% else %}
-
-                                Sin condominio
-
-                            {% endif %}
-
-                        </td>
-
-                        <td>
-
-                            {% if usuario.activo %}
-
-                                Activo
-
-                            {% else %}
-
-                                Inactivo
-
-                            {% endif %}
-
-                        </td>
-
-                        <td>
-
-                            <a href="{% url 'usuario_editar' usuario.id %}">
-                                Editar
-                            </a>
-
-                        </td>
+                        <th style="padding: 12px 10px;">
+                            Acciones
+                        </th>
 
                     </tr>
 
-                {% endfor %}
+                </thead>
 
-            </tbody>
+                <tbody>
 
-        </table>
+                    {% for usuario_item in usuarios %}
+
+                        <tr style="border-bottom: 1px solid #e5e7eb;">
+
+                            <td style="padding: 12px 10px;">
+
+                                <strong>
+                                    {{ usuario_item.nombre }}
+                                    {{ usuario_item.nombre2 }}
+                                    {{ usuario_item.apellido }}
+                                    {{ usuario_item.apellido2 }}
+                                </strong>
+
+                            </td>
+
+                            <td style="padding: 12px 10px;">
+                                {{ usuario_item.rut|default:"-" }}
+                            </td>
+
+                            <td style="padding: 12px 10px;">
+                                {{ usuario_item.email }}
+                            </td>
+
+                            <td style="padding: 12px 10px;">
+                                {{ usuario_item.rol.nombre }}
+                            </td>
+
+                            <td style="padding: 12px 10px;">
+
+                                {% if usuario_item.condominio %}
+                                    {{ usuario_item.condominio.nombre }}
+                                {% else %}
+                                    -
+                                {% endif %}
+
+                            </td>
+
+                            <td style="padding: 12px 10px;">
+
+                                {% if usuario_item.activo %}
+
+                                    <span style="display: inline-block; padding: 5px 9px; border-radius: 20px; background: #dcfce7; color: #166534; font-size: 12px; font-weight: bold;">
+                                        Activo
+                                    </span>
+
+                                {% else %}
+
+                                    <span style="display: inline-block; padding: 5px 9px; border-radius: 20px; background: #fee2e2; color: #991b1b; font-size: 12px; font-weight: bold;">
+                                        Inactivo
+                                    </span>
+
+                                {% endif %}
+
+                            </td>
+
+                            <td style="padding: 12px 10px; white-space: nowrap;">
+
+                                <a class="button button-secondary"
+                                   href="{% url 'usuario_editar' usuario_item.id %}">
+                                    Editar
+                                </a>
+
+                                {% if usuario_item.activo %}
+
+                                    <a class="button"
+                                       href="{% url 'usuario_cambiar_estado' usuario_item.id %}"
+                                       style="background: #dc2626;">
+                                        Desactivar
+                                    </a>
+
+                                {% else %}
+
+                                    <a class="button"
+                                       href="{% url 'usuario_cambiar_estado' usuario_item.id %}"
+                                       style="background: #16a34a;">
+                                        Activar
+                                    </a>
+
+                                {% endif %}
+
+                            </td>
+
+                        </tr>
+
+                    {% endfor %}
+
+                </tbody>
+
+            </table>
+
+        </div>
 
     {% else %}
 
-        <p>
-            No hay usuarios registrados.
-        </p>
+        <div style="padding: 30px 10px; text-align: center; color: #64748b;">
+
+            <p>
+                No hay usuarios registrados.
+            </p>
+
+            <a class="button" href="{% url 'usuario_crear' %}">
+                Crear primer usuario
+            </a>
+
+        </div>
 
     {% endif %}
 
+</div>
 
-    <br>
-
-    <a href="{% url 'administracion' %}">
-        Volver a administración
-    </a>
-
-    <br>
-
-    <a href="{% url 'inicio' %}">
-        Volver al inicio
-    </a>
-
-</body>
-
-</html>
+{% endblock %}

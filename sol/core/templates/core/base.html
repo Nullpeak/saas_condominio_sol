@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>{% block title %}CondoGestión{% endblock %}</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, Helvetica, sans-serif;
+            background: #f4f6f8;
+            color: #1f2937;
+        }
+
+        .app {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* ============================== SIDEBAR ============================== */
+
+        .sidebar {
+            width: 240px;
+            background: #172033;
+            color: white;
+            padding: 24px 16px;
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+        }
+
+        .logo {
+            font-size: 21px;
+            font-weight: bold;
+            padding: 0 12px 28px;
+        }
+
+        .logo span {
+            color: #60a5fa;
+        }
+
+        .menu-title {
+            color: #94a3b8;
+            font-size: 12px;
+            text-transform: uppercase;
+            margin: 10px 12px;
+        }
+
+        .menu a {
+            display: block;
+            color: #dbe3ee;
+            text-decoration: none;
+            padding: 11px 12px;
+            border-radius: 7px;
+            margin-bottom: 4px;
+            font-size: 14px;
+        }
+
+        .menu a:hover {
+            background: #26344d;
+            color: white;
+        }
+
+        .sidebar-bottom {
+            margin-top: auto;
+        }
+
+        .logout {
+            display: block;
+            color: #fca5a5;
+            text-decoration: none;
+            padding: 11px 12px;
+            border-radius: 7px;
+            font-size: 14px;
+        }
+
+        .logout:hover {
+            background: #3b2630;
+        }
+
+        /* ============================== CONTENIDO ============================== */
+
+        .content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .topbar {
+            height: 70px;
+            background: white;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 30px;
+        }
+
+        .page-title {
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .user-info {
+            text-align: right;
+            font-size: 13px;
+        }
+
+        .user-name {
+            font-weight: bold;
+        }
+
+        .user-role {
+            color: #64748b;
+        }
+
+        .main {
+            padding: 30px;
+        }
+
+        /* ============================== COMPONENTES ============================== */
+
+        .card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            padding: 22px;
+            margin-bottom: 20px;
+        }
+
+        .card h2,
+        .card h3 {
+            margin-top: 0;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 18px;
+        }
+
+        .stat {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            padding: 20px;
+        }
+
+        .stat-title {
+            color: #64748b;
+            font-size: 13px;
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .button {
+            display: inline-block;
+            background: #2563eb;
+            color: white;
+            text-decoration: none;
+            border: none;
+            border-radius: 7px;
+            padding: 10px 16px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .button:hover {
+            background: #1d4ed8;
+        }
+
+        .button-secondary {
+            background: #e5e7eb;
+            color: #1f2937;
+        }
+
+        .button-secondary:hover {
+            background: #d1d5db;
+        }
+
+        /* ============================== RESPONSIVE ============================== */
+
+        @media (max-width: 800px) {
+            .sidebar {
+                width: 190px;
+            }
+
+            .topbar {
+                padding: 0 20px;
+            }
+
+            .main {
+                padding: 20px;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .app {
+                display: block;
+            }
+
+            .sidebar {
+                width: 100%;
+                padding: 15px;
+            }
+
+            .logo {
+                padding-bottom: 15px;
+            }
+
+            .sidebar-bottom {
+                margin-top: 15px;
+            }
+
+            .topbar {
+                height: auto;
+                padding: 15px 20px;
+            }
+
+            .user-info {
+                display: none;
+            }
+        }
+    </style>
+
+    {% block extra_css %}{% endblock %}
+</head>
+
+<body>
+
+<div class="app">
+
+    <!-- ============================== SIDEBAR ============================== -->
+
+    <aside class="sidebar">
+
+        <div class="logo">
+            🏢 Condo<span>Gestión</span>
+        </div>
+
+        <nav class="menu">
+
+    <div class="menu-title">
+        Principal
+    </div>
+
+    <a href="{% url 'inicio' %}">
+        🏠 Inicio
+    </a>
+
+
+    {% if usuario.rol.nombre == "Super Administrador" or usuario.rol.nombre == "Administrador" %}
+
+        <div class="menu-title">
+            Administración
+        </div>
+
+        <a href="{% url 'administracion' %}">
+            ⚙️ Administración
+        </a>
+
+        <a href="{% url 'usuarios_lista' %}">
+            👥 Usuarios
+        </a>
+
+        <a href="{% url 'condominios_lista' %}">
+            🏢 Condominios
+        </a>
+
+    {% endif %}
+
+
+    <div class="menu-title">
+        Módulos
+    </div>
+
+    <a href="#">
+        📅 Reservas
+    </a>
+
+    <a href="#">
+        🚗 Visitas
+    </a>
+
+    <a href="#">
+        🔧 Mantenimiento
+    </a>
+
+    <a href="#">
+        💰 Gastos comunes
+    </a>
+
+    <a href="#">
+        📢 Comunicaciones
+    </a>
+
+    <a href="#">
+        📊 Reportes
+    </a>
+
+</nav>
+
+        <div class="sidebar-bottom">
+
+            <a class="logout" href="{% url 'logout' %}">
+                Cerrar sesión
+            </a>
+
+        </div>
+
+    </aside>
+
+
+    <!-- ============================== CONTENIDO ============================== -->
+
+    <div class="content">
+
+        <header class="topbar">
+
+            <div class="page-title">
+                {% block page_title %}CondoGestión{% endblock %}
+            </div>
+
+            <div class="user-info">
+
+                <div class="user-name">
+                    {{ usuario.nombre }} {{ usuario.apellido }}
+                </div>
+
+                <div class="user-role">
+                    {{ usuario.rol.nombre }}
+                </div>
+
+            </div>
+
+        </header>
+
+
+        <main class="main">
+
+            {% block content %}
+            {% endblock %}
+
+        </main>
+
+    </div>
+
+</div>
+
+{% block extra_js %}{% endblock %}
+
+</body>
+</html>

@@ -1,279 +1,374 @@
-<!DOCTYPE html>
-<html lang="es">
+{% extends "core/base.html" %}
 
-<head>
+{% block title %}
+Editar usuario - CondoGestión
+{% endblock %}
 
-    <meta charset="UTF-8">
+{% block page_title %}
+Editar usuario
+{% endblock %}
 
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
+{% block content %}
 
-    <title>Editar usuario</title>
+<!-- ============================== ENCABEZADO ============================== -->
 
-</head>
+<div class="card">
 
-<body>
+```
+<h2>
+    Editar usuario
+</h2>
 
-    <h1>
-        Editar usuario
-    </h1>
+<p style="color: #64748b;">
+    Modifica los datos que necesites y guarda los cambios.
+</p>
+```
+
+</div>
+
+<!-- ============================== FORMULARIO ============================== -->
+
+<div class="card">
+
+```
+<form method="post">
+
+    {% csrf_token %}
 
 
-    {% if errores %}
+    <!-- ============================== DATOS PERSONALES ============================== -->
+
+    <h3>
+        Datos personales
+    </h3>
+
+    <div class="grid">
 
         <div>
 
-            <h3>
-                Errores:
-            </h3>
+            <label
+                for="nombre"
+                style="display: block; margin-bottom: 6px; font-weight: 600;"
+            >
+                Primer nombre
+            </label>
 
-            <ul>
+            <input
+                type="text"
+                id="nombre"
+                name="nombre"
+                value="{{ usuario.nombre }}"
+                required
+                style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 7px;"
+            >
 
-                {% for error in errores %}
+        </div>
 
-                    <li>
-                        {{ error }}
-                    </li>
+
+        <div>
+
+            <label
+                for="nombre2"
+                style="display: block; margin-bottom: 6px; font-weight: 600;"
+            >
+                Segundo nombre
+            </label>
+
+            <input
+                type="text"
+                id="nombre2"
+                name="nombre2"
+                value="{{ usuario.nombre2 }}"
+                style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 7px;"
+            >
+
+        </div>
+
+
+        <div>
+
+            <label
+                for="apellido"
+                style="display: block; margin-bottom: 6px; font-weight: 600;"
+            >
+                Primer apellido
+            </label>
+
+            <input
+                type="text"
+                id="apellido"
+                name="apellido"
+                value="{{ usuario.apellido }}"
+                required
+                style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 7px;"
+            >
+
+        </div>
+
+
+        <div>
+
+            <label
+                for="apellido2"
+                style="display: block; margin-bottom: 6px; font-weight: 600;"
+            >
+                Segundo apellido
+            </label>
+
+            <input
+                type="text"
+                id="apellido2"
+                name="apellido2"
+                value="{{ usuario.apellido2 }}"
+                style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 7px;"
+            >
+
+        </div>
+
+
+        <div>
+
+            <label
+                for="rut"
+                style="display: block; margin-bottom: 6px; font-weight: 600;"
+            >
+                RUT
+            </label>
+
+            <input
+                type="text"
+                id="rut"
+                name="rut"
+                value="{{ usuario.rut|default:'' }}"
+                placeholder="Ej. 12.345.678-5"
+                style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 7px;"
+            >
+
+        </div>
+
+
+        <div>
+
+            <label
+                for="telefono"
+                style="display: block; margin-bottom: 6px; font-weight: 600;"
+            >
+                Teléfono
+            </label>
+
+            <input
+                type="text"
+                id="telefono"
+                name="telefono"
+                value="{{ usuario.telefono|default:'' }}"
+                placeholder="Ej. +56912345678"
+                style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 7px;"
+            >
+
+        </div>
+
+    </div>
+
+
+    <!-- ============================== CUENTA ============================== -->
+
+    <h3 style="margin-top: 30px;">
+        Datos de cuenta
+    </h3>
+
+    <div class="grid">
+
+        <div>
+
+            <label
+                for="username"
+                style="display: block; margin-bottom: 6px; font-weight: 600;"
+            >
+                Nombre de usuario
+            </label>
+
+            <input
+                type="text"
+                id="username"
+                value="{{ usuario.user.username }}"
+                disabled
+                style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 7px; background: #f1f5f9;"
+            >
+
+            <small style="display: block; margin-top: 6px; color: #64748b;">
+                El nombre de usuario no se puede modificar.
+            </small>
+
+        </div>
+
+
+        <div>
+
+            <label
+                for="email"
+                style="display: block; margin-bottom: 6px; font-weight: 600;"
+            >
+                Correo electrónico
+            </label>
+
+            <input
+                type="email"
+                id="email"
+                name="email"
+                value="{{ usuario.email }}"
+                required
+                style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 7px;"
+            >
+
+        </div>
+
+    </div>
+
+
+    <!-- ============================== PERMISOS ============================== -->
+
+    <h3 style="margin-top: 30px;">
+        Acceso y permisos
+    </h3>
+
+    <div class="grid">
+
+        <div>
+
+            <label
+                for="rol"
+                style="display: block; margin-bottom: 6px; font-weight: 600;"
+            >
+                Rol
+            </label>
+
+            <select
+                id="rol"
+                name="rol"
+                required
+                style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 7px;"
+            >
+
+                {% for rol in roles %}
+
+                    <option
+                        value="{{ rol.id }}"
+                        {% if usuario.rol_id == rol.id %}selected{% endif %}
+                    >
+                        {{ rol.nombre }}
+                    </option>
 
                 {% endfor %}
 
-            </ul>
+            </select>
+
+        </div>
+
+
+        <div>
+
+            <label
+                for="condominio"
+                style="display: block; margin-bottom: 6px; font-weight: 600;"
+            >
+                Condominio
+            </label>
+
+            <select
+                id="condominio"
+                name="condominio"
+                style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 7px;"
+            >
+
+                <option value="">
+                    Sin condominio
+                </option>
+
+                {% for condominio in condominios %}
+
+                    <option
+                        value="{{ condominio.id }}"
+                        {% if usuario.condominio_id == condominio.id %}selected{% endif %}
+                    >
+                        {{ condominio.nombre }}
+                    </option>
+
+                {% endfor %}
+
+            </select>
+
+        </div>
+
+    </div>
+
+
+    <!-- ============================== ESTADO ============================== -->
+
+    <h3 style="margin-top: 30px;">
+        Estado de la cuenta
+    </h3>
+
+    <label
+        style="display: flex; align-items: center; gap: 8px; font-weight: 600;"
+    >
+
+        <input
+            type="checkbox"
+            name="activo"
+            {% if usuario.activo %}checked{% endif %}
+        >
+
+        Usuario activo
+
+    </label>
+
+
+    <!-- ============================== ERRORES ============================== -->
+
+    {% if errores %}
+
+        <div
+            style="margin-top: 25px; padding: 12px 15px; border-radius: 7px; background: #fee2e2; color: #991b1b;"
+        >
+
+            {% for error in errores %}
+
+                <div style="margin-bottom: 5px;">
+                    {{ error }}
+                </div>
+
+            {% endfor %}
 
         </div>
 
     {% endif %}
 
 
-    <p>
-        Usuario:
-        <strong>
-            {{ usuario.user.username }}
-        </strong>
-    </p>
+    <!-- ============================== BOTONES ============================== -->
 
+    <div
+        style="margin-top: 30px; display: flex; gap: 10px; flex-wrap: wrap;"
+    >
 
-    <form method="post">
-
-        {% csrf_token %}
-
-
-        <h2>
-            Datos personales
-        </h2>
-
-
-        <label for="nombre">
-            Nombre:
-        </label>
-
-        <input
-            type="text"
-            id="nombre"
-            name="nombre"
-            value="{{ usuario.nombre }}"
-            required
+        <button
+            type="submit"
+            class="button"
         >
-
-        <br><br>
-
-
-        <label for="nombre2">
-            Segundo nombre:
-        </label>
-
-        <input
-            type="text"
-            id="nombre2"
-            name="nombre2"
-            value="{{ usuario.nombre2 }}"
-        >
-
-        <br><br>
-
-
-        <label for="apellido">
-            Apellido:
-        </label>
-
-        <input
-            type="text"
-            id="apellido"
-            name="apellido"
-            value="{{ usuario.apellido }}"
-            required
-        >
-
-        <br><br>
-
-
-        <label for="apellido2">
-            Segundo apellido:
-        </label>
-
-        <input
-            type="text"
-            id="apellido2"
-            name="apellido2"
-            value="{{ usuario.apellido2 }}"
-        >
-
-        <br><br>
-
-
-        <label for="rut">
-            RUT:
-        </label>
-
-        <input
-            type="text"
-            id="rut"
-            name="rut"
-            value="{{ usuario.rut|default:'' }}"
-        >
-
-        <br><br>
-
-
-        <label for="email">
-            Correo electrónico:
-        </label>
-
-        <input
-            type="email"
-            id="email"
-            name="email"
-            value="{{ usuario.email }}"
-            required
-        >
-
-        <br><br>
-
-
-        <label for="telefono">
-            Teléfono:
-        </label>
-
-        <input
-            type="text"
-            id="telefono"
-            name="telefono"
-            value="{{ usuario.telefono }}"
-        >
-
-
-        <h2>
-            Configuración
-        </h2>
-
-
-        <label for="rol">
-            Rol:
-        </label>
-
-        <select
-            id="rol"
-            name="rol"
-            required
-        >
-
-            {% for rol in roles %}
-
-                <option
-                    value="{{ rol.id }}"
-
-                    {% if rol.id == usuario.rol.id %}
-                        selected
-                    {% endif %}
-
-                >
-                    {{ rol.nombre }}
-                </option>
-
-            {% endfor %}
-
-        </select>
-
-        <br><br>
-
-
-        <label for="condominio">
-            Condominio:
-        </label>
-
-        <select
-            id="condominio"
-            name="condominio"
-        >
-
-            <option value="">
-                Sin condominio
-            </option>
-
-            {% for condominio in condominios %}
-
-                <option
-                    value="{{ condominio.id }}"
-
-                    {% if usuario.condominio_id == condominio.id %}
-                        selected
-                    {% endif %}
-
-                >
-                    {{ condominio.nombre }}
-                </option>
-
-            {% endfor %}
-
-        </select>
-
-        <br><br>
-
-        <a href="{% url 'usuario_editar' usuario.id %}">
-    Editar
-</a>
-
-<a href="{% url 'usuario_cambiar_estado' usuario.id %}">
-    {% if usuario.activo %}
-        Desactivar
-    {% else %}
-        Activar
-    {% endif %}
-</a>
-        <label>
-
-            <input
-                type="checkbox"
-                name="activo"
-
-                {% if usuario.activo %}
-                    checked
-                {% endif %}
-
-            >
-
-            Usuario activo
-
-        </label>
-
-
-        <br><br>
-
-
-        <button type="submit">
             Guardar cambios
         </button>
 
-    </form>
+        <a
+            href="{% url 'usuarios_lista' %}"
+            class="button button-secondary"
+        >
+            Cancelar
+        </a>
 
+    </div>
 
-    <br>
+</form>
+```
 
-    <a href="{% url 'usuarios_lista' %}">
-        Cancelar
-    </a>
+</div>
 
-</body>
-
-</html>
+{% endblock %}
