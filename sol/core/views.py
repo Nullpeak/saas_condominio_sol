@@ -1,32 +1,19 @@
 import json
-from datetime import time
+from datetime import time, datetime, timedelta
 
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
-from django.contrib.auth.views import (
-    PasswordResetView,
-    PasswordResetDoneView,
-    PasswordResetConfirmView,
-    PasswordResetCompleteView,
-)
+from django.contrib.auth.views import (PasswordResetView,PasswordResetDoneView,PasswordResetConfirmView,PasswordResetCompleteView,)
 from django.urls import reverse_lazy
 from django.db import transaction
 from django.core.exceptions import ValidationError
 from django.http import JsonResponse
+from django.utils import timezone
 
 from .validators import *
-from .models import (
-    Usuario,
-    Rol,
-    Condominio,
-    Ciudad,
-    Edificio,
-    Unidad,
-    AreaComun,
-    HorarioAreaComun,
-)
+from .models import *
 
 
 # ============================== FUNCIONES AUXILIARES ==============================
@@ -285,8 +272,6 @@ def usuario_crear(request):
 
         errores = []
 
-        # ============================== DATOS BÁSICOS ==============================
-
         if not username:
             errores.append(
                 "Debes ingresar un nombre de usuario."
@@ -322,8 +307,6 @@ def usuario_crear(request):
                 "Debes seleccionar un rol."
             )
 
-        # ============================== VALIDAR RUT ==============================
-
         rut_normalizado = None
 
         if not rut:
@@ -347,8 +330,6 @@ def usuario_crear(request):
             except ValidationError as error:
                 errores.extend(error.messages)
 
-        # ============================== VALIDAR TELÉFONO ==============================
-
         telefono_normalizado = None
 
         if telefono:
@@ -359,16 +340,12 @@ def usuario_crear(request):
             except ValidationError as error:
                 errores.extend(error.messages)
 
-        # ============================== VALIDAR USUARIO ==============================
-
         if username and User.objects.filter(
             username=username
         ).exists():
             errores.append(
                 "El nombre de usuario ya está registrado."
             )
-
-        # ============================== VALIDAR CORREO ==============================
 
         if email:
             try:
@@ -384,8 +361,6 @@ def usuario_crear(request):
                     "El correo electrónico ya está registrado."
                 )
 
-        # ============================== OBTENER ROL ==============================
-
         rol = None
 
         if rol_id:
@@ -399,8 +374,6 @@ def usuario_crear(request):
                     "El rol seleccionado no es válido."
                 )
 
-        # ============================== OBTENER CONDOMINIO ==============================
-
         condominio = None
 
         if condominio_id:
@@ -413,8 +386,6 @@ def usuario_crear(request):
                 errores.append(
                     "El condominio seleccionado no es válido."
                 )
-
-        # ============================== PERMISOS DEL ADMINISTRADOR ==============================
 
         if es_administrador(usuario_actual):
 
@@ -441,8 +412,6 @@ def usuario_crear(request):
                     )
 
             condominio = usuario_actual.condominio
-
-        # ============================== CREAR USUARIO ==============================
 
         if not errores:
 
@@ -536,8 +505,6 @@ def usuario_editar(request, usuario_id):
 
         errores = []
 
-        # ============================== DATOS BÁSICOS ==============================
-
         if not nombre:
             errores.append(
                 "Debes ingresar el nombre."
@@ -552,8 +519,6 @@ def usuario_editar(request, usuario_id):
             errores.append(
                 "Debes ingresar un correo."
             )
-
-        # ============================== VALIDAR RUT ==============================
 
         rut_normalizado = None
 
@@ -580,8 +545,6 @@ def usuario_editar(request, usuario_id):
             except ValidationError as error:
                 errores.extend(error.messages)
 
-        # ============================== VALIDAR TELÉFONO ==============================
-
         telefono_normalizado = None
 
         if telefono:
@@ -591,8 +554,6 @@ def usuario_editar(request, usuario_id):
 
             except ValidationError as error:
                 errores.extend(error.messages)
-
-        # ============================== VALIDAR CORREO ==============================
 
         if email:
 
@@ -611,8 +572,6 @@ def usuario_editar(request, usuario_id):
                     "El correo electrónico ya está registrado."
                 )
 
-        # ============================== OBTENER ROL ==============================
-
         rol = None
 
         if not rol_id:
@@ -630,8 +589,6 @@ def usuario_editar(request, usuario_id):
                 errores.append(
                     "El rol seleccionado no es válido."
                 )
-
-        # ============================== OBTENER CONDOMINIO ==============================
 
         condominio = None
 
@@ -660,8 +617,6 @@ def usuario_editar(request, usuario_id):
             else:
                 condominio = None
 
-        # ============================== PERMISOS DEL ADMINISTRADOR ==============================
-
         if es_administrador(usuario_actual):
 
             if rol and rol.nombre == "Super Administrador":
@@ -669,14 +624,10 @@ def usuario_editar(request, usuario_id):
                     "Un Administrador no puede asignar el rol de Super Administrador."
                 )
 
-        # ============================== PROTECCIÓN CONTRA AUTO-DESACTIVACIÓN ==============================
-
         if usuario.id == usuario_actual.id and not activo:
             errores.append(
                 "No puedes desactivar tu propia cuenta."
             )
-
-        # ============================== GUARDAR CAMBIOS ==============================
 
         if not errores:
 
@@ -714,6 +665,7 @@ def usuario_editar(request, usuario_id):
             "roles": roles,
             "condominios": condominios,
             "errores": errores,
+            "datos": request.POST,
         })
 
     return render(request, "core/usuarios/editar.html", {
@@ -957,6 +909,7 @@ def condominio_editar(request, condominio_id):
             "condominio": condominio,
             "ciudades": ciudades,
             "errores": errores,
+            "datos": request.POST,
         })
 
     return render(request, "core/condominios/editar.html", {
@@ -1266,12 +1219,6 @@ def unidad_editar(request, unidad_id):
 
 @login_required
 def areas_comunes_lista(request, condominio_id):
-    """
-    Muestra las áreas comunes de un condominio.
-    Solo pueden acceder Administradores y
-    Super Administradores.
-    """
-
     usuario_actual = obtener_usuario(request)
 
     if not puede_gestionar_condominio(usuario_actual):
@@ -1282,8 +1229,6 @@ def areas_comunes_lista(request, condominio_id):
         id=condominio_id
     )
 
-    # El Administrador solamente puede gestionar
-    # las áreas de su propio condominio.
     if es_administrador(usuario_actual):
 
         if condominio.id != usuario_actual.condominio_id:
@@ -1312,10 +1257,6 @@ def areas_comunes_lista(request, condominio_id):
 
 @login_required
 def area_comun_crear(request, condominio_id):
-    """
-    Permite crear un área común dentro de un condominio.
-    """
-
     usuario_actual = obtener_usuario(request)
 
     if not puede_gestionar_condominio(usuario_actual):
@@ -1352,16 +1293,30 @@ def area_comun_crear(request, condominio_id):
             "reservable"
         ) == "on"
 
-        errores = []
+        requiere_reserva = request.POST.get(
+            "requiere_reserva"
+        ) == "on"
 
-        # ============================== VALIDAR NOMBRE ==============================
+        permite_reservas_consecutivas = request.POST.get(
+            "permite_reservas_consecutivas"
+        ) == "on"
+
+        duracion_maxima = request.POST.get(
+            "duracion_maxima",
+            ""
+        ).strip()
+
+        dias_anticipacion_maxima = request.POST.get(
+            "dias_anticipacion_maxima",
+            ""
+        ).strip()
+
+        errores = []
 
         if not nombre:
             errores.append(
                 "Debes ingresar el nombre del área común."
             )
-
-        # ============================== VALIDAR CAPACIDAD ==============================
 
         capacidad_numero = None
 
@@ -1380,7 +1335,43 @@ def area_comun_crear(request, condominio_id):
                     "La capacidad debe ser un número válido."
                 )
 
-        # ============================== VALIDAR NOMBRE DUPLICADO ==============================
+        duracion_maxima_numero = None
+
+        if duracion_maxima:
+
+            try:
+                duracion_maxima_numero = int(
+                    duracion_maxima
+                )
+
+                if duracion_maxima_numero < 1:
+                    errores.append(
+                        "La duración máxima debe ser mayor a 0 horas."
+                    )
+
+            except ValueError:
+                errores.append(
+                    "La duración máxima debe ser un número válido."
+                )
+
+        dias_anticipacion_numero = None
+
+        if dias_anticipacion_maxima:
+
+            try:
+                dias_anticipacion_numero = int(
+                    dias_anticipacion_maxima
+                )
+
+                if dias_anticipacion_numero < 1:
+                    errores.append(
+                        "Los días de anticipación deben ser mayores a 0."
+                    )
+
+            except ValueError:
+                errores.append(
+                    "Los días de anticipación deben ser un número válido."
+                )
 
         if AreaComun.objects.filter(
             condominio=condominio,
@@ -1391,8 +1382,6 @@ def area_comun_crear(request, condominio_id):
                 "Ya existe un área común con ese nombre en este condominio."
             )
 
-        # ============================== CREAR ==============================
-
         if not errores:
 
             AreaComun.objects.create(
@@ -1401,6 +1390,10 @@ def area_comun_crear(request, condominio_id):
                 descripcion=descripcion,
                 capacidad=capacidad_numero,
                 reservable=reservable,
+                requiere_reserva=requiere_reserva,
+                permite_reservas_consecutivas=permite_reservas_consecutivas,
+                duracion_maxima=duracion_maxima_numero,
+                dias_anticipacion_maxima=dias_anticipacion_numero,
             )
 
             return redirect(
@@ -1433,10 +1426,6 @@ def area_comun_crear(request, condominio_id):
 
 @login_required
 def area_comun_editar(request, area_id):
-    """
-    Permite modificar un área común.
-    """
-
     usuario_actual = obtener_usuario(request)
 
     if not puede_gestionar_condominio(usuario_actual):
@@ -1477,16 +1466,30 @@ def area_comun_editar(request, area_id):
             "reservable"
         ) == "on"
 
-        errores = []
+        requiere_reserva = request.POST.get(
+            "requiere_reserva"
+        ) == "on"
 
-        # ============================== VALIDAR NOMBRE ==============================
+        permite_reservas_consecutivas = request.POST.get(
+            "permite_reservas_consecutivas"
+        ) == "on"
+
+        duracion_maxima = request.POST.get(
+            "duracion_maxima",
+            ""
+        ).strip()
+
+        dias_anticipacion_maxima = request.POST.get(
+            "dias_anticipacion_maxima",
+            ""
+        ).strip()
+
+        errores = []
 
         if not nombre:
             errores.append(
                 "Debes ingresar el nombre del área común."
             )
-
-        # ============================== VALIDAR CAPACIDAD ==============================
 
         capacidad_numero = None
 
@@ -1505,7 +1508,43 @@ def area_comun_editar(request, area_id):
                     "La capacidad debe ser un número válido."
                 )
 
-        # ============================== VALIDAR DUPLICADO ==============================
+        duracion_maxima_numero = None
+
+        if duracion_maxima:
+
+            try:
+                duracion_maxima_numero = int(
+                    duracion_maxima
+                )
+
+                if duracion_maxima_numero < 1:
+                    errores.append(
+                        "La duración máxima debe ser mayor a 0 horas."
+                    )
+
+            except ValueError:
+                errores.append(
+                    "La duración máxima debe ser un número válido."
+                )
+
+        dias_anticipacion_numero = None
+
+        if dias_anticipacion_maxima:
+
+            try:
+                dias_anticipacion_numero = int(
+                    dias_anticipacion_maxima
+                )
+
+                if dias_anticipacion_numero < 1:
+                    errores.append(
+                        "Los días de anticipación deben ser mayores a 0."
+                    )
+
+            except ValueError:
+                errores.append(
+                    "Los días de anticipación deben ser un número válido."
+                )
 
         if AreaComun.objects.filter(
             condominio=condominio,
@@ -1518,14 +1557,20 @@ def area_comun_editar(request, area_id):
                 "Ya existe otra área común con ese nombre en este condominio."
             )
 
-        # ============================== GUARDAR ==============================
-
         if not errores:
 
             area.nombre = nombre
             area.descripcion = descripcion
             area.capacidad = capacidad_numero
             area.reservable = reservable
+            area.requiere_reserva = requiere_reserva
+            area.permite_reservas_consecutivas = (
+                permite_reservas_consecutivas
+            )
+            area.duracion_maxima = duracion_maxima_numero
+            area.dias_anticipacion_maxima = (
+                dias_anticipacion_numero
+            )
 
             area.save()
 
@@ -1542,6 +1587,7 @@ def area_comun_editar(request, area_id):
                 "condominio": condominio,
                 "area": area,
                 "errores": errores,
+                "datos": request.POST,
             }
         )
 
@@ -1560,10 +1606,6 @@ def area_comun_editar(request, area_id):
 
 @login_required
 def area_comun_horarios(request, area_id):
-    """
-    Permite agregar y eliminar horarios de un área común.
-    """
-
     usuario_actual = obtener_usuario(request)
 
     if not puede_gestionar_condominio(usuario_actual):
@@ -1604,8 +1646,6 @@ def area_comun_horarios(request, area_id):
 
         errores = []
 
-        # ============================== VALIDAR DÍA ==============================
-
         dia_numero = None
 
         try:
@@ -1621,8 +1661,6 @@ def area_comun_horarios(request, area_id):
                 "Debes seleccionar un día válido."
             )
 
-        # ============================== VALIDAR HORAS ==============================
-
         if not hora_inicio:
             errores.append(
                 "Debes indicar la hora de inicio."
@@ -1632,8 +1670,6 @@ def area_comun_horarios(request, area_id):
             errores.append(
                 "Debes indicar la hora de término."
             )
-
-        # ============================== CREAR HORARIO ==============================
 
         horario = None
 
@@ -1652,8 +1688,6 @@ def area_comun_horarios(request, area_id):
             except ValidationError as error:
                 errores.extend(error.messages)
 
-        # ============================== VALIDAR CRUCE DE HORARIOS ==============================
-
         if not errores and horario:
 
             horarios_existentes = HorarioAreaComun.objects.filter(
@@ -1668,8 +1702,6 @@ def area_comun_horarios(request, area_id):
                 errores.append(
                     "El horario se cruza con otro horario existente para ese día."
                 )
-
-        # ============================== GUARDAR ==============================
 
         if not errores:
 
@@ -1711,11 +1743,6 @@ def area_comun_horarios(request, area_id):
 
 @login_required
 def area_comun_horario_actualizar(request, horario_id):
-    """
-    Actualiza el día y horario de un bloque desde
-    el calendario interactivo mediante arrastrar y soltar.
-    """
-
     usuario_actual = obtener_usuario(request)
 
     if not puede_gestionar_condominio(usuario_actual):
@@ -1785,8 +1812,6 @@ def area_comun_horario_actualizar(request, horario_id):
             status=400
         )
 
-    # ============================== VALIDAR DÍA ==============================
-
     if dia_numero < 0 or dia_numero > 6:
         return JsonResponse(
             {
@@ -1796,8 +1821,6 @@ def area_comun_horario_actualizar(request, horario_id):
             status=400
         )
 
-    # ============================== VALIDAR HORAS ==============================
-
     if hora_fin <= hora_inicio:
         return JsonResponse(
             {
@@ -1806,8 +1829,6 @@ def area_comun_horario_actualizar(request, horario_id):
             },
             status=400
         )
-
-    # ============================== VALIDAR CRUCE ==============================
 
     existe_cruce = HorarioAreaComun.objects.filter(
         area_comun=area,
@@ -1826,8 +1847,6 @@ def area_comun_horario_actualizar(request, horario_id):
             },
             status=409
         )
-
-    # ============================== ACTUALIZAR ==============================
 
     horario.dia_semana = dia_numero
     horario.hora_inicio = hora_inicio
@@ -1867,10 +1886,6 @@ def area_comun_horario_actualizar(request, horario_id):
 
 @login_required
 def area_comun_horario_eliminar(request, horario_id):
-    """
-    Elimina un horario de un área común.
-    """
-
     usuario_actual = obtener_usuario(request)
 
     if not puede_gestionar_condominio(usuario_actual):
@@ -1901,9 +1916,1562 @@ def area_comun_horario_eliminar(request, horario_id):
     )
 
 
+# ============================== CREAR RESERVACIÓN ==============================
+
+@login_required
+def reservacion_crear(request):
+    """
+    Permite crear una reserva para un área común.
+
+    Se validan:
+    - Que el área permita reservas.
+    - Que el usuario pertenezca al condominio.
+    - Que exista una unidad válida.
+    - Que la fecha no esté en el pasado.
+    - Que se respete la anticipación máxima.
+    - Que la duración máxima no sea superada.
+    - Que la reserva esté completamente dentro
+      del horario configurado para el área.
+    - Que no exista otra reserva que se cruce.
+    """
+
+    usuario_actual = obtener_usuario(request)
+
+    if not usuario_actual.condominio_id:
+        return redirect("inicio")
+
+    condominio = usuario_actual.condominio
+
+    # ============================== ÁREAS DISPONIBLES ==============================
+
+    areas = AreaComun.objects.filter(
+        condominio=condominio,
+        reservable=True
+    ).prefetch_related(
+        "horarios"
+    ).order_by(
+        "nombre"
+    )
+
+    # ============================== UNIDADES DISPONIBLES ==============================
+
+    if es_residente(usuario_actual):
+
+        unidades = Unidad.objects.filter(
+            edificio__condominio=condominio
+        ).filter(
+            dueno=usuario_actual
+        ) | Unidad.objects.filter(
+            edificio__condominio=condominio,
+            arrendatario=usuario_actual
+        )
+
+        unidades = unidades.select_related(
+            "edificio"
+        ).distinct().order_by(
+            "edificio__nombre",
+            "piso",
+            "posicion"
+        )
+
+    else:
+
+        unidades = Unidad.objects.filter(
+            edificio__condominio=condominio
+        ).select_related(
+            "edificio"
+        ).order_by(
+            "edificio__nombre",
+            "piso",
+            "posicion"
+        )
+
+    if request.method == "POST":
+
+        area_id = request.POST.get(
+            "area_comun",
+            ""
+        ).strip()
+
+        unidad_id = request.POST.get(
+            "unidad",
+            ""
+        ).strip()
+
+        fecha_reserva_texto = request.POST.get(
+            "fecha_reserva",
+            ""
+        ).strip()
+
+        fin_reserva_texto = request.POST.get(
+            "fin_reserva",
+            ""
+        ).strip()
+
+        notas = request.POST.get(
+            "notas",
+            ""
+        ).strip()
+
+        errores = []
+
+        # ============================== ÁREA ==============================
+
+        area = None
+
+        if not area_id:
+
+            errores.append(
+                "Debes seleccionar un área común."
+            )
+
+        else:
+
+            try:
+                area = AreaComun.objects.get(
+                    id=int(area_id),
+                    condominio=condominio
+                )
+
+            except (
+                AreaComun.DoesNotExist,
+                ValueError
+            ):
+                errores.append(
+                    "El área común seleccionada no es válida."
+                )
+
+        if area and not area.reservable:
+
+            errores.append(
+                "El área común seleccionada no permite reservas."
+            )
+
+        # ============================== UNIDAD ==============================
+
+        unidad = None
+
+        if not unidad_id:
+
+            errores.append(
+                "Debes seleccionar una unidad."
+            )
+
+        else:
+
+            try:
+                unidad = Unidad.objects.select_related(
+                    "edificio"
+                ).get(
+                    id=int(unidad_id),
+                    edificio__condominio=condominio
+                )
+
+            except (
+                Unidad.DoesNotExist,
+                ValueError
+            ):
+                errores.append(
+                    "La unidad seleccionada no es válida."
+                )
+
+        # Los residentes solamente pueden reservar
+        # usando una unidad de la que sean propietario
+        # o arrendatario.
+        if (
+            unidad
+            and es_residente(usuario_actual)
+            and unidad.dueno_id != usuario_actual.id
+            and unidad.arrendatario_id != usuario_actual.id
+        ):
+            errores.append(
+                "Solo puedes realizar reservas usando una unidad de la que seas propietario o arrendatario."
+            )
+
+        # ============================== FECHAS ==============================
+
+        fecha_reserva = None
+        fin_reserva = None
+
+        if not fecha_reserva_texto:
+
+            errores.append(
+                "Debes indicar la fecha y hora de inicio."
+            )
+
+        else:
+
+            try:
+                fecha_reserva = datetime.fromisoformat(
+                    fecha_reserva_texto
+                )
+
+                if timezone.is_naive(fecha_reserva):
+                    fecha_reserva = timezone.make_aware(
+                        fecha_reserva
+                    )
+
+            except ValueError:
+
+                errores.append(
+                    "La fecha y hora de inicio no son válidas."
+                )
+
+        if not fin_reserva_texto:
+
+            errores.append(
+                "Debes indicar la fecha y hora de término."
+            )
+
+        else:
+
+            try:
+                fin_reserva = datetime.fromisoformat(
+                    fin_reserva_texto
+                )
+
+                if timezone.is_naive(fin_reserva):
+                    fin_reserva = timezone.make_aware(
+                        fin_reserva
+                    )
+
+            except ValueError:
+
+                errores.append(
+                    "La fecha y hora de término no son válidas."
+                )
+
+        # ============================== VALIDAR ORDEN DE FECHAS ==============================
+
+        if fecha_reserva and fin_reserva:
+
+            if fin_reserva <= fecha_reserva:
+
+                errores.append(
+                    "La hora de término debe ser posterior a la hora de inicio."
+                )
+
+            if fecha_reserva.date() != fin_reserva.date():
+
+                errores.append(
+                    "La reserva debe comenzar y terminar el mismo día."
+                )
+
+        # ============================== VALIDAR FECHA ACTUAL ==============================
+
+        ahora = timezone.now()
+
+        if fecha_reserva:
+
+            if fecha_reserva <= ahora:
+
+                errores.append(
+                    "La reserva debe comenzar en una fecha y hora futura."
+                )
+
+        # ============================== ANTICIPACIÓN MÁXIMA ==============================
+
+        if (
+            area
+            and fecha_reserva
+            and area.dias_anticipacion_maxima is not None
+        ):
+
+            dias_anticipacion = (
+                fecha_reserva.date() - ahora.date()
+            ).days
+
+            if dias_anticipacion > area.dias_anticipacion_maxima:
+
+                errores.append(
+                    f"Esta área solo permite reservar con "
+                    f"{area.dias_anticipacion_maxima} días de anticipación como máximo."
+                )
+
+        # ============================== DURACIÓN MÁXIMA ==============================
+
+        if (
+            area
+            and fecha_reserva
+            and fin_reserva
+            and fin_reserva > fecha_reserva
+            and area.duracion_maxima is not None
+        ):
+
+            duracion = fin_reserva - fecha_reserva
+
+            duracion_maxima = timedelta(
+                hours=area.duracion_maxima
+            )
+
+            if duracion > duracion_maxima:
+
+                errores.append(
+                    f"La duración máxima permitida para esta área es de "
+                    f"{area.duracion_maxima} horas."
+                )
+
+        # ============================== HORARIO DEL ÁREA ==============================
+
+        if (
+            area
+            and fecha_reserva
+            and fin_reserva
+            and fin_reserva > fecha_reserva
+            and fecha_reserva.date() == fin_reserva.date()
+        ):
+
+            dia_semana = fecha_reserva.weekday()
+
+            hora_inicio = fecha_reserva.time()
+            hora_fin = fin_reserva.time()
+
+            horario_valido = HorarioAreaComun.objects.filter(
+                area_comun=area,
+                dia_semana=dia_semana,
+                hora_inicio__lte=hora_inicio,
+                hora_fin__gte=hora_fin
+            ).exists()
+
+            if not horario_valido:
+
+                errores.append(
+                    "La reserva debe estar completamente dentro del horario configurado para el área común."
+                )
+
+        # ============================== RESERVAS QUE SE CRUZAN ==============================
+
+        if (
+            area
+            and fecha_reserva
+            and fin_reserva
+            and fin_reserva > fecha_reserva
+        ):
+
+            reservas_existentes = Reservacion.objects.filter(
+                area_comun=area,
+                estado__in=[
+                    Reservacion.Estado.PENDIENTE,
+                    Reservacion.Estado.APROBADO,
+                ],
+                fecha_reserva__lt=fin_reserva,
+                fin_reserva__gt=fecha_reserva,
+            )
+
+            if reservas_existentes.exists():
+
+                errores.append(
+                    "El horario seleccionado se cruza con otra reserva existente para esta área."
+                )
+
+            # Cuando las reservas consecutivas están desactivadas,
+            # tampoco se permite que una reserva termine exactamente
+            # cuando comienza otra.
+            elif not area.permite_reservas_consecutivas:
+
+                reserva_anterior = Reservacion.objects.filter(
+                    area_comun=area,
+                    estado__in=[
+                        Reservacion.Estado.PENDIENTE,
+                        Reservacion.Estado.APROBADO,
+                    ],
+                    fin_reserva=fecha_reserva,
+                ).exists()
+
+                reserva_siguiente = Reservacion.objects.filter(
+                    area_comun=area,
+                    estado__in=[
+                        Reservacion.Estado.PENDIENTE,
+                        Reservacion.Estado.APROBADO,
+                    ],
+                    fecha_reserva=fin_reserva,
+                ).exists()
+
+                if reserva_anterior or reserva_siguiente:
+
+                    errores.append(
+                        "Esta área no permite reservas consecutivas."
+                    )
+
+        # ============================== CREAR RESERVA ==============================
+
+        if not errores:
+
+            reservacion = Reservacion(
+                tipo_reserva=Reservacion.Tipo.AREA_COMUN,
+                usuario=usuario_actual,
+                unidad=unidad,
+                fecha_reserva=fecha_reserva,
+                fin_reserva=fin_reserva,
+                estado=Reservacion.Estado.PENDIENTE,
+                notas=notas,
+                area_comun=area,
+                nombre_invitado="",
+            )
+
+            try:
+                reservacion.full_clean()
+
+            except ValidationError as error:
+
+                errores.extend(
+                    error.messages
+                )
+
+            if not errores:
+
+                reservacion.save()
+
+                return redirect(
+                    "inicio"
+                )
+
+        return render(
+            request,
+            "core/reservaciones/crear.html",
+            {
+                "usuario_actual": usuario_actual,
+                "condominio": condominio,
+                "areas": areas,
+                "unidades": unidades,
+                "errores": errores,
+                "datos": request.POST,
+            }
+        )
+
+    return render(
+        request,
+        "core/reservaciones/crear.html",
+        {
+            "usuario_actual": usuario_actual,
+            "condominio": condominio,
+            "areas": areas,
+            "unidades": unidades,
+        }
+    )
+
+
+# ============================== RESERVACIONES ==============================
+@login_required
+def reservacion_disponibilidad(request):
+    """
+    Devuelve la disponibilidad de un área común para una semana determinada.
+
+    Incluye:
+    - Horarios configurados para el área.
+    - Reservas pendientes y aprobadas.
+    - Información básica de las reglas del área.
+    """
+
+    usuario_actual = obtener_usuario(request)
+
+    if not usuario_actual:
+        return JsonResponse(
+            {
+                "error": "No se encontró el usuario actual."
+            },
+            status=403,
+        )
+
+    area_id = request.GET.get("area_id")
+    fecha_parametro = request.GET.get("fecha")
+
+    if not area_id:
+        return JsonResponse(
+            {
+                "error": "Debes seleccionar un área común."
+            },
+            status=400,
+        )
+
+    try:
+        area = AreaComun.objects.select_related(
+            "condominio"
+        ).get(
+            id=area_id
+        )
+    except AreaComun.DoesNotExist:
+        return JsonResponse(
+            {
+                "error": "El área común no existe."
+            },
+            status=404,
+        )
+
+    # =========================================================
+    # VERIFICAR QUE EL USUARIO PERTENEZCA AL CONDOMINIO
+    # =========================================================
+
+    if (
+        usuario_actual.condominio_id
+        and usuario_actual.condominio_id != area.condominio_id
+    ):
+        return JsonResponse(
+            {
+                "error": "No tienes acceso a esta área común."
+            },
+            status=403,
+        )
+
+    # =========================================================
+    # FECHA DE REFERENCIA
+    # =========================================================
+
+    ahora = timezone.localtime()
+
+    if fecha_parametro:
+        try:
+            fecha_referencia = datetime.strptime(
+                fecha_parametro,
+                "%Y-%m-%d"
+            ).date()
+        except ValueError:
+            return JsonResponse(
+                {
+                    "error": "La fecha indicada no es válida."
+                },
+                status=400,
+            )
+    else:
+        fecha_referencia = ahora.date()
+
+    # =========================================================
+    # OBTENER LUNES DE LA SEMANA
+    # =========================================================
+
+    lunes = (
+        fecha_referencia
+        - timedelta(
+            days=fecha_referencia.weekday()
+        )
+    )
+
+    domingo = lunes + timedelta(days=6)
+
+    # =========================================================
+    # HORARIOS CONFIGURADOS
+    # =========================================================
+
+    horarios = HorarioAreaComun.objects.filter(
+        area_comun=area
+    ).order_by(
+        "dia_semana",
+        "hora_inicio"
+    )
+
+    horarios_data = []
+
+    for horario in horarios:
+
+        horarios_data.append(
+            {
+                "id": horario.id,
+                "dia_semana": horario.dia_semana,
+                "hora_inicio": horario.hora_inicio.strftime(
+                    "%H:%M"
+                ),
+                "hora_fin": horario.hora_fin.strftime(
+                    "%H:%M"
+                ),
+            }
+        )
+
+    # =========================================================
+    # RESERVAS EXISTENTES
+    # =========================================================
+
+    inicio_semana = timezone.make_aware(
+        datetime.combine(
+            lunes,
+            time.min
+        )
+    )
+
+    fin_semana = timezone.make_aware(
+        datetime.combine(
+            domingo + timedelta(days=1),
+            time.min
+        )
+    )
+
+    reservaciones = Reservacion.objects.filter(
+        area_comun=area,
+        tipo_reserva=Reservacion.Tipo.AREA_COMUN,
+        estado__in=[
+            Reservacion.Estado.PENDIENTE,
+            Reservacion.Estado.APROBADO,
+        ],
+        fecha_reserva__lt=fin_semana,
+        fin_reserva__gt=inicio_semana,
+    ).select_related(
+        "usuario",
+        "unidad",
+        "unidad__edificio",
+    ).order_by(
+        "fecha_reserva"
+    )
+
+    reservaciones_data = []
+
+    for reservacion in reservaciones:
+
+        reservaciones_data.append(
+            {
+                "id": reservacion.id,
+                "inicio": timezone.localtime(
+                    reservacion.fecha_reserva
+                ).isoformat(),
+
+                "fin": timezone.localtime(
+                    reservacion.fin_reserva
+                ).isoformat(),
+
+                "estado": reservacion.estado,
+
+                "usuario": (
+                    reservacion.usuario.nombre
+                    + " "
+                    + reservacion.usuario.apellido
+                ).strip(),
+            }
+        )
+
+    # =========================================================
+    # REGLAS DEL ÁREA
+    # =========================================================
+
+    reglas = {
+        "duracion_maxima": area.duracion_maxima,
+        "requiere_reserva": area.requiere_reserva,
+        "permite_reservas_consecutivas": (
+            area.permite_reservas_consecutivas
+        ),
+        "dias_anticipacion_maxima": (
+            area.dias_anticipacion_maxima
+        ),
+        "capacidad": area.capacidad,
+        "reservable": area.reservable,
+    }
+
+    # =============================================RESPUESTA============================
+
+    return JsonResponse(
+        {
+            "area": {
+                "id": area.id,
+                "nombre": area.nombre,
+            },
+
+            "semana": {
+                "lunes": lunes.isoformat(),
+                "domingo": domingo.isoformat(),
+            },
+
+            "horarios": horarios_data,
+
+            "reservaciones": reservaciones_data,
+
+            "reglas": reglas,
+        }
+    )
+
+@login_required
+def reservaciones_lista(request):
+
+    usuario_actual = obtener_usuario(request)
+
+    if not usuario_actual.condominio_id:
+        return redirect("inicio")
+
+    reservaciones = Reservacion.objects.filter(
+        usuario=usuario_actual
+    ).select_related(
+        "area_comun",
+        "unidad",
+        "unidad__edificio",
+    ).order_by(
+        "-fecha_reserva"
+    )
+
+    return render(
+        request,
+        "core/reservaciones/lista.html",
+        {
+            "usuario_actual": usuario_actual,
+            "reservaciones": reservaciones,
+        },
+    )
+
+
+# ============================== CREAR RESERVACIÓN ==============================
+
+@login_required
+def reservacion_crear(request):
+    """
+    Permite crear una reserva para un área común.
+
+    Se validan:
+    - Que el área permita reservas.
+    - Que el usuario pertenezca al condominio.
+    - Que exista una unidad válida.
+    - Que la fecha no esté en el pasado.
+    - Que se respete la anticipación máxima.
+    - Que la duración máxima no sea superada.
+    - Que la reserva esté completamente dentro
+      del horario configurado para el área.
+    - Que no exista otra reserva que se cruce.
+    """
+
+    usuario_actual = obtener_usuario(request)
+
+    if not usuario_actual.condominio_id:
+        return redirect("inicio")
+
+    condominio = usuario_actual.condominio
+
+    # ============================== ÁREAS DISPONIBLES ==============================
+
+    areas = AreaComun.objects.filter(
+        condominio=condominio,
+        reservable=True
+    ).prefetch_related(
+        "horarios"
+    ).order_by(
+        "nombre"
+    )
+
+    # ============================== UNIDADES DISPONIBLES ==============================
+
+    if es_residente(usuario_actual):
+
+        unidades = Unidad.objects.filter(
+            edificio__condominio=condominio
+        ).filter(
+            dueno=usuario_actual
+        ) | Unidad.objects.filter(
+            edificio__condominio=condominio,
+            arrendatario=usuario_actual
+        )
+
+        unidades = unidades.select_related(
+            "edificio"
+        ).distinct().order_by(
+            "edificio__nombre",
+            "piso",
+            "posicion"
+        )
+
+    else:
+
+        unidades = Unidad.objects.filter(
+            edificio__condominio=condominio
+        ).select_related(
+            "edificio"
+        ).order_by(
+            "edificio__nombre",
+            "piso",
+            "posicion"
+        )
+
+    if request.method == "POST":
+
+        area_id = request.POST.get(
+            "area_comun",
+            ""
+        ).strip()
+
+        unidad_id = request.POST.get(
+            "unidad",
+            ""
+        ).strip()
+
+        fecha_reserva_texto = request.POST.get(
+            "fecha_reserva",
+            ""
+        ).strip()
+
+        fin_reserva_texto = request.POST.get(
+            "fin_reserva",
+            ""
+        ).strip()
+
+        notas = request.POST.get(
+            "notas",
+            ""
+        ).strip()
+
+        errores = []
+
+        # ============================== ÁREA ==============================
+
+        area = None
+
+        if not area_id:
+
+            errores.append(
+                "Debes seleccionar un área común."
+            )
+
+        else:
+
+            try:
+                area = AreaComun.objects.get(
+                    id=int(area_id),
+                    condominio=condominio
+                )
+
+            except (
+                AreaComun.DoesNotExist,
+                ValueError
+            ):
+                errores.append(
+                    "El área común seleccionada no es válida."
+                )
+
+        if area and not area.reservable:
+
+            errores.append(
+                "El área común seleccionada no permite reservas."
+            )
+
+        # ============================== UNIDAD ==============================
+
+        unidad = None
+
+        if not unidad_id:
+
+            errores.append(
+                "Debes seleccionar una unidad."
+            )
+
+        else:
+
+            try:
+                unidad = Unidad.objects.select_related(
+                    "edificio"
+                ).get(
+                    id=int(unidad_id),
+                    edificio__condominio=condominio
+                )
+
+            except (
+                Unidad.DoesNotExist,
+                ValueError
+            ):
+                errores.append(
+                    "La unidad seleccionada no es válida."
+                )
+
+        if (
+            unidad
+            and es_residente(usuario_actual)
+            and unidad.dueno_id != usuario_actual.id
+            and unidad.arrendatario_id != usuario_actual.id
+        ):
+            errores.append(
+                "Solo puedes realizar reservas usando una unidad de la que seas propietario o arrendatario."
+            )
+
+        # ============================== FECHAS ==============================
+
+        fecha_reserva = None
+        fin_reserva = None
+
+        if not fecha_reserva_texto:
+
+            errores.append(
+                "Debes indicar la fecha y hora de inicio."
+            )
+
+        else:
+
+            try:
+                fecha_reserva = datetime.fromisoformat(
+                    fecha_reserva_texto
+                )
+
+                if timezone.is_naive(fecha_reserva):
+                    fecha_reserva = timezone.make_aware(
+                        fecha_reserva
+                    )
+
+            except ValueError:
+
+                errores.append(
+                    "La fecha y hora de inicio no son válidas."
+                )
+
+        if not fin_reserva_texto:
+
+            errores.append(
+                "Debes indicar la fecha y hora de término."
+            )
+
+        else:
+
+            try:
+                fin_reserva = datetime.fromisoformat(
+                    fin_reserva_texto
+                )
+
+                if timezone.is_naive(fin_reserva):
+                    fin_reserva = timezone.make_aware(
+                        fin_reserva
+                    )
+
+            except ValueError:
+
+                errores.append(
+                    "La fecha y hora de término no son válidas."
+                )
+
+        # ============================== VALIDAR ORDEN ==============================
+
+        if fecha_reserva and fin_reserva:
+
+            if fin_reserva <= fecha_reserva:
+
+                errores.append(
+                    "La hora de término debe ser posterior a la hora de inicio."
+                )
+
+            if fecha_reserva.date() != fin_reserva.date():
+
+                errores.append(
+                    "La reserva debe comenzar y terminar el mismo día."
+                )
+
+        # ============================== VALIDAR FECHA ACTUAL ==============================
+
+        ahora = timezone.now()
+
+        if fecha_reserva:
+
+            if fecha_reserva <= ahora:
+
+                errores.append(
+                    "La reserva debe comenzar en una fecha y hora futura."
+                )
+
+        # ============================== ANTICIPACIÓN MÁXIMA ==============================
+
+        if (
+            area
+            and fecha_reserva
+            and area.dias_anticipacion_maxima is not None
+        ):
+
+            dias_anticipacion = (
+                fecha_reserva.date() - ahora.date()
+            ).days
+
+            if dias_anticipacion > area.dias_anticipacion_maxima:
+
+                errores.append(
+                    f"Esta área solo permite reservar con "
+                    f"{area.dias_anticipacion_maxima} días de anticipación como máximo."
+                )
+
+        # ============================== DURACIÓN MÁXIMA ==============================
+
+        if (
+            area
+            and fecha_reserva
+            and fin_reserva
+            and fin_reserva > fecha_reserva
+            and area.duracion_maxima is not None
+        ):
+
+            duracion = fin_reserva - fecha_reserva
+
+            duracion_maxima = timedelta(
+                hours=area.duracion_maxima
+            )
+
+            if duracion > duracion_maxima:
+
+                errores.append(
+                    f"La duración máxima permitida para esta área es de "
+                    f"{area.duracion_maxima} horas."
+                )
+
+        # ============================== HORARIO DEL ÁREA ==============================
+
+        if (
+            area
+            and fecha_reserva
+            and fin_reserva
+            and fin_reserva > fecha_reserva
+            and fecha_reserva.date() == fin_reserva.date()
+        ):
+
+            dia_semana = fecha_reserva.weekday()
+
+            hora_inicio = fecha_reserva.time()
+            hora_fin = fin_reserva.time()
+
+            horario_valido = HorarioAreaComun.objects.filter(
+                area_comun=area,
+                dia_semana=dia_semana,
+                hora_inicio__lte=hora_inicio,
+                hora_fin__gte=hora_fin
+            ).exists()
+
+            if not horario_valido:
+
+                errores.append(
+                    "La reserva debe estar completamente dentro del horario configurado para el área común."
+                )
+
+        # ============================== RESERVAS QUE SE CRUZAN ==============================
+
+        if (
+            area
+            and fecha_reserva
+            and fin_reserva
+            and fin_reserva > fecha_reserva
+        ):
+
+            reservas_existentes = Reservacion.objects.filter(
+                area_comun=area,
+                estado__in=[
+                    Reservacion.Estado.PENDIENTE,
+                    Reservacion.Estado.APROBADO,
+                ],
+                fecha_reserva__lt=fin_reserva,
+                fin_reserva__gt=fecha_reserva,
+            )
+
+            if reservas_existentes.exists():
+
+                errores.append(
+                    "El horario seleccionado se cruza con otra reserva existente para esta área."
+                )
+
+            elif not area.permite_reservas_consecutivas:
+
+                reserva_anterior = Reservacion.objects.filter(
+                    area_comun=area,
+                    estado__in=[
+                        Reservacion.Estado.PENDIENTE,
+                        Reservacion.Estado.APROBADO,
+                    ],
+                    fin_reserva=fecha_reserva,
+                ).exists()
+
+                reserva_siguiente = Reservacion.objects.filter(
+                    area_comun=area,
+                    estado__in=[
+                        Reservacion.Estado.PENDIENTE,
+                        Reservacion.Estado.APROBADO,
+                    ],
+                    fecha_reserva=fin_reserva,
+                ).exists()
+
+                if reserva_anterior or reserva_siguiente:
+
+                    errores.append(
+                        "Esta área no permite reservas consecutivas."
+                    )
+
+        # ============================== CREAR RESERVA ==============================
+
+        if not errores:
+
+            reservacion = Reservacion(
+                tipo_reserva=Reservacion.Tipo.AREA_COMUN,
+                usuario=usuario_actual,
+                unidad=unidad,
+                fecha_reserva=fecha_reserva,
+                fin_reserva=fin_reserva,
+                estado=Reservacion.Estado.PENDIENTE,
+                notas=notas,
+                area_comun=area,
+                nombre_invitado="",
+            )
+
+            try:
+                reservacion.full_clean()
+
+            except ValidationError as error:
+
+                errores.extend(
+                    error.messages
+                )
+
+            if not errores:
+
+                reservacion.save()
+
+                return redirect(
+                    "reservaciones_lista"
+                )
+
+        return render(
+            request,
+            "core/reservaciones/crear.html",
+            {
+                "usuario_actual": usuario_actual,
+                "condominio": condominio,
+                "areas": areas,
+                "unidades": unidades,
+                "errores": errores,
+                "datos": request.POST,
+            }
+        )
+
+    return render(
+        request,
+        "core/reservaciones/crear.html",
+        {
+            "usuario_actual": usuario_actual,
+            "condominio": condominio,
+            "areas": areas,
+            "unidades": unidades,
+        }
+    )
+
+
+# ============================== EDITAR RESERVACIÓN ==============================
+
+@login_required
+def reservacion_editar(request, reservacion_id):
+
+    usuario_actual = obtener_usuario(request)
+
+    reservacion = get_object_or_404(
+        Reservacion.objects.select_related(
+            "area_comun",
+            "unidad",
+            "unidad__edificio",
+        ),
+        id=reservacion_id
+    )
+
+    # Un residente solamente puede editar
+    # sus propias reservas.
+    if es_residente(usuario_actual):
+
+        if reservacion.usuario_id != usuario_actual.id:
+            return redirect("reservaciones_lista")
+
+    # Por ahora solo permitimos editar reservas
+    # de áreas comunes.
+    if reservacion.tipo_reserva != Reservacion.Tipo.AREA_COMUN:
+        return redirect("reservaciones_lista")
+
+    if reservacion.estado == Reservacion.Estado.CANCELADO:
+        return redirect("reservaciones_lista")
+
+    if not reservacion.area_comun:
+        return redirect("reservaciones_lista")
+
+    area = reservacion.area_comun
+    condominio = area.condominio
+
+    if usuario_actual.condominio_id != condominio.id:
+        return redirect("inicio")
+
+    areas = AreaComun.objects.filter(
+        condominio=condominio,
+        reservable=True
+    ).prefetch_related(
+        "horarios"
+    ).order_by(
+        "nombre"
+    )
+
+    if es_residente(usuario_actual):
+
+        unidades = Unidad.objects.filter(
+            edificio__condominio=condominio
+        ).filter(
+            dueno=usuario_actual
+        ) | Unidad.objects.filter(
+            edificio__condominio=condominio,
+            arrendatario=usuario_actual
+        )
+
+        unidades = unidades.select_related(
+            "edificio"
+        ).distinct().order_by(
+            "edificio__nombre",
+            "piso",
+            "posicion"
+        )
+
+    else:
+
+        unidades = Unidad.objects.filter(
+            edificio__condominio=condominio
+        ).select_related(
+            "edificio"
+        ).order_by(
+            "edificio__nombre",
+            "piso",
+            "posicion"
+        )
+
+    if request.method == "POST":
+
+        area_id = request.POST.get(
+            "area_comun",
+            ""
+        ).strip()
+
+        unidad_id = request.POST.get(
+            "unidad",
+            ""
+        ).strip()
+
+        fecha_reserva_texto = request.POST.get(
+            "fecha_reserva",
+            ""
+        ).strip()
+
+        fin_reserva_texto = request.POST.get(
+            "fin_reserva",
+            ""
+        ).strip()
+
+        notas = request.POST.get(
+            "notas",
+            ""
+        ).strip()
+
+        errores = []
+
+        # ============================== ÁREA ==============================
+
+        area_nueva = None
+
+        try:
+
+            area_nueva = AreaComun.objects.get(
+                id=int(area_id),
+                condominio=condominio,
+                reservable=True
+            )
+
+        except (
+            AreaComun.DoesNotExist,
+            ValueError
+        ):
+
+            errores.append(
+                "El área común seleccionada no es válida."
+            )
+
+        # ============================== UNIDAD ==============================
+
+        unidad = None
+
+        try:
+
+            unidad = Unidad.objects.select_related(
+                "edificio"
+            ).get(
+                id=int(unidad_id),
+                edificio__condominio=condominio
+            )
+
+        except (
+            Unidad.DoesNotExist,
+            ValueError
+        ):
+
+            errores.append(
+                "La unidad seleccionada no es válida."
+            )
+
+        if (
+            unidad
+            and es_residente(usuario_actual)
+            and unidad.dueno_id != usuario_actual.id
+            and unidad.arrendatario_id != usuario_actual.id
+        ):
+
+            errores.append(
+                "Solo puedes realizar reservas usando una unidad de la que seas propietario o arrendatario."
+            )
+
+        # ============================== FECHAS ==============================
+
+        fecha_reserva = None
+        fin_reserva = None
+
+        try:
+
+            fecha_reserva = datetime.fromisoformat(
+                fecha_reserva_texto
+            )
+
+            if timezone.is_naive(fecha_reserva):
+                fecha_reserva = timezone.make_aware(
+                    fecha_reserva
+                )
+
+        except ValueError:
+
+            errores.append(
+                "La fecha y hora de inicio no son válidas."
+            )
+
+        try:
+
+            fin_reserva = datetime.fromisoformat(
+                fin_reserva_texto
+            )
+
+            if timezone.is_naive(fin_reserva):
+                fin_reserva = timezone.make_aware(
+                    fin_reserva
+                )
+
+        except ValueError:
+
+            errores.append(
+                "La fecha y hora de término no son válidas."
+            )
+
+        # ============================== VALIDACIONES ==============================
+
+        if fecha_reserva and fin_reserva:
+
+            if fin_reserva <= fecha_reserva:
+
+                errores.append(
+                    "La hora de término debe ser posterior a la hora de inicio."
+                )
+
+            if fecha_reserva.date() != fin_reserva.date():
+
+                errores.append(
+                    "La reserva debe comenzar y terminar el mismo día."
+                )
+
+        ahora = timezone.now()
+
+        if fecha_reserva and fecha_reserva <= ahora:
+
+            errores.append(
+                "La reserva debe comenzar en una fecha y hora futura."
+            )
+
+        if (
+            area_nueva
+            and fecha_reserva
+            and area_nueva.dias_anticipacion_maxima is not None
+        ):
+
+            dias_anticipacion = (
+                fecha_reserva.date() - ahora.date()
+            ).days
+
+            if dias_anticipacion > area_nueva.dias_anticipacion_maxima:
+
+                errores.append(
+                    f"Esta área solo permite reservar con "
+                    f"{area_nueva.dias_anticipacion_maxima} días de anticipación como máximo."
+                )
+
+        if (
+            area_nueva
+            and fecha_reserva
+            and fin_reserva
+            and fin_reserva > fecha_reserva
+            and area_nueva.duracion_maxima is not None
+        ):
+
+            duracion = fin_reserva - fecha_reserva
+
+            if duracion > timedelta(
+                hours=area_nueva.duracion_maxima
+            ):
+
+                errores.append(
+                    f"La duración máxima permitida para esta área es de "
+                    f"{area_nueva.duracion_maxima} horas."
+                )
+
+        # ============================== HORARIO ==============================
+
+        if (
+            area_nueva
+            and fecha_reserva
+            and fin_reserva
+            and fin_reserva > fecha_reserva
+            and fecha_reserva.date() == fin_reserva.date()
+        ):
+
+            dia_semana = fecha_reserva.weekday()
+
+            horario_valido = HorarioAreaComun.objects.filter(
+                area_comun=area_nueva,
+                dia_semana=dia_semana,
+                hora_inicio__lte=fecha_reserva.time(),
+                hora_fin__gte=fin_reserva.time(),
+            ).exists()
+
+            if not horario_valido:
+
+                errores.append(
+                    "La reserva debe estar completamente dentro del horario configurado para el área común."
+                )
+
+        # ============================== CRUCES ==============================
+
+        if (
+            area_nueva
+            and fecha_reserva
+            and fin_reserva
+            and fin_reserva > fecha_reserva
+        ):
+
+            reservas_existentes = Reservacion.objects.filter(
+                area_comun=area_nueva,
+                estado__in=[
+                    Reservacion.Estado.PENDIENTE,
+                    Reservacion.Estado.APROBADO,
+                ],
+                fecha_reserva__lt=fin_reserva,
+                fin_reserva__gt=fecha_reserva,
+            ).exclude(
+                id=reservacion.id
+            )
+
+            if reservas_existentes.exists():
+
+                errores.append(
+                    "El horario seleccionado se cruza con otra reserva existente para esta área."
+                )
+
+            elif not area_nueva.permite_reservas_consecutivas:
+
+                reserva_anterior = Reservacion.objects.filter(
+                    area_comun=area_nueva,
+                    estado__in=[
+                        Reservacion.Estado.PENDIENTE,
+                        Reservacion.Estado.APROBADO,
+                    ],
+                    fin_reserva=fecha_reserva,
+                ).exclude(
+                    id=reservacion.id
+                ).exists()
+
+                reserva_siguiente = Reservacion.objects.filter(
+                    area_comun=area_nueva,
+                    estado__in=[
+                        Reservacion.Estado.PENDIENTE,
+                        Reservacion.Estado.APROBADO,
+                    ],
+                    fecha_reserva=fin_reserva,
+                ).exclude(
+                    id=reservacion.id
+                ).exists()
+
+                if reserva_anterior or reserva_siguiente:
+
+                    errores.append(
+                        "Esta área no permite reservas consecutivas."
+                    )
+
+        # ============================== GUARDAR ==============================
+
+        if not errores:
+
+            reservacion.area_comun = area_nueva
+            reservacion.unidad = unidad
+            reservacion.fecha_reserva = fecha_reserva
+            reservacion.fin_reserva = fin_reserva
+            reservacion.notas = notas
+
+            try:
+
+                reservacion.full_clean()
+
+            except ValidationError as error:
+
+                errores.extend(
+                    error.messages
+                )
+
+            if not errores:
+
+                reservacion.save()
+
+                return redirect(
+                    "reservaciones_lista"
+                )
+
+        return render(
+            request,
+            "core/reservaciones/editar.html",
+            {
+                "usuario_actual": usuario_actual,
+                "reservacion": reservacion,
+                "areas": areas,
+                "unidades": unidades,
+                "errores": errores,
+                "datos": request.POST,
+            }
+        )
+
+    return render(
+        request,
+        "core/reservaciones/editar.html",
+        {
+            "usuario_actual": usuario_actual,
+            "reservacion": reservacion,
+            "areas": areas,
+            "unidades": unidades,
+        }
+    )
+
+# ============================== CANCELAR RESERVACIÓN ==============================
+
+@login_required
+def reservacion_cancelar(request, reservacion_id):
+
+    usuario_actual = obtener_usuario(request)
+    reservacion = get_object_or_404(
+        Reservacion,
+        id=reservacion_id
+    )
+    # El residente solo puede cancelar sus propias reservas.
+    if es_residente(usuario_actual):
+        if reservacion.usuario_id != usuario_actual.id:
+            return redirect("reservaciones_lista")
+
+    if (
+        reservacion.unidad
+        and reservacion.unidad.edificio.condominio_id
+        != usuario_actual.condominio_id
+    ):
+        return redirect("inicio")
+
+    if request.method == "POST":
+
+        if reservacion.estado not in [
+            Reservacion.Estado.CANCELADO,
+            Reservacion.Estado.RECHAZADO,
+        ]:
+
+            reservacion.estado = Reservacion.Estado.CANCELADO
+
+            reservacion.save(
+                update_fields=["estado"]
+            )
+
+    return redirect(
+        "reservaciones_lista"
+    )
+
+
 # ============================== PÁGINA PÚBLICA ==============================
 
 def landing(request):
+
     if request.user.is_authenticated:
         return redirect("inicio")
 

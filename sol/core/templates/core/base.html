@@ -349,6 +349,21 @@
                 {% endif %}
 
 
+                <!-- ============================== RESIDENTE ============================== -->
+
+                {% if usuario_actual.rol.nombre == "Residente" %}
+
+                    <div class="menu-title">
+                        Módulos
+                    </div>
+
+                    <a href="{% url 'reservaciones_lista' %}">
+                        📅 Reservas
+                    </a>
+
+                {% endif %}
+
+
             {% else %}
 
                 {% if usuario %}
@@ -382,6 +397,21 @@
 
                     {% endif %}
 
+
+                    <!-- ============================== RESIDENTE ============================== -->
+
+                    {% if usuario.rol.nombre == "Residente" %}
+
+                        <div class="menu-title">
+                            Módulos
+                        </div>
+
+                        <a href="{% url 'reservaciones_lista' %}">
+                            📅 Reservas
+                        </a>
+
+                    {% endif %}
+
                 {% endif %}
 
             {% endif %}
@@ -392,10 +422,6 @@
             <div class="menu-title">
                 Módulos
             </div>
-
-            <a href="#">
-                📅 Reservas
-            </a>
 
             <a href="#">
                 🚗 Visitas
@@ -500,19 +526,12 @@
 
 </div>
 
-
-<!-- ========================================================= -->
-<!-- BOOTSTRAP JAVASCRIPT                                     -->
-<!-- ========================================================= -->
-
 <script
     src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
 ></script>
 
-
 {% block extra_js %}
 {% endblock %}
-
 
 </body>
 </html>

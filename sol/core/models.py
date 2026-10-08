@@ -374,11 +374,44 @@ class AreaComun(models.Model):
     )
     nombre = models.CharField(max_length=100)
     descripcion = models.TextField(blank=True)
+
     capacidad = models.PositiveSmallIntegerField(
         null=True,
         blank=True,
     )
+
     reservable = models.BooleanField(default=False)
+
+    # ============================== REGLAS DE RESERVA ==============================
+
+    # Duración máxima de una reserva, expresada en horas.
+    # Si queda vacío, no existe un límite configurado.
+    duracion_maxima = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(1)],
+    )
+
+    # Indica si el uso del área requiere obligatoriamente
+    # realizar una reserva.
+    requiere_reserva = models.BooleanField(
+        default=True,
+    )
+
+    # Permite que un usuario realice reservas consecutivas
+    # para el mismo espacio.
+    permite_reservas_consecutivas = models.BooleanField(
+        default=False,
+    )
+
+    # Cantidad máxima de días con los que se puede reservar
+    # anticipadamente.
+    # Si queda vacío, no existe un límite configurado.
+    dias_anticipacion_maxima = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(1)],
+    )
 
     costo = models.ForeignKey(
         Costo,

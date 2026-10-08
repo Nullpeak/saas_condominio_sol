@@ -29,6 +29,12 @@
 
                 {% csrf_token %}
 
+                <!-- ============================== INFORMACIÓN BÁSICA ============================== -->
+
+                <h5 class="mb-3">
+                    Información del área
+                </h5>
+
                 <div class="mb-3">
                     <label for="nombre" class="form-label">
                         Nombre
@@ -62,7 +68,7 @@
                     >{{ datos.descripcion|default:'' }}</textarea>
                 </div>
 
-                <div class="mb-3">
+                <div class="mb-4">
                     <label for="capacidad" class="form-label">
                         Capacidad
                     </label>
@@ -81,7 +87,21 @@
                     </div>
                 </div>
 
-                <div class="form-check mb-4">
+
+                <!-- ============================== RESERVAS ============================== -->
+
+                <hr>
+
+                <h5 class="mb-3 mt-4">
+                    Configuración de reservas
+                </h5>
+
+                <p class="text-muted">
+                    Estas opciones permiten definir las reglas de reserva
+                    específicas para esta área común.
+                </p>
+
+                <div class="form-check mb-3">
 
                     <input
                         type="checkbox"
@@ -92,10 +112,113 @@
                     >
 
                     <label for="reservable" class="form-check-label">
-                        Esta área permite reservas
+                        <strong>Esta área permite reservas</strong>
                     </label>
 
                 </div>
+
+
+                <div class="form-check mb-3">
+
+                    <input
+                        type="checkbox"
+                        id="requiere_reserva"
+                        name="requiere_reserva"
+                        class="form-check-input"
+                        {% if datos.requiere_reserva %}checked{% endif %}
+                    >
+
+                    <label for="requiere_reserva" class="form-check-label">
+                        <strong>El uso del área requiere una reserva</strong>
+                    </label>
+
+                    <div class="form-text">
+                        Si está activado, los residentes deberán realizar una
+                        reserva para utilizar el área.
+                    </div>
+
+                </div>
+
+
+                <div class="mb-3">
+
+                    <label
+                        for="duracion_maxima"
+                        class="form-label"
+                    >
+                        Duración máxima de reserva (horas)
+                    </label>
+
+                    <input
+                        type="number"
+                        id="duracion_maxima"
+                        name="duracion_maxima"
+                        class="form-control"
+                        min="1"
+                        value="{{ datos.duracion_maxima|default:'' }}"
+                    >
+
+                    <div class="form-text">
+                        Cantidad máxima de horas que puede durar una reserva.
+                        Puede dejarse vacío si no existe un límite.
+                    </div>
+
+                </div>
+
+
+                <div class="form-check mb-3">
+
+                    <input
+                        type="checkbox"
+                        id="permite_reservas_consecutivas"
+                        name="permite_reservas_consecutivas"
+                        class="form-check-input"
+                        {% if datos.permite_reservas_consecutivas %}checked{% endif %}
+                    >
+
+                    <label
+                        for="permite_reservas_consecutivas"
+                        class="form-check-label"
+                    >
+                        <strong>Permitir reservas consecutivas</strong>
+                    </label>
+
+                    <div class="form-text">
+                        Permite que una misma persona realice reservas
+                        consecutivas para el área.
+                    </div>
+
+                </div>
+
+
+                <div class="mb-4">
+
+                    <label
+                        for="dias_anticipacion_maxima"
+                        class="form-label"
+                    >
+                        Máximo de días de anticipación
+                    </label>
+
+                    <input
+                        type="number"
+                        id="dias_anticipacion_maxima"
+                        name="dias_anticipacion_maxima"
+                        class="form-control"
+                        min="1"
+                        value="{{ datos.dias_anticipacion_maxima|default:'' }}"
+                    >
+
+                    <div class="form-text">
+                        Cantidad máxima de días antes de la fecha en que se
+                        puede realizar una reserva. Puede dejarse vacío si
+                        no existe un límite.
+                    </div>
+
+                </div>
+
+
+                <!-- ============================== BOTONES ============================== -->
 
                 <div class="d-flex gap-2">
 

@@ -57,6 +57,12 @@ Editar área común
         {% csrf_token %}
 
 
+        <!-- ============================== INFORMACIÓN BÁSICA ============================== -->
+
+        <h3>
+            Información del área
+        </h3>
+
         <!-- ============================== NOMBRE ============================== -->
 
         <div style="margin-bottom: 18px;">
@@ -115,7 +121,7 @@ Editar área común
 
         <!-- ============================== CAPACIDAD ============================== -->
 
-        <div style="margin-bottom: 18px;">
+        <div style="margin-bottom: 24px;">
 
             <label for="capacidad">
                 <strong>Capacidad</strong>
@@ -145,9 +151,23 @@ Editar área común
         </div>
 
 
+        <!-- ============================== RESERVAS ============================== -->
+
+        <hr>
+
+        <h3 style="margin-top: 24px;">
+            Configuración de reservas
+        </h3>
+
+        <p style="color: #64748b;">
+            Estas opciones permiten definir las reglas de reserva
+            específicas para esta área común.
+        </p>
+
+
         <!-- ============================== RESERVABLE ============================== -->
 
-        <div style="margin-bottom: 24px;">
+        <div style="margin-bottom: 18px;">
 
             <label>
 
@@ -164,6 +184,133 @@ Editar área común
                 </strong>
 
             </label>
+
+        </div>
+
+
+        <!-- ============================== REQUIERE RESERVA ============================== -->
+
+        <div style="margin-bottom: 18px;">
+
+            <label>
+
+                <input
+                    type="checkbox"
+                    name="requiere_reserva"
+                    {% if datos.requiere_reserva or area.requiere_reserva and not datos %}
+                        checked
+                    {% endif %}
+                >
+
+                <strong>
+                    El uso del área requiere una reserva
+                </strong>
+
+            </label>
+
+            <br>
+
+            <small style="color: #64748b;">
+                Si está activado, los residentes deberán realizar una
+                reserva para utilizar el área.
+            </small>
+
+        </div>
+
+
+        <!-- ============================== DURACIÓN MÁXIMA ============================== -->
+
+        <div style="margin-bottom: 18px;">
+
+            <label for="duracion_maxima">
+                <strong>Duración máxima de reserva (horas)</strong>
+            </label>
+
+            <br>
+
+            <input
+                type="number"
+                id="duracion_maxima"
+                name="duracion_maxima"
+                min="1"
+                value="{{ datos.duracion_maxima|default:area.duracion_maxima }}"
+                style="
+                    width: 100%;
+                    padding: 10px;
+                    margin-top: 6px;
+                    border: 1px solid #d1d5db;
+                    border-radius: 7px;
+                "
+            >
+
+            <small style="color: #64748b;">
+                Cantidad máxima de horas que puede durar una reserva.
+                Puede dejarse vacío si no existe un límite.
+            </small>
+
+        </div>
+
+
+        <!-- ============================== RESERVAS CONSECUTIVAS ============================== -->
+
+        <div style="margin-bottom: 18px;">
+
+            <label>
+
+                <input
+                    type="checkbox"
+                    name="permite_reservas_consecutivas"
+                    {% if datos.permite_reservas_consecutivas or area.permite_reservas_consecutivas and not datos %}
+                        checked
+                    {% endif %}
+                >
+
+                <strong>
+                    Permitir reservas consecutivas
+                </strong>
+
+            </label>
+
+            <br>
+
+            <small style="color: #64748b;">
+                Permite que una misma persona realice reservas
+                consecutivas para el área.
+            </small>
+
+        </div>
+
+
+        <!-- ============================== ANTICIPACIÓN ============================== -->
+
+        <div style="margin-bottom: 24px;">
+
+            <label for="dias_anticipacion_maxima">
+                <strong>Máximo de días de anticipación</strong>
+            </label>
+
+            <br>
+
+            <input
+                type="number"
+                id="dias_anticipacion_maxima"
+                name="dias_anticipacion_maxima"
+                min="1"
+                value="{{ datos.dias_anticipacion_maxima|default:area.dias_anticipacion_maxima }}"
+                style="
+                    width: 100%;
+                    padding: 10px;
+                    margin-top: 6px;
+                    border: 1px solid #d1d5db;
+                    border-radius: 7px;
+                "
+            >
+
+            <small style="color: #64748b;">
+                Cantidad máxima de días antes de la fecha en que se
+                puede realizar una reserva. Puede dejarse vacío si
+                no existe un límite.
+            </small>
 
         </div>
 
