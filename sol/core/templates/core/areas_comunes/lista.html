@@ -1,0 +1,221 @@
+{% extends "core/base.html" %}
+
+{% block title %}
+Áreas comunes - CondoGestión
+{% endblock %}
+
+{% block page_title %}
+Áreas comunes
+{% endblock %}
+
+{% block content %}
+
+<!-- ============================== ENCABEZADO ============================== -->
+
+<div class="card">
+
+    <div style="display: flex; justify-content: space-between; align-items: center; gap: 15px; flex-wrap: wrap;">
+
+        <div>
+
+            <h2 style="margin-bottom: 5px;">
+                Gestión de áreas comunes
+            </h2>
+
+            <p style="margin: 0; color: #64748b;">
+                Administra las áreas comunes de {{ condominio.nombre }}.
+            </p>
+
+        </div>
+
+        <a
+            class="button"
+            href="{% url 'area_comun_crear' condominio.id %}"
+        >
+            + Nueva área común
+        </a>
+
+    </div>
+
+</div>
+
+
+<!-- ============================== LISTADO ============================== -->
+
+<div class="card">
+
+    <h2>
+        Áreas comunes registradas
+    </h2>
+
+    {% if areas %}
+
+        <div style="overflow-x: auto;">
+
+            <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+
+                <thead>
+
+                    <tr style="border-bottom: 2px solid #e5e7eb; text-align: left;">
+
+                        <th style="padding: 12px 10px;">
+                            Nombre
+                        </th>
+
+                        <th style="padding: 12px 10px;">
+                            Descripción
+                        </th>
+
+                        <th style="padding: 12px 10px;">
+                            Capacidad
+                        </th>
+
+                        <th style="padding: 12px 10px;">
+                            Reservable
+                        </th>
+
+                        <th style="padding: 12px 10px;">
+                            Horarios
+                        </th>
+
+                        <th style="padding: 12px 10px;">
+                            Acciones
+                        </th>
+
+                    </tr>
+
+                </thead>
+
+                <tbody>
+
+                    {% for area in areas %}
+
+                        <tr style="border-bottom: 1px solid #e5e7eb;">
+
+                            <td style="padding: 12px 10px;">
+
+                                <strong>
+                                    {{ area.nombre }}
+                                </strong>
+
+                            </td>
+
+
+                            <td style="padding: 12px 10px;">
+
+                                {% if area.descripcion %}
+                                    {{ area.descripcion }}
+                                {% else %}
+                                    -
+                                {% endif %}
+
+                            </td>
+
+
+                            <td style="padding: 12px 10px;">
+
+                                {% if area.capacidad %}
+                                    {{ area.capacidad }} personas
+                                {% else %}
+                                    -
+                                {% endif %}
+
+                            </td>
+
+
+                            <td style="padding: 12px 10px;">
+
+                                {% if area.reservable %}
+
+                                    <span style="
+                                        display: inline-block;
+                                        padding: 5px 9px;
+                                        border-radius: 20px;
+                                        background: #dcfce7;
+                                        color: #166534;
+                                        font-size: 12px;
+                                        font-weight: bold;
+                                    ">
+                                        Sí
+                                    </span>
+
+                                {% else %}
+
+                                    <span style="
+                                        display: inline-block;
+                                        padding: 5px 9px;
+                                        border-radius: 20px;
+                                        background: #fee2e2;
+                                        color: #991b1b;
+                                        font-size: 12px;
+                                        font-weight: bold;
+                                    ">
+                                        No
+                                    </span>
+
+                                {% endif %}
+
+                            </td>
+
+
+                            <td style="padding: 12px 10px;">
+
+                                {{ area.horarios.count }}
+
+                            </td>
+
+
+                            <td style="padding: 12px 10px; white-space: nowrap;">
+
+                                <a
+                                    class="button button-secondary"
+                                    href="{% url 'area_comun_editar' area.id %}"
+                                >
+                                    Editar
+                                </a>
+
+                                <a
+                                    class="button"
+                                    href="{% url 'area_comun_horarios' area.id %}"
+                                >
+                                    Horarios
+                                </a>
+
+                            </td>
+
+                        </tr>
+
+                    {% endfor %}
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+    {% else %}
+
+        <div style="
+            padding: 30px 10px;
+            text-align: center;
+            color: #64748b;
+        ">
+
+            <p>
+                No hay áreas comunes registradas.
+            </p>
+
+            <a
+                class="button"
+                href="{% url 'area_comun_crear' condominio.id %}"
+            >
+                Crear primera área común
+            </a>
+
+        </div>
+
+    {% endif %}
+
+</div>
+
+{% endblock %}

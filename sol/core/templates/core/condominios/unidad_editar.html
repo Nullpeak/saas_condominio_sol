@@ -1,183 +1,206 @@
-<!DOCTYPE html>
-<html lang="es">
+{% extends "core/base.html" %}
 
-<head>
+{% block title %}
+Editar unidad - {{ unidad.numero_unidad }} - CondoGestión
+{% endblock %}
 
-    <meta charset="UTF-8">
+{% block page_title %}
+Editar unidad
+{% endblock %}
 
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
+{% block content %}
 
-    <title>Editar unidad</title>
+<!-- ============================== ENCABEZADO ============================== -->
 
-</head>
+<div class="card">
+
+    <h2>
+        Editar unidad {{ unidad.numero_unidad }}
+    </h2>
+
+    <p style="color: #64748b; margin-top: 6px;">
+        Modifica el propietario y arrendatario de esta unidad.
+    </p>
+
+    <p style="margin-top: 12px;">
+        <strong>Condominio:</strong>
+        {{ unidad.edificio.condominio.nombre }}
+    </p>
+
+    <p>
+        <strong>Edificio:</strong>
+        {{ unidad.edificio.nombre }}
+    </p>
+
+    <p>
+        <strong>Unidad:</strong>
+        {{ unidad.numero_unidad }}
+    </p>
+
+</div>
 
 
-<body>
+<!-- ============================== ERRORES ============================== -->
 
-    <header>
+{% if errores %}
 
-        <h1>
-            Editar unidad
-        </h1>
+<div class="card">
 
-        <p>
-            Condominio:
-            <strong>
-                {{ unidad.edificio.condominio.nombre }}
-            </strong>
+    <h2>
+        Errores
+    </h2>
+
+    {% for error in errores %}
+
+        <p style="color: #dc2626;">
+            {{ error }}
         </p>
 
-        <p>
-            Edificio:
-            <strong>
-                {{ unidad.edificio.nombre }}
-            </strong>
-        </p>
+    {% endfor %}
 
-        <p>
-            Unidad:
-            <strong>
-                {{ unidad.numero_unidad }}
-            </strong>
-        </p>
+</div>
 
-    </header>
+{% endif %}
 
 
-    <main>
+<!-- ============================== FORMULARIO ============================== -->
 
-        <form method="post">
+<div class="card">
 
-            {% csrf_token %}
+    <h2>
+        Datos de la unidad
+    </h2>
+
+    <form method="post">
+
+        {% csrf_token %}
 
 
-            <p>
+        <!-- ============================== PROPIETARIO ============================== -->
 
-                <label for="dueno_id">
-                    Propietario:
-                </label>
+        <div style="margin-bottom: 20px;">
 
-                <br>
+            <label for="dueno_id">
+                <strong>
+                    Propietario
+                </strong>
+            </label>
 
-                <select
-                    id="dueno_id"
-                    name="dueno_id"
-                >
+            <br>
 
-                    <option value="">
-                        Sin propietario
+            <select
+                id="dueno_id"
+                name="dueno_id"
+                style="
+                    width: 100%;
+                    max-width: 500px;
+                    padding: 10px;
+                    margin-top: 6px;
+                "
+            >
+
+                <option value="">
+                    Sin propietario
+                </option>
+
+                {% for usuario in usuarios %}
+
+                    <option
+                        value="{{ usuario.id }}"
+                        {% if unidad.dueno_id == usuario.id %}
+                            selected
+                        {% endif %}
+                    >
+                        {{ usuario.nombre }}
+                        {{ usuario.nombre2 }}
+                        {{ usuario.apellido }}
+                        {{ usuario.apellido2 }}
                     </option>
 
+                {% endfor %}
 
-                    {% for usuario in usuarios %}
+            </select>
 
-                        <option
-                            value="{{ usuario.id }}"
-                            {% if unidad.dueno_id == usuario.id %}
-                                selected
-                            {% endif %}
-                        >
-
-                            {{ usuario.nombre }}
-                            {{ usuario.nombre2 }}
-                            {{ usuario.apellido }}
-                            {{ usuario.apellido2 }}
-
-                            -
-                            {{ usuario.rol.nombre }}
-
-                        </option>
-
-                    {% endfor %}
-
-                </select>
-
-            </p>
+        </div>
 
 
-            <p>
+        <!-- ============================== ARRENDATARIO ============================== -->
 
-                <label for="arrendatario_id">
-                    Arrendatario:
-                </label>
+        <div style="margin-bottom: 20px;">
 
-                <br>
+            <label for="arrendatario_id">
+                <strong>
+                    Arrendatario
+                </strong>
+            </label>
 
-                <select
-                    id="arrendatario_id"
-                    name="arrendatario_id"
-                >
+            <br>
 
-                    <option value="">
-                        Sin arrendatario
+            <select
+                id="arrendatario_id"
+                name="arrendatario_id"
+                style="
+                    width: 100%;
+                    max-width: 500px;
+                    padding: 10px;
+                    margin-top: 6px;
+                "
+            >
+
+                <option value="">
+                    Sin arrendatario
+                </option>
+
+                {% for usuario in usuarios %}
+
+                    <option
+                        value="{{ usuario.id }}"
+                        {% if unidad.arrendatario_id == usuario.id %}
+                            selected
+                        {% endif %}
+                    >
+                        {{ usuario.nombre }}
+                        {{ usuario.nombre2 }}
+                        {{ usuario.apellido }}
+                        {{ usuario.apellido2 }}
                     </option>
 
+                {% endfor %}
 
-                    {% for usuario in usuarios %}
+            </select>
 
-                        <option
-                            value="{{ usuario.id }}"
-                            {% if unidad.arrendatario_id == usuario.id %}
-                                selected
-                            {% endif %}
-                        >
-
-                            {{ usuario.nombre }}
-                            {{ usuario.nombre2 }}
-                            {{ usuario.apellido }}
-                            {{ usuario.apellido2 }}
-
-                            -
-                            {{ usuario.rol.nombre }}
-
-                        </option>
-
-                    {% endfor %}
-
-                </select>
-
-            </p>
+        </div>
 
 
-            <button type="submit">
+        <!-- ============================== BOTONES ============================== -->
+
+        <div
+            style="
+                margin-top: 25px;
+                display: flex;
+                gap: 10px;
+                flex-wrap: wrap;
+            "
+        >
+
+            <button
+                type="submit"
+                class="button"
+            >
                 Guardar cambios
             </button>
 
-        </form>
+            <a
+                href="{% url 'unidades_lista' unidad.edificio.id %}"
+                class="button button-secondary"
+            >
+                Cancelar
+            </a>
 
+        </div>
 
-        <br>
+    </form>
 
+</div>
 
-        <a href="{% url 'unidades_lista' unidad.edificio.id %}">
-            Volver a unidades
-        </a>
-
-    </main>
-
-
-    <footer>
-
-        <br>
-
-        <hr>
-
-        <a href="{% url 'inicio' %}">
-            Inicio
-        </a>
-
-        |
-
-        <a href="{% url 'logout' %}">
-            Cerrar sesión
-        </a>
-
-    </footer>
-
-
-</body>
-
-</html>
+{% endblock %}

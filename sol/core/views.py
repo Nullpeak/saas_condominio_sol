@@ -1,17 +1,35 @@
+import json
+from datetime import time
+
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
-from django.contrib.auth.views import PasswordResetView, PasswordResetDoneView, PasswordResetConfirmView, PasswordResetCompleteView
+from django.contrib.auth.views import (
+    PasswordResetView,
+    PasswordResetDoneView,
+    PasswordResetConfirmView,
+    PasswordResetCompleteView,
+)
 from django.urls import reverse_lazy
 from django.db import transaction
 from django.core.exceptions import ValidationError
+from django.http import JsonResponse
 
 from .validators import *
-from .models import Usuario, Rol, Condominio
+from .models import (
+    Usuario,
+    Rol,
+    Condominio,
+    Ciudad,
+    Edificio,
+    Unidad,
+    AreaComun,
+    HorarioAreaComun,
+)
 
 
-#============================== FUNCIONES AUXILIARES ==============================
+# ============================== FUNCIONES AUXILIARES ==============================
 
 def obtener_usuario(request):
     return request.user.usuario
@@ -49,7 +67,7 @@ def puede_gestionar_roles(usuario):
     return es_super_administrador(usuario)
 
 
-#============================== AUTENTICACIÓN ==============================
+# ============================== AUTENTICACIÓN ==============================
 
 def login_view(request):
     if request.user.is_authenticated:
@@ -98,11 +116,9 @@ def logout_view(request):
     return redirect("landing")
 
 
-#============================== HU-010: RECUPERAR CONTRASEÑA ==============================
+# ============================== HU-010: RECUPERAR CONTRASEÑA ==============================
 
 def password_reset_request(request):
-    # Sincroniza los correos del perfil con el usuario de Django.
-    # Esto permite que Django encuentre correctamente la cuenta.
     for usuario in Usuario.objects.select_related("user").filter(
         user__isnull=False
     ):
@@ -129,9 +145,6 @@ def password_reset_done(request):
 
 
 def password_reset_confirm(request, uidb64, token):
-    print("UID:", uidb64)
-    print("TOKEN:", token)
-
     vista = PasswordResetConfirmView.as_view(
         template_name="core/password_reset_confirm.html",
         success_url=reverse_lazy("password_reset_complete")
@@ -152,7 +165,7 @@ def password_reset_complete(request):
     return vista(request)
 
 
-#============================== DASHBOARD ==============================
+# ============================== DASHBOARD ==============================
 
 @login_required
 def inicio(request):
@@ -163,7 +176,7 @@ def inicio(request):
     })
 
 
-#============================== ADMINISTRACIÓN ==============================
+# ============================== ADMINISTRACIÓN ==============================
 
 @login_required
 def administracion(request):
@@ -202,7 +215,7 @@ def administracion(request):
     })
 
 
-#============================== LISTA DE USUARIOS ==============================
+# ============================== LISTA DE USUARIOS ==============================
 
 @login_required
 def usuarios_lista(request):
@@ -233,7 +246,7 @@ def usuarios_lista(request):
     })
 
 
-#============================== CREAR USUARIO ==============================
+# ============================== CREAR USUARIO ==============================
 
 @login_required
 def usuario_crear(request):
@@ -264,7 +277,7 @@ def usuario_crear(request):
         nombre2 = request.POST.get("nombre2", "").strip()
         apellido = request.POST.get("apellido", "").strip()
         apellido2 = request.POST.get("apellido2", "").strip()
-        email = request.POST.get("email", "").strip()
+        email = request.POST.get("email", "").strip().lower()
         telefono = request.POST.get("telefono", "").strip()
         rut = request.POST.get("rut", "").strip()
         rol_id = request.POST.get("rol", "").strip()
@@ -272,7 +285,7 @@ def usuario_crear(request):
 
         errores = []
 
-        #============================== DATOS BÁSICOS ==============================
+        # ============================== DATOS BÁSICOS ==============================
 
         if not username:
             errores.append(
@@ -309,7 +322,7 @@ def usuario_crear(request):
                 "Debes seleccionar un rol."
             )
 
-        #============================== VALIDAR RUT ==============================
+        # ============================== VALIDAR RUT ==============================
 
         rut_normalizado = None
 
@@ -334,7 +347,7 @@ def usuario_crear(request):
             except ValidationError as error:
                 errores.extend(error.messages)
 
-        #============================== VALIDAR TELÉFONO ==============================
+        # ============================== VALIDAR TELÉFONO ==============================
 
         telefono_normalizado = None
 
@@ -346,7 +359,7 @@ def usuario_crear(request):
             except ValidationError as error:
                 errores.extend(error.messages)
 
-        #============================== VALIDAR USUARIO ==============================
+        # ============================== VALIDAR USUARIO ==============================
 
         if username and User.objects.filter(
             username=username
@@ -355,14 +368,9 @@ def usuario_crear(request):
                 "El nombre de usuario ya está registrado."
             )
 
-        #============================== VALIDAR CORREO ==============================
+        # ============================== VALIDAR CORREO ==============================
 
-        if not email:
-            errores.append(
-                "Debes ingresar un correo electrónico."
-            )
-
-        else:
+        if email:
             try:
                 validar_email(email)
 
@@ -376,7 +384,7 @@ def usuario_crear(request):
                     "El correo electrónico ya está registrado."
                 )
 
-        #============================== OBTENER ROL ==============================
+        # ============================== OBTENER ROL ==============================
 
         rol = None
 
@@ -391,7 +399,7 @@ def usuario_crear(request):
                     "El rol seleccionado no es válido."
                 )
 
-        #============================== OBTENER CONDOMINIO ==============================
+        # ============================== OBTENER CONDOMINIO ==============================
 
         condominio = None
 
@@ -406,7 +414,7 @@ def usuario_crear(request):
                     "El condominio seleccionado no es válido."
                 )
 
-        #============================== PERMISOS DEL ADMINISTRADOR ==============================
+        # ============================== PERMISOS DEL ADMINISTRADOR ==============================
 
         if es_administrador(usuario_actual):
 
@@ -434,7 +442,7 @@ def usuario_crear(request):
 
             condominio = usuario_actual.condominio
 
-        #============================== CREAR USUARIO ==============================
+        # ============================== CREAR USUARIO ==============================
 
         if not errores:
 
@@ -477,7 +485,7 @@ def usuario_crear(request):
     })
 
 
-#============================== EDITAR USUARIO ==============================
+# ============================== EDITAR USUARIO ==============================
 
 @login_required
 def usuario_editar(request, usuario_id):
@@ -519,7 +527,7 @@ def usuario_editar(request, usuario_id):
         nombre2 = request.POST.get("nombre2", "").strip()
         apellido = request.POST.get("apellido", "").strip()
         apellido2 = request.POST.get("apellido2", "").strip()
-        email = request.POST.get("email", "").strip()
+        email = request.POST.get("email", "").strip().lower()
         telefono = request.POST.get("telefono", "").strip()
         rut = request.POST.get("rut", "").strip()
         rol_id = request.POST.get("rol", "").strip()
@@ -528,7 +536,7 @@ def usuario_editar(request, usuario_id):
 
         errores = []
 
-        #============================== DATOS BÁSICOS ==============================
+        # ============================== DATOS BÁSICOS ==============================
 
         if not nombre:
             errores.append(
@@ -545,7 +553,7 @@ def usuario_editar(request, usuario_id):
                 "Debes ingresar un correo."
             )
 
-        #============================== VALIDAR RUT ==============================
+        # ============================== VALIDAR RUT ==============================
 
         rut_normalizado = None
 
@@ -572,7 +580,7 @@ def usuario_editar(request, usuario_id):
             except ValidationError as error:
                 errores.extend(error.messages)
 
-        #============================== VALIDAR TELÉFONO ==============================
+        # ============================== VALIDAR TELÉFONO ==============================
 
         telefono_normalizado = None
 
@@ -584,7 +592,7 @@ def usuario_editar(request, usuario_id):
             except ValidationError as error:
                 errores.extend(error.messages)
 
-        #============================== VALIDAR CORREO ==============================
+        # ============================== VALIDAR CORREO ==============================
 
         if email:
 
@@ -603,7 +611,7 @@ def usuario_editar(request, usuario_id):
                     "El correo electrónico ya está registrado."
                 )
 
-        #============================== OBTENER ROL ==============================
+        # ============================== OBTENER ROL ==============================
 
         rol = None
 
@@ -623,7 +631,7 @@ def usuario_editar(request, usuario_id):
                     "El rol seleccionado no es válido."
                 )
 
-        #============================== OBTENER CONDOMINIO ==============================
+        # ============================== OBTENER CONDOMINIO ==============================
 
         condominio = None
 
@@ -652,7 +660,7 @@ def usuario_editar(request, usuario_id):
             else:
                 condominio = None
 
-        #============================== PERMISOS DEL ADMINISTRADOR ==============================
+        # ============================== PERMISOS DEL ADMINISTRADOR ==============================
 
         if es_administrador(usuario_actual):
 
@@ -661,7 +669,14 @@ def usuario_editar(request, usuario_id):
                     "Un Administrador no puede asignar el rol de Super Administrador."
                 )
 
-        #============================== GUARDAR CAMBIOS ==============================
+        # ============================== PROTECCIÓN CONTRA AUTO-DESACTIVACIÓN ==============================
+
+        if usuario.id == usuario_actual.id and not activo:
+            errores.append(
+                "No puedes desactivar tu propia cuenta."
+            )
+
+        # ============================== GUARDAR CAMBIOS ==============================
 
         if not errores:
 
@@ -709,7 +724,7 @@ def usuario_editar(request, usuario_id):
     })
 
 
-#============================== CAMBIAR ESTADO DE USUARIO ==============================
+# ============================== CAMBIAR ESTADO DE USUARIO ==============================
 
 @login_required
 def usuario_cambiar_estado(request, usuario_id):
@@ -727,7 +742,6 @@ def usuario_cambiar_estado(request, usuario_id):
         id=usuario_id
     )
 
-    # Un usuario no puede desactivar su propia cuenta.
     if usuario.id == usuario_actual.id:
         return redirect("usuarios_lista")
 
@@ -751,7 +765,7 @@ def usuario_cambiar_estado(request, usuario_id):
     return redirect("usuarios_lista")
 
 
-#============================== RF-01: CONDOMINIOS ==============================
+# ============================== CONDOMINIOS ==============================
 
 @login_required
 def condominios_lista(request):
@@ -777,7 +791,7 @@ def condominios_lista(request):
     })
 
 
-#============================== CREAR CONDOMINIO ==============================
+# ============================== CREAR CONDOMINIO ==============================
 
 @login_required
 def condominio_crear(request):
@@ -785,8 +799,6 @@ def condominio_crear(request):
 
     if not es_super_administrador(usuario_actual):
         return redirect("condominios_lista")
-
-    from .models import Ciudad
 
     ciudades = Ciudad.objects.all()
 
@@ -855,19 +867,19 @@ def condominio_crear(request):
             return redirect("condominios_lista")
 
         return render(request, "core/condominios/crear.html", {
-            "usuario": usuario_actual,
+            "usuario_actual": usuario_actual,
             "ciudades": ciudades,
             "errores": errores,
             "datos": request.POST,
         })
 
     return render(request, "core/condominios/crear.html", {
-        "usuario": usuario_actual,
+        "usuario_actual": usuario_actual,
         "ciudades": ciudades,
     })
 
 
-#============================== EDITAR CONDOMINIO ==============================
+# ============================== EDITAR CONDOMINIO ==============================
 
 @login_required
 def condominio_editar(request, condominio_id):
@@ -885,8 +897,6 @@ def condominio_editar(request, condominio_id):
 
         if condominio.id != usuario_actual.condominio_id:
             return redirect("condominios_lista")
-
-    from .models import Ciudad
 
     ciudades = Ciudad.objects.all()
 
@@ -943,25 +953,23 @@ def condominio_editar(request, condominio_id):
             return redirect("condominios_lista")
 
         return render(request, "core/condominios/editar.html", {
-            "usuario": usuario_actual,
+            "usuario_actual": usuario_actual,
             "condominio": condominio,
             "ciudades": ciudades,
             "errores": errores,
         })
 
     return render(request, "core/condominios/editar.html", {
-        "usuario": usuario_actual,
+        "usuario_actual": usuario_actual,
         "condominio": condominio,
         "ciudades": ciudades,
     })
 
 
-#============================== EDIFICIOS DE UN CONDOMINIO ==============================
+# ============================== EDIFICIOS DE UN CONDOMINIO ==============================
 
 @login_required
 def edificios_lista(request, condominio_id):
-    from .models import Edificio
-
     usuario_actual = obtener_usuario(request)
 
     if not puede_gestionar_condominio(usuario_actual):
@@ -988,12 +996,10 @@ def edificios_lista(request, condominio_id):
     })
 
 
-#============================== EDITAR EDIFICIO ==============================
+# ============================== EDITAR EDIFICIO ==============================
 
 @login_required
 def edificio_editar(request, edificio_id):
-    from .models import Edificio
-
     usuario_actual = obtener_usuario(request)
 
     if not puede_gestionar_condominio(usuario_actual):
@@ -1096,12 +1102,10 @@ def edificio_editar(request, edificio_id):
     )
 
 
-#============================== UNIDADES DE UN EDIFICIO ==============================
+# ============================== UNIDADES DE UN EDIFICIO ==============================
 
 @login_required
 def unidades_lista(request, edificio_id):
-    from .models import Edificio
-
     usuario_actual = obtener_usuario(request)
 
     if not puede_gestionar_condominio(usuario_actual):
@@ -1137,12 +1141,10 @@ def unidades_lista(request, edificio_id):
     )
 
 
-#============================== EDITAR UNIDAD ==============================
+# ============================== EDITAR UNIDAD ==============================
 
 @login_required
 def unidad_editar(request, unidad_id):
-    from .models import Unidad
-
     usuario_actual = obtener_usuario(request)
 
     if not puede_gestionar_condominio(usuario_actual):
@@ -1260,7 +1262,646 @@ def unidad_editar(request, unidad_id):
     )
 
 
-#============================== PÁGINA PÚBLICA ==============================
+# ============================== ÁREAS COMUNES ==============================
+
+@login_required
+def areas_comunes_lista(request, condominio_id):
+    """
+    Muestra las áreas comunes de un condominio.
+    Solo pueden acceder Administradores y
+    Super Administradores.
+    """
+
+    usuario_actual = obtener_usuario(request)
+
+    if not puede_gestionar_condominio(usuario_actual):
+        return redirect("inicio")
+
+    condominio = get_object_or_404(
+        Condominio,
+        id=condominio_id
+    )
+
+    # El Administrador solamente puede gestionar
+    # las áreas de su propio condominio.
+    if es_administrador(usuario_actual):
+
+        if condominio.id != usuario_actual.condominio_id:
+            return redirect("condominios_lista")
+
+    areas = AreaComun.objects.filter(
+        condominio=condominio
+    ).prefetch_related(
+        "horarios"
+    ).order_by(
+        "nombre"
+    )
+
+    return render(
+        request,
+        "core/areas_comunes/lista.html",
+        {
+            "usuario_actual": usuario_actual,
+            "condominio": condominio,
+            "areas": areas,
+        }
+    )
+
+
+# ============================== CREAR ÁREA COMÚN ==============================
+
+@login_required
+def area_comun_crear(request, condominio_id):
+    """
+    Permite crear un área común dentro de un condominio.
+    """
+
+    usuario_actual = obtener_usuario(request)
+
+    if not puede_gestionar_condominio(usuario_actual):
+        return redirect("inicio")
+
+    condominio = get_object_or_404(
+        Condominio,
+        id=condominio_id
+    )
+
+    if es_administrador(usuario_actual):
+
+        if condominio.id != usuario_actual.condominio_id:
+            return redirect("condominios_lista")
+
+    if request.method == "POST":
+
+        nombre = request.POST.get(
+            "nombre",
+            ""
+        ).strip()
+
+        descripcion = request.POST.get(
+            "descripcion",
+            ""
+        ).strip()
+
+        capacidad = request.POST.get(
+            "capacidad",
+            ""
+        ).strip()
+
+        reservable = request.POST.get(
+            "reservable"
+        ) == "on"
+
+        errores = []
+
+        # ============================== VALIDAR NOMBRE ==============================
+
+        if not nombre:
+            errores.append(
+                "Debes ingresar el nombre del área común."
+            )
+
+        # ============================== VALIDAR CAPACIDAD ==============================
+
+        capacidad_numero = None
+
+        if capacidad:
+
+            try:
+                capacidad_numero = int(capacidad)
+
+                if capacidad_numero < 1:
+                    errores.append(
+                        "La capacidad debe ser mayor a 0."
+                    )
+
+            except ValueError:
+                errores.append(
+                    "La capacidad debe ser un número válido."
+                )
+
+        # ============================== VALIDAR NOMBRE DUPLICADO ==============================
+
+        if AreaComun.objects.filter(
+            condominio=condominio,
+            nombre__iexact=nombre
+        ).exists():
+
+            errores.append(
+                "Ya existe un área común con ese nombre en este condominio."
+            )
+
+        # ============================== CREAR ==============================
+
+        if not errores:
+
+            AreaComun.objects.create(
+                condominio=condominio,
+                nombre=nombre,
+                descripcion=descripcion,
+                capacidad=capacidad_numero,
+                reservable=reservable,
+            )
+
+            return redirect(
+                "areas_comunes_lista",
+                condominio_id=condominio.id
+            )
+
+        return render(
+            request,
+            "core/areas_comunes/crear.html",
+            {
+                "usuario_actual": usuario_actual,
+                "condominio": condominio,
+                "errores": errores,
+                "datos": request.POST,
+            }
+        )
+
+    return render(
+        request,
+        "core/areas_comunes/crear.html",
+        {
+            "usuario_actual": usuario_actual,
+            "condominio": condominio,
+        }
+    )
+
+
+# ============================== EDITAR ÁREA COMÚN ==============================
+
+@login_required
+def area_comun_editar(request, area_id):
+    """
+    Permite modificar un área común.
+    """
+
+    usuario_actual = obtener_usuario(request)
+
+    if not puede_gestionar_condominio(usuario_actual):
+        return redirect("inicio")
+
+    area = get_object_or_404(
+        AreaComun.objects.select_related(
+            "condominio"
+        ),
+        id=area_id
+    )
+
+    condominio = area.condominio
+
+    if es_administrador(usuario_actual):
+
+        if condominio.id != usuario_actual.condominio_id:
+            return redirect("condominios_lista")
+
+    if request.method == "POST":
+
+        nombre = request.POST.get(
+            "nombre",
+            ""
+        ).strip()
+
+        descripcion = request.POST.get(
+            "descripcion",
+            ""
+        ).strip()
+
+        capacidad = request.POST.get(
+            "capacidad",
+            ""
+        ).strip()
+
+        reservable = request.POST.get(
+            "reservable"
+        ) == "on"
+
+        errores = []
+
+        # ============================== VALIDAR NOMBRE ==============================
+
+        if not nombre:
+            errores.append(
+                "Debes ingresar el nombre del área común."
+            )
+
+        # ============================== VALIDAR CAPACIDAD ==============================
+
+        capacidad_numero = None
+
+        if capacidad:
+
+            try:
+                capacidad_numero = int(capacidad)
+
+                if capacidad_numero < 1:
+                    errores.append(
+                        "La capacidad debe ser mayor a 0."
+                    )
+
+            except ValueError:
+                errores.append(
+                    "La capacidad debe ser un número válido."
+                )
+
+        # ============================== VALIDAR DUPLICADO ==============================
+
+        if AreaComun.objects.filter(
+            condominio=condominio,
+            nombre__iexact=nombre
+        ).exclude(
+            id=area.id
+        ).exists():
+
+            errores.append(
+                "Ya existe otra área común con ese nombre en este condominio."
+            )
+
+        # ============================== GUARDAR ==============================
+
+        if not errores:
+
+            area.nombre = nombre
+            area.descripcion = descripcion
+            area.capacidad = capacidad_numero
+            area.reservable = reservable
+
+            area.save()
+
+            return redirect(
+                "areas_comunes_lista",
+                condominio_id=condominio.id
+            )
+
+        return render(
+            request,
+            "core/areas_comunes/editar.html",
+            {
+                "usuario_actual": usuario_actual,
+                "condominio": condominio,
+                "area": area,
+                "errores": errores,
+            }
+        )
+
+    return render(
+        request,
+        "core/areas_comunes/editar.html",
+        {
+            "usuario_actual": usuario_actual,
+            "condominio": condominio,
+            "area": area,
+        }
+    )
+
+
+# ============================== CONFIGURAR HORARIOS ==============================
+
+@login_required
+def area_comun_horarios(request, area_id):
+    """
+    Permite agregar y eliminar horarios de un área común.
+    """
+
+    usuario_actual = obtener_usuario(request)
+
+    if not puede_gestionar_condominio(usuario_actual):
+        return redirect("inicio")
+
+    area = get_object_or_404(
+        AreaComun.objects.select_related(
+            "condominio"
+        ),
+        id=area_id
+    )
+
+    condominio = area.condominio
+
+    if es_administrador(usuario_actual):
+
+        if condominio.id != usuario_actual.condominio_id:
+            return redirect("condominios_lista")
+
+    horarios = area.horarios.all()
+
+    if request.method == "POST":
+
+        dia_semana = request.POST.get(
+            "dia_semana",
+            ""
+        ).strip()
+
+        hora_inicio = request.POST.get(
+            "hora_inicio",
+            ""
+        ).strip()
+
+        hora_fin = request.POST.get(
+            "hora_fin",
+            ""
+        ).strip()
+
+        errores = []
+
+        # ============================== VALIDAR DÍA ==============================
+
+        dia_numero = None
+
+        try:
+            dia_numero = int(dia_semana)
+
+            if dia_numero < 0 or dia_numero > 6:
+                errores.append(
+                    "El día seleccionado no es válido."
+                )
+
+        except ValueError:
+            errores.append(
+                "Debes seleccionar un día válido."
+            )
+
+        # ============================== VALIDAR HORAS ==============================
+
+        if not hora_inicio:
+            errores.append(
+                "Debes indicar la hora de inicio."
+            )
+
+        if not hora_fin:
+            errores.append(
+                "Debes indicar la hora de término."
+            )
+
+        # ============================== CREAR HORARIO ==============================
+
+        horario = None
+
+        if not errores:
+
+            horario = HorarioAreaComun(
+                area_comun=area,
+                dia_semana=dia_numero,
+                hora_inicio=hora_inicio,
+                hora_fin=hora_fin,
+            )
+
+            try:
+                horario.full_clean()
+
+            except ValidationError as error:
+                errores.extend(error.messages)
+
+        # ============================== VALIDAR CRUCE DE HORARIOS ==============================
+
+        if not errores and horario:
+
+            horarios_existentes = HorarioAreaComun.objects.filter(
+                area_comun=area,
+                dia_semana=dia_numero,
+                hora_inicio__lt=horario.hora_fin,
+                hora_fin__gt=horario.hora_inicio,
+            )
+
+            if horarios_existentes.exists():
+
+                errores.append(
+                    "El horario se cruza con otro horario existente para ese día."
+                )
+
+        # ============================== GUARDAR ==============================
+
+        if not errores:
+
+            horario.save()
+
+            return redirect(
+                "area_comun_horarios",
+                area_id=area.id
+            )
+
+        horarios = area.horarios.all()
+
+        return render(
+            request,
+            "core/areas_comunes/horarios.html",
+            {
+                "usuario_actual": usuario_actual,
+                "condominio": condominio,
+                "area": area,
+                "horarios": horarios,
+                "errores": errores,
+                "datos": request.POST,
+            }
+        )
+
+    return render(
+        request,
+        "core/areas_comunes/horarios.html",
+        {
+            "usuario_actual": usuario_actual,
+            "condominio": condominio,
+            "area": area,
+            "horarios": horarios,
+        }
+    )
+
+
+# ============================== ACTUALIZAR HORARIO ==============================
+
+@login_required
+def area_comun_horario_actualizar(request, horario_id):
+    """
+    Actualiza el día y horario de un bloque desde
+    el calendario interactivo mediante arrastrar y soltar.
+    """
+
+    usuario_actual = obtener_usuario(request)
+
+    if not puede_gestionar_condominio(usuario_actual):
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": "No tienes permisos para realizar esta acción."
+            },
+            status=403
+        )
+
+    horario = get_object_or_404(
+        HorarioAreaComun.objects.select_related(
+            "area_comun__condominio"
+        ),
+        id=horario_id
+    )
+
+    area = horario.area_comun
+    condominio = area.condominio
+
+    if es_administrador(usuario_actual):
+
+        if condominio.id != usuario_actual.condominio_id:
+            return JsonResponse(
+                {
+                    "ok": False,
+                    "error": "No puedes modificar horarios de este condominio."
+                },
+                status=403
+            )
+
+    if request.method != "POST":
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": "Método no permitido."
+            },
+            status=405
+        )
+
+    try:
+        data = json.loads(request.body)
+
+        dia_numero = int(
+            data.get("dia_semana")
+        )
+
+        hora_inicio = time.fromisoformat(
+            data.get("hora_inicio")
+        )
+
+        hora_fin = time.fromisoformat(
+            data.get("hora_fin")
+        )
+
+    except (
+        TypeError,
+        ValueError,
+        json.JSONDecodeError
+    ):
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": "Los datos del horario no son válidos."
+            },
+            status=400
+        )
+
+    # ============================== VALIDAR DÍA ==============================
+
+    if dia_numero < 0 or dia_numero > 6:
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": "El día seleccionado no es válido."
+            },
+            status=400
+        )
+
+    # ============================== VALIDAR HORAS ==============================
+
+    if hora_fin <= hora_inicio:
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": "La hora de término debe ser posterior a la hora de inicio."
+            },
+            status=400
+        )
+
+    # ============================== VALIDAR CRUCE ==============================
+
+    existe_cruce = HorarioAreaComun.objects.filter(
+        area_comun=area,
+        dia_semana=dia_numero,
+        hora_inicio__lt=hora_fin,
+        hora_fin__gt=hora_inicio,
+    ).exclude(
+        id=horario.id
+    ).exists()
+
+    if existe_cruce:
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": "El horario se cruza con otro horario existente para ese día."
+            },
+            status=409
+        )
+
+    # ============================== ACTUALIZAR ==============================
+
+    horario.dia_semana = dia_numero
+    horario.hora_inicio = hora_inicio
+    horario.hora_fin = hora_fin
+
+    try:
+        horario.full_clean()
+
+    except ValidationError as error:
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": " ".join(error.messages)
+            },
+            status=400
+        )
+
+    horario.save(
+        update_fields=[
+            "dia_semana",
+            "hora_inicio",
+            "hora_fin",
+        ]
+    )
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "dia_semana": horario.dia_semana,
+            "hora_inicio": horario.hora_inicio.strftime("%H:%M"),
+            "hora_fin": horario.hora_fin.strftime("%H:%M"),
+        }
+    )
+
+
+# ============================== ELIMINAR HORARIO ==============================
+
+@login_required
+def area_comun_horario_eliminar(request, horario_id):
+    """
+    Elimina un horario de un área común.
+    """
+
+    usuario_actual = obtener_usuario(request)
+
+    if not puede_gestionar_condominio(usuario_actual):
+        return redirect("inicio")
+
+    horario = get_object_or_404(
+        HorarioAreaComun.objects.select_related(
+            "area_comun__condominio"
+        ),
+        id=horario_id
+    )
+
+    area = horario.area_comun
+    condominio = area.condominio
+
+    if es_administrador(usuario_actual):
+
+        if condominio.id != usuario_actual.condominio_id:
+            return redirect("condominios_lista")
+
+    if request.method == "POST":
+
+        horario.delete()
+
+    return redirect(
+        "area_comun_horarios",
+        area_id=area.id
+    )
+
+
+# ============================== PÁGINA PÚBLICA ==============================
 
 def landing(request):
     if request.user.is_authenticated:

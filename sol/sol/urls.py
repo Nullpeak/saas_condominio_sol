@@ -37,10 +37,10 @@ urlpatterns = [
     path("", landing, name="landing"),
     path("login/", login_view, name="login"),
     path("logout/", logout_view, name="logout"),
-    path("recuperar-contrasena/",password_reset_request,name="password_reset_request"),
-    path("recuperar-contrasena/enviado/",password_reset_done,name="password_reset_done"),
-    path("recuperar-contrasena/<uidb64>/<token>/",password_reset_confirm,name="password_reset_confirm"),
-    path("recuperar-contrasena/completado/",password_reset_complete,name="password_reset_complete"),
+    path("recuperar-contrasena/", password_reset_request, name="password_reset_request"),
+    path("recuperar-contrasena/enviado/", password_reset_done, name="password_reset_done"),
+    path("recuperar-contrasena/<uidb64>/<token>/", password_reset_confirm, name="password_reset_confirm"),
+    path("recuperar-contrasena/completado/", password_reset_complete, name="password_reset_complete"),
 
     #============== DASHBOARD ==============
 
@@ -72,5 +72,17 @@ urlpatterns = [
 
     path("edificios/<int:edificio_id>/unidades/", unidades_lista, name="unidades_lista"),
     path("unidades/<int:unidad_id>/editar/", unidad_editar, name="unidad_editar"),
+
+    #============== ÁREAS COMUNES ==============
+
+    path("condominios/<int:condominio_id>/areas-comunes/",areas_comunes_lista,name="areas_comunes_lista",),
+    path("condominios/<int:condominio_id>/areas-comunes/nueva/",area_comun_crear,name="area_comun_crear",),
+    path("areas-comunes/<int:area_id>/editar/",area_comun_editar,name="area_comun_editar",),
+
+    #============== HORARIOS ÁREAS COMUNES ==============
+
+    path("areas-comunes/<int:area_id>/horarios/",area_comun_horarios,name="area_comun_horarios",),
+    path("horarios-area-comun/<int:horario_id>/actualizar/",area_comun_horario_actualizar,name="area_comun_horario_actualizar",),
+    path("horarios-area-comun/<int:horario_id>/eliminar/",area_comun_horario_eliminar,name="area_comun_horario_eliminar",),
     
 ]
