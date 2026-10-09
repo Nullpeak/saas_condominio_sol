@@ -164,6 +164,13 @@
         }
 
 
+        /* ============================== MENSAJES ============================== */
+
+        .messages {
+            margin-bottom: 20px;
+        }
+
+
         /* ============================== CONTENIDO PRINCIPAL ============================== */
 
         .main {
@@ -287,6 +294,9 @@
 
 <body>
 
+{# El perfil sale directo de la sesión: ya no depende de que cada vista pase "usuario" o "usuario_actual" #}
+{% with perfil=request.user.usuario %}
+
 <div class="app">
 
 
@@ -315,11 +325,11 @@
             </a>
 
 
-            <!-- ============================== ADMINISTRACIÓN ============================== -->
+            {% if perfil %}
 
-            {% if usuario_actual %}
+                <!-- ============================== ADMINISTRACIÓN ============================== -->
 
-                {% if usuario_actual.rol.nombre == "Super Administrador" or usuario_actual.rol.nombre == "Administrador" %}
+                {% if perfil.rol == "Super Administrador" or perfil.rol == "Administrador" %}
 
                     <div class="menu-title">
                         Administración
@@ -337,10 +347,9 @@
                         🏢 Condominios
                     </a>
 
+                    {% if perfil.rol == "Administrador" and perfil.condominio %}
 
-                    {% if usuario_actual.rol.nombre == "Administrador" and usuario_actual.condominio %}
-
-                        <a href="{% url 'areas_comunes_lista' usuario_actual.condominio.id %}">
+                        <a href="{% url 'areas_comunes_lista' perfil.condominio.id %}">
                             🏊 Áreas comunes
                         </a>
 
@@ -349,9 +358,24 @@
                 {% endif %}
 
 
+                <!-- ============================== INVITACIONES ============================== -->
+
+                {% if perfil.rol == "Super Administrador" or perfil.rol == "Administrador" or perfil.rol == "Gestor" %}
+
+                    <div class="menu-title">
+                        Accesos
+                    </div>
+
+                    <a href="{% url 'invitaciones:invitar' %}">
+                        ✉️ Invitar usuarios
+                    </a>
+
+                {% endif %}
+
+
                 <!-- ============================== RESIDENTE ============================== -->
 
-                {% if usuario_actual.rol.nombre == "Residente" %}
+                {% if perfil.rol == "Residente" %}
 
                     <div class="menu-title">
                         Módulos
@@ -360,57 +384,6 @@
                     <a href="{% url 'reservaciones_lista' %}">
                         📅 Reservas
                     </a>
-
-                {% endif %}
-
-
-            {% else %}
-
-                {% if usuario %}
-
-                    {% if usuario.rol.nombre == "Super Administrador" or usuario.rol.nombre == "Administrador" %}
-
-                        <div class="menu-title">
-                            Administración
-                        </div>
-
-                        <a href="{% url 'administracion' %}">
-                            ⚙️ Administración
-                        </a>
-
-                        <a href="{% url 'usuarios_lista' %}">
-                            👥 Usuarios
-                        </a>
-
-                        <a href="{% url 'condominios_lista' %}">
-                            🏢 Condominios
-                        </a>
-
-
-                        {% if usuario.rol.nombre == "Administrador" and usuario.condominio %}
-
-                            <a href="{% url 'areas_comunes_lista' usuario.condominio.id %}">
-                                🏊 Áreas comunes
-                            </a>
-
-                        {% endif %}
-
-                    {% endif %}
-
-
-                    <!-- ============================== RESIDENTE ============================== -->
-
-                    {% if usuario.rol.nombre == "Residente" %}
-
-                        <div class="menu-title">
-                            Módulos
-                        </div>
-
-                        <a href="{% url 'reservaciones_lista' %}">
-                            📅 Reservas
-                        </a>
-
-                    {% endif %}
 
                 {% endif %}
 
@@ -473,26 +446,21 @@
 
                 <div class="user-info">
 
-                    {% if usuario_actual %}
+                    {% if perfil %}
 
                         <div class="user-name">
-                            {{ usuario_actual.nombre }}
-                            {{ usuario_actual.apellido }}
+                            {{ perfil.nombre }}
+                            {{ perfil.apellido }}
                         </div>
 
                         <div class="user-role">
-                            {{ usuario_actual.rol.nombre }}
+                            {{ perfil.rol }}
                         </div>
 
                     {% else %}
 
                         <div class="user-name">
-                            {{ usuario.nombre }}
-                            {{ usuario.apellido }}
-                        </div>
-
-                        <div class="user-role">
-                            {{ usuario.rol.nombre }}
+                            {{ request.user.username }}
                         </div>
 
                     {% endif %}
@@ -516,6 +484,16 @@
 
         <main class="main">
 
+            {% if messages %}
+                <div class="messages">
+                    {% for message in messages %}
+                        <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags|default:'info' }}{% endif %} mb-2">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
             {% block content %}
             {% endblock %}
 
@@ -525,6 +503,8 @@
     </div>
 
 </div>
+
+{% endwith %}
 
 <script
     src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"

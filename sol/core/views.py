@@ -1,4 +1,5 @@
 import json
+from types import SimpleNamespace
 from datetime import time, datetime, timedelta
 
 from django.shortcuts import render, redirect, get_object_or_404
@@ -24,7 +25,7 @@ def obtener_usuario(request):
 
 
 def tiene_rol(usuario, *roles):
-    return usuario.rol.nombre in roles
+    return usuario.rol in roles
 
 
 def es_super_administrador(usuario):
@@ -55,6 +56,34 @@ def puede_gestionar_roles(usuario):
     return es_super_administrador(usuario)
 
 
+def lista_roles():
+    # Los roles ahora son opciones de texto del modelo; se entregan con .id y .nombre
+    # para que las plantillas que recorren "roles" sigan funcionando.
+    return [SimpleNamespace(id=valor, nombre=valor) for valor in Usuario.Rol.values]
+
+
+def resolver_username(identificador):
+    """
+    Permite iniciar sesión con el nombre de usuario o con el RUT.
+    Un username exacto tiene prioridad; si no existe y el texto es un RUT válido,
+    se busca el Usuario con ese RUT y se devuelve el username de su cuenta.
+    """
+    if User.objects.filter(username=identificador).exists():
+        return identificador
+
+    try:
+        validar_rut(identificador)
+    except ValidationError:
+        return identificador
+
+    perfil = Usuario.objects.select_related("user").filter(
+        rut=formatear_rut(identificador),
+        user__isnull=False
+    ).first()
+
+    return perfil.user.username if perfil else identificador
+
+
 # ============================== AUTENTICACIÓN ==============================
 
 def login_view(request):
@@ -67,14 +96,13 @@ def login_view(request):
 
         usuario_django = authenticate(
             request,
-            username=username,
+            username=resolver_username(username),
             password=password
         )
 
         if usuario_django is not None:
             try:
                 usuario = Usuario.objects.select_related(
-                    "rol",
                     "condominio"
                 ).get(user=usuario_django)
 
@@ -178,7 +206,6 @@ def administracion(request):
 
         usuarios = Usuario.objects.select_related(
             "user",
-            "rol",
             "condominio"
         ).all()
 
@@ -190,7 +217,6 @@ def administracion(request):
 
         usuarios = Usuario.objects.select_related(
             "user",
-            "rol",
             "condominio"
         ).filter(
             condominio=usuario.condominio
@@ -215,14 +241,12 @@ def usuarios_lista(request):
     if es_super_administrador(usuario_actual):
         usuarios = Usuario.objects.select_related(
             "user",
-            "rol",
             "condominio"
         ).all()
 
     else:
         usuarios = Usuario.objects.select_related(
             "user",
-            "rol",
             "condominio"
         ).filter(
             condominio=usuario_actual.condominio
@@ -243,7 +267,7 @@ def usuario_crear(request):
     if not puede_gestionar_usuarios(usuario_actual):
         return redirect("inicio")
 
-    roles = Rol.objects.all()
+    roles = lista_roles()
 
     if es_super_administrador(usuario_actual):
         condominios = Condominio.objects.filter(activo=True)
@@ -365,12 +389,10 @@ def usuario_crear(request):
         rol = None
 
         if rol_id:
-            try:
-                rol = Rol.objects.get(
-                    id=int(rol_id)
-                )
+            if rol_id in Usuario.Rol.values:
+                rol = rol_id
 
-            except (Rol.DoesNotExist, ValueError):
+            else:
                 errores.append(
                     "El rol seleccionado no es válido."
                 )
@@ -390,7 +412,7 @@ def usuario_crear(request):
 
         if es_administrador(usuario_actual):
 
-            if rol and rol.nombre == "Super Administrador":
+            if rol == Usuario.Rol.SUPER:
                 errores.append(
                     "Un Administrador no puede crear un Super Administrador."
                 )
@@ -467,7 +489,6 @@ def usuario_editar(request, usuario_id):
     usuario = get_object_or_404(
         Usuario.objects.select_related(
             "user",
-            "rol",
             "condominio"
         ),
         id=usuario_id
@@ -481,7 +502,7 @@ def usuario_editar(request, usuario_id):
         if es_super_administrador(usuario):
             return redirect("usuarios_lista")
 
-    roles = Rol.objects.all()
+    roles = lista_roles()
 
     if es_super_administrador(usuario_actual):
         condominios = Condominio.objects.filter(activo=True)
@@ -580,16 +601,13 @@ def usuario_editar(request, usuario_id):
                 "Debes seleccionar un rol."
             )
 
-        else:
-            try:
-                rol = Rol.objects.get(
-                    id=int(rol_id)
-                )
+        elif rol_id in Usuario.Rol.values:
+            rol = rol_id
 
-            except (Rol.DoesNotExist, ValueError):
-                errores.append(
-                    "El rol seleccionado no es válido."
-                )
+        else:
+            errores.append(
+                "El rol seleccionado no es válido."
+            )
 
         condominio = None
 
@@ -620,7 +638,7 @@ def usuario_editar(request, usuario_id):
 
         if es_administrador(usuario_actual):
 
-            if rol and rol.nombre == "Super Administrador":
+            if rol == Usuario.Rol.SUPER:
                 errores.append(
                     "Un Administrador no puede asignar el rol de Super Administrador."
                 )
@@ -688,7 +706,6 @@ def usuario_cambiar_estado(request, usuario_id):
 
     usuario = get_object_or_404(
         Usuario.objects.select_related(
-            "rol",
             "condominio",
             "user"
         ),
@@ -1123,9 +1140,7 @@ def unidad_editar(request, unidad_id):
     usuarios = Usuario.objects.filter(
         condominio=condominio,
         activo=True,
-        rol__nombre="Residente"
-    ).select_related(
-        "rol"
+        rol=Usuario.Rol.RESIDENTE
     ).order_by(
         "apellido",
         "nombre"
@@ -1153,7 +1168,7 @@ def unidad_editar(request, unidad_id):
                     id=int(dueno_id),
                     condominio=condominio,
                     activo=True,
-                    rol__nombre="Residente"
+                    rol=Usuario.Rol.RESIDENTE
                 )
 
             except (
@@ -1171,7 +1186,7 @@ def unidad_editar(request, unidad_id):
                     id=int(arrendatario_id),
                     condominio=condominio,
                     activo=True,
-                    rol__nombre="Residente"
+                    rol=Usuario.Rol.RESIDENTE
                 )
 
             except (

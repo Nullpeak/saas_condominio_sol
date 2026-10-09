@@ -1,0 +1,49 @@
+{% extends "core/base.html" %}
+
+{% block title %}Invitar usuarios · CondoGestión{% endblock %}
+
+{% block page_title %}Invitar usuarios{% endblock %}
+
+{% block extra_css %}
+<style>
+    .invitar-form { max-width: 560px; }
+    .invitar-form label { display: block; font-weight: 600; font-size: 14px; margin: 16px 0 6px; }
+    .invitar-form textarea,
+    .invitar-form select { width: 100%; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font: inherit; background: white; }
+    .invitar-form .help { color: #64748b; font-size: 13px; margin-top: 4px; }
+    .invitar-form .error { color: #b91c1c; font-size: 13px; margin-top: 4px; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="card-custom invitar-form">
+
+    <p class="text-secondary">
+        Cada persona recibe un link personal para crear su cuenta. El link sirve una sola vez.
+    </p>
+
+    {% if resultado %}
+        {% if resultado.enviados %}<div class="alert alert-success">Invitación enviada a: {{ resultado.enviados|join:", " }}</div>{% endif %}
+        {% if resultado.omitidos %}<div class="alert alert-warning">Ya tienen cuenta, no se enviaron: {{ resultado.omitidos|join:", " }}</div>{% endif %}
+        {% if resultado.fallidos %}<div class="alert alert-danger">No se pudo enviar a: {{ resultado.fallidos|join:", " }}. Intenta de nuevo.</div>{% endif %}
+    {% endif %}
+
+    <form method="post">
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}<div class="error">{{ form.non_field_errors }}</div>{% endif %}
+
+        {% for campo in form %}
+            <label for="{{ campo.id_for_label }}">{{ campo.label }}</label>
+            {{ campo }}
+            {% if campo.help_text %}<div class="help">{{ campo.help_text }}</div>{% endif %}
+            {% for e in campo.errors %}<div class="error">{{ e }}</div>{% endfor %}
+        {% endfor %}
+
+        <button class="button mt-4" type="submit">Enviar invitaciones</button>
+    </form>
+
+</div>
+
+{% endblock %}

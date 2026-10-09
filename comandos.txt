@@ -1,0 +1,3 @@
+Para setear correo
+set EMAIL_HOST_USER=tucorreo@gmail.com
+set EMAIL_HOST_PASSWORD=la-contraseña-de-aplicación

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crear cuenta · CondoGestión</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: Arial, sans-serif; color: #0f172a; background: #f8fafc; }
+        .navbar { height: 70px; background: white; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; padding: 0 7%; }
+        .logo { font-size: 21px; font-weight: 700; }
+        .logo span { color: #64748b; }
+        main { max-width: 560px; margin: 40px auto; padding: 0 20px; }
+        .card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 28px; }
+        h1 { margin: 0 0 8px; font-size: 26px; }
+        .sub { color: #64748b; margin: 0 0 22px; line-height: 1.5; }
+        label { display: block; font-weight: 600; margin: 16px 0 6px; font-size: 14px; }
+        input { width: 100%; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font: inherit; background: white; }
+        input:focus, .button:focus-visible { outline: 2px solid #0f172a; outline-offset: 1px; }
+        .help { color: #64748b; font-size: 13px; margin-top: 4px; }
+        .error { color: #b91c1c; font-size: 13px; margin-top: 4px; }
+        .campos { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+        .button { margin-top: 24px; width: 100%; padding: 12px 18px; border: 0; border-radius: 8px; background: #0f172a; color: white; font: inherit; font-weight: 600; cursor: pointer; }
+        .button:hover { opacity: .9; }
+        .aviso { border-radius: 8px; padding: 12px 14px; margin-bottom: 18px; font-size: 14px; line-height: 1.5; background: #fef2f2; color: #991b1b; }
+        .aviso ul { margin: 6px 0 0; padding-left: 18px; }
+        @media (max-width: 520px) { .campos { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <nav class="navbar"><div class="logo">🏢 Condo<span>Gestión</span></div></nav>
+    <main>
+    <div class="card">
+    {% if invalida %}
+        <h1>Este link ya no sirve</h1>
+        <p class="sub">Puede haber vencido o haberse usado antes. Pide a quien te invitó que te envíe otro.</p>
+    {% else %}
+        <h1>Crea tu cuenta</h1>
+        <p class="sub">Entrarás a {{ inv.condominio }} como {{ inv.get_rol_display }} con el correo <strong>{{ inv.email }}</strong>.</p>
+
+        <form method="post">
+            {% csrf_token %}
+
+            {% if form.errors %}
+            <div class="aviso" role="alert">
+                No se pudo crear la cuenta. Corrige lo siguiente:
+                <ul>
+                    {% for e in form.non_field_errors %}<li>{{ e }}</li>{% endfor %}
+                    {% for campo in form %}{% for e in campo.errors %}<li><strong>{{ campo.label }}:</strong> {{ e }}</li>{% endfor %}{% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+
+            <div class="campos">
+                <div><label for="{{ form.nombre.id_for_label }}">Nombre</label>{{ form.nombre }}</div>
+                <div><label for="{{ form.nombre2.id_for_label }}">Segundo nombre</label>{{ form.nombre2 }}</div>
+                <div><label for="{{ form.apellido.id_for_label }}">Apellido</label>{{ form.apellido }}</div>
+                <div><label for="{{ form.apellido2.id_for_label }}">Segundo apellido</label>{{ form.apellido2 }}</div>
+            </div>
+
+            <label for="{{ form.rut.id_for_label }}">RUT</label>{{ form.rut }}
+            <div class="help">Ejemplo: 12.345.678-5</div>
+
+            <label for="{{ form.telefono.id_for_label }}">Teléfono celular (opcional)</label>{{ form.telefono }}
+            <div class="help">Ejemplo: +56 9 1234 5678</div>
+
+            <label for="{{ form.password1.id_for_label }}">Contraseña</label>{{ form.password1 }}
+            <label for="{{ form.password2.id_for_label }}">Repite la contraseña</label>{{ form.password2 }}
+
+            <button class="button" type="submit">Crear cuenta</button>
+        </form>
+    {% endif %}
+    </div>
+    </main>
+</body>
+</html>
