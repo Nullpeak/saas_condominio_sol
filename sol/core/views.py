@@ -225,13 +225,14 @@ def usuarios_lista(request):
             "condominio"
         ).filter(
             condominio=usuario_actual.condominio
+        ).exclude(
+            rol__nombre="Super Administrador"
         )
 
     return render(request, "core/usuarios/lista.html", {
         "usuario": usuario_actual,
         "usuarios": usuarios,
     })
-
 
 # ============================== CREAR USUARIO ==============================
 
@@ -2398,9 +2399,7 @@ def reservacion_disponibilidad(request):
             status=404,
         )
 
-    # =========================================================
-    # VERIFICAR QUE EL USUARIO PERTENEZCA AL CONDOMINIO
-    # =========================================================
+# ================================================VERIFICAR QUE EL USUARIO PERTENEZCA AL CONDOMINIO ==========================================
 
     if (
         usuario_actual.condominio_id
@@ -2413,9 +2412,7 @@ def reservacion_disponibilidad(request):
             status=403,
         )
 
-    # =========================================================
-    # FECHA DE REFERENCIA
-    # =========================================================
+ # =========================================================FECHA DE REFERENCIA=========================================================
 
     ahora = timezone.localtime()
 
@@ -2435,9 +2432,7 @@ def reservacion_disponibilidad(request):
     else:
         fecha_referencia = ahora.date()
 
-    # =========================================================
-    # OBTENER LUNES DE LA SEMANA
-    # =========================================================
+# =========================================================OBTENER LUNES DE LA SEMANA=========================================================
 
     lunes = (
         fecha_referencia
@@ -2448,9 +2443,7 @@ def reservacion_disponibilidad(request):
 
     domingo = lunes + timedelta(days=6)
 
-    # =========================================================
-    # HORARIOS CONFIGURADOS
-    # =========================================================
+# =========================================================HORARIOS CONFIGURADOS=========================================================
 
     horarios = HorarioAreaComun.objects.filter(
         area_comun=area
@@ -2476,9 +2469,7 @@ def reservacion_disponibilidad(request):
             }
         )
 
-    # =========================================================
-    # RESERVAS EXISTENTES
-    # =========================================================
+# =========================================================RESERVAS EXISTENTES=========================================================
 
     inicio_semana = timezone.make_aware(
         datetime.combine(
@@ -2536,9 +2527,7 @@ def reservacion_disponibilidad(request):
             }
         )
 
-    # =========================================================
-    # REGLAS DEL ÁREA
-    # =========================================================
+# =========================================================REGLAS DEL ÁREA========================================================
 
     reglas = {
         "duracion_maxima": area.duracion_maxima,
@@ -2553,7 +2542,7 @@ def reservacion_disponibilidad(request):
         "reservable": area.reservable,
     }
 
-    # =============================================RESPUESTA============================
+# =============================================RESPUESTA============================
 
     return JsonResponse(
         {
@@ -2583,15 +2572,27 @@ def reservaciones_lista(request):
     if not usuario_actual.condominio_id:
         return redirect("inicio")
 
-    reservaciones = Reservacion.objects.filter(
-        usuario=usuario_actual
-    ).select_related(
-        "area_comun",
-        "unidad",
-        "unidad__edificio",
-    ).order_by(
-        "-fecha_reserva"
-    )
+    if es_residente(usuario_actual):
+        reservaciones = Reservacion.objects.filter(
+            usuario=usuario_actual
+        ).select_related(
+            "area_comun",
+            "unidad",
+            "unidad__edificio",
+        ).order_by(
+            "-fecha_reserva"
+        )
+    else:
+        reservaciones = Reservacion.objects.filter(
+            area_comun__condominio=usuario_actual.condominio
+        ).select_related(
+            "usuario",
+            "area_comun",
+            "unidad",
+            "unidad__edificio",
+        ).order_by(
+            "-fecha_reserva"
+        )
 
     return render(
         request,
@@ -3167,7 +3168,6 @@ def reservacion_editar(request, reservacion_id):
         unidad = None
 
         try:
-
             unidad = Unidad.objects.select_related(
                 "edificio"
             ).get(
@@ -3201,18 +3201,15 @@ def reservacion_editar(request, reservacion_id):
         fin_reserva = None
 
         try:
-
             fecha_reserva = datetime.fromisoformat(
                 fecha_reserva_texto
             )
-
             if timezone.is_naive(fecha_reserva):
                 fecha_reserva = timezone.make_aware(
                     fecha_reserva
                 )
 
         except ValueError:
-
             errores.append(
                 "La fecha y hora de inicio no son válidas."
             )
@@ -3222,14 +3219,12 @@ def reservacion_editar(request, reservacion_id):
             fin_reserva = datetime.fromisoformat(
                 fin_reserva_texto
             )
-
             if timezone.is_naive(fin_reserva):
                 fin_reserva = timezone.make_aware(
                     fin_reserva
                 )
 
         except ValueError:
-
             errores.append(
                 "La fecha y hora de término no son válidas."
             )
@@ -3237,15 +3232,11 @@ def reservacion_editar(request, reservacion_id):
         # ============================== VALIDACIONES ==============================
 
         if fecha_reserva and fin_reserva:
-
             if fin_reserva <= fecha_reserva:
-
                 errores.append(
                     "La hora de término debe ser posterior a la hora de inicio."
                 )
-
             if fecha_reserva.date() != fin_reserva.date():
-
                 errores.append(
                     "La reserva debe comenzar y terminar el mismo día."
                 )

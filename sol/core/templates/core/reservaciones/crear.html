@@ -5,167 +5,39 @@
 <style>
 .agenda-contenedor{overflow-x:auto;border:1px solid #dee2e6;border-radius:10px;background:#fff}
 .agenda{min-width:900px}
-
-.agenda-header{
-    display:grid;
-    grid-template-columns:105px repeat(7,1fr);
-    border-bottom:1px solid #dee2e6;
-    background:#f8f9fa
-}
-
-.agenda-header>div{
-    padding:10px 5px;
-    text-align:center;
-    font-weight:600;
-    border-right:1px solid #dee2e6
-}
-
+.agenda-header{display:grid;grid-template-columns:105px repeat(7,1fr);border-bottom:1px solid #dee2e6;background:#f8f9fa}
+.agenda-header>div{padding:10px 5px;text-align:center;font-weight:600;border-right:1px solid #dee2e6}
 .agenda-header>div:last-child{border-right:none}
-
 .agenda-dia-hoy{background:#e9f2ff;color:#0d6efd}
-
-.agenda-cuerpo{
-    display:grid;
-    grid-template-columns:105px repeat(7,1fr)
-}
-
-.hora-label{
-    height:30px;
-    border-right:1px solid #dee2e6;
-    border-bottom:1px solid #dee2e6;
-    font-size:10px;
-    color:#6c757d;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    background:#f8f9fa;
-    white-space:nowrap
-}
-
-.bloque-horario{
-    height:30px;
-    border-right:1px solid #e9ecef;
-    border-bottom:1px solid #e9ecef;
-    cursor:pointer;
-    position:relative;
-    transition:background-color .12s ease
-}
-
+.agenda-cuerpo{display:grid;grid-template-columns:105px repeat(7,1fr)}
+.hora-label{height:30px;border-right:1px solid #dee2e6;border-bottom:1px solid #dee2e6;font-size:10px;color:#6c757d;display:flex;align-items:center;justify-content:center;background:#f8f9fa;white-space:nowrap}
+.bloque-horario{height:30px;border-right:1px solid #e9ecef;border-bottom:1px solid #e9ecef;cursor:pointer;position:relative;transition:background-color .12s ease}
 .bloque-horario:hover{background:#e9f2ff}
 .bloque-horario.disponible{background:#fff}
 .bloque-horario.fuera-horario{background:#f1f3f5;cursor:not-allowed}
 .bloque-horario.ocupado{background:#dc3545;cursor:not-allowed;opacity:.75}
 .bloque-horario.pasado{background:#e9ecef;cursor:not-allowed}
-
-.bloque-horario.seleccionado{
-    background:#bfdbfe!important;
-    border-left:2px solid #2563eb;
-    border-right:2px solid #2563eb;
-    z-index:2
-}
-
-.bloque-horario.seleccionado-inicio{
-    border-top:2px solid #2563eb;
-    border-top-left-radius:5px;
-    border-top-right-radius:5px
-}
-
-.bloque-horario.seleccionado-fin{
-    border-bottom:2px solid #2563eb;
-    border-bottom-left-radius:5px;
-    border-bottom-right-radius:5px
-}
-
-.bloque-reserva{
-    position:absolute;
-    inset:2px;
-    background:#dc3545;
-    border-radius:4px
-}
-
-.indicador-termino{
-    position:absolute;
-    left:0;
-    right:0;
-    bottom:-1px;
-    height:3px;
-    background:#2563eb;
-    z-index:5
-}
-
-.etiqueta-termino{
-    position:absolute;
-    right:4px;
-    bottom:2px;
-    font-size:10px;
-    font-weight:700;
-    color:#1d4ed8;
-    background:#eff6ff;
-    padding:1px 4px;
-    border-radius:3px;
-    z-index:6;
-    white-space:nowrap
-}
-
-.duracion-opciones{display:flex;flex-wrap:wrap;gap:8px}
-.duracion-opcion{min-width:80px}
-
-.duracion-opcion.activa{
-    background:#0d6efd;
-    color:#fff;
-    border-color:#0d6efd
-}
-
-.regla-card{
-    background:#f8f9fa;
-    border-radius:8px;
-    padding:12px;
-    height:100%
-}
-
-.regla-card strong{
-    display:block;
-    font-size:13px;
-    color:#6c757d;
-    margin-bottom:4px
-}
-
-.regla-card span{
-    font-size:15px;
-    font-weight:600
-}
-
+.bloque-horario.seleccionado{background:#bfdbfe!important;border-left:2px solid #2563eb;border-right:2px solid #2563eb;z-index:2}
+.bloque-horario.seleccionado-inicio{border-top:2px solid #2563eb;border-top-left-radius:5px;border-top-right-radius:5px}
+.bloque-horario.seleccionado-fin{border-bottom:2px solid #2563eb;border-bottom-left-radius:5px;border-bottom-right-radius:5px}
+.bloque-reserva{position:absolute;inset:2px;background:#dc3545;border-radius:4px}
+.indicador-termino{position:absolute;left:0;right:0;bottom:-1px;height:3px;background:#2563eb;z-index:5}
+.etiqueta-termino{position:absolute;right:4px;bottom:12px;font-size:10px;font-weight:700;color:#1d4ed8;background:#eff6ff;padding:1px 4px;border-radius:3px;z-index:6;white-space:nowrap}
+.resize-handle{position:absolute;left:0;right:0;bottom:0;height:12px;cursor:ns-resize;touch-action:none;z-index:8}
+.resize-handle::after{content:"";position:absolute;left:50%;top:50%;width:28px;height:3px;transform:translate(-50%,-50%);background:#2563eb;border-radius:3px}
+.bloque-horario.seleccionado-fin{padding-bottom:12px}
+.regla-card{background:#f8f9fa;border-radius:8px;padding:12px;height:100%}
+.regla-card strong{display:block;font-size:13px;color:#6c757d;margin-bottom:4px}
+.regla-card span{font-size:15px;font-weight:600}
 #agenda-card,#reserva-seleccionada,#btn-confirmar{display:none}
-
 .leyenda{display:flex;flex-wrap:wrap;gap:18px;font-size:13px}
-
-.leyenda-item{
-    display:flex;
-    align-items:center;
-    gap:6px
-}
-
-.leyenda-color{
-    width:16px;
-    height:16px;
-    border-radius:3px;
-    border:1px solid #ced4da
-}
-
+.leyenda-item{display:flex;align-items:center;gap:6px}
+.leyenda-color{width:16px;height:16px;border-radius:3px;border:1px solid #ced4da}
 .leyenda-disponible{background:#fff}
 .leyenda-fuera{background:#f1f3f5}
 .leyenda-ocupado{background:#dc3545}
-
-.leyenda-seleccionado{
-    background:#bfdbfe;
-    border:2px solid #2563eb
-}
-
-.mensaje-agenda{
-    padding:30px;
-    text-align:center;
-    color:#6c757d
-}
+.leyenda-seleccionado{background:#bfdbfe;border:2px solid #2563eb}
+.mensaje-agenda{padding:30px;text-align:center;color:#6c757d}
 </style>
 
 <div class="container-fluid mt-4 mb-5">
@@ -178,8 +50,7 @@
             </p>
         </div>
 
-        <a href="{% url 'reservaciones_lista' %}"
-           class="btn btn-outline-secondary">
+        <a href="{% url 'reservaciones_lista' %}" class="btn btn-outline-secondary">
             Volver
         </a>
     </div>
@@ -188,10 +59,7 @@
         {% for message in messages %}
             <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
                 {{ message }}
-                <button type="button"
-                        class="btn-close"
-                        data-bs-dismiss="alert">
-                </button>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
         {% endfor %}
     {% endif %}
@@ -217,7 +85,9 @@
         <div class="col-lg-9">
 
             <!-- ÁREA COMÚN -->
+
             <div class="card shadow-sm mb-4">
+
                 <div class="card-body">
 
                     <h5 class="card-title mb-3">
@@ -228,36 +98,42 @@
                         Selecciona el área que deseas reservar
                     </label>
 
-                    <select id="area_comun"
-                            name="area_comun"
-                            class="form-select"
-                            required>
+                    <select
+                        id="area_comun"
+                        name="area_comun"
+                        class="form-select"
+                        required
+                    >
 
                         <option value="">
                             Selecciona un área común
                         </option>
 
                         {% for area in areas %}
-                            <option value="{{ area.id }}"
+
+                            <option
+                                value="{{ area.id }}"
                                 data-capacidad="{{ area.capacidad|default:'' }}"
                                 data-duracion="{{ area.duracion_maxima|default:'' }}"
                                 data-anticipacion="{{ area.dias_anticipacion_maxima|default:'' }}"
-                                data-consecutivas="{{ area.permite_reservas_consecutivas|yesno:'true,false' }}">
+                                data-consecutivas="{{ area.permite_reservas_consecutivas|yesno:'true,false' }}"
+                            >
                                 {{ area.nombre }}
                             </option>
+
                         {% endfor %}
 
                     </select>
 
-                    <div id="resumen-area"
-                         class="mt-3 text-muted">
-                    </div>
+                    <div id="resumen-area" class="mt-3 text-muted"></div>
 
                 </div>
+
             </div>
 
 
             <!-- UNIDAD -->
+
             <div class="card shadow-sm mb-4">
 
                 <div class="card-body">
@@ -271,14 +147,15 @@
                         {% for unidad in unidades %}
 
                             <div class="form-control bg-light">
-                                {{ unidad.edificio.nombre }} -
-                                Unidad {{ unidad.numero }}
+                                {{ unidad.edificio.nombre }} - Unidad {{ unidad.numero }}
                             </div>
 
-                            <input type="hidden"
-                                   id="unidad"
-                                   name="unidad"
-                                   value="{{ unidad.id }}">
+                            <input
+                                type="hidden"
+                                id="unidad"
+                                name="unidad"
+                                value="{{ unidad.id }}"
+                            >
 
                         {% endfor %}
 
@@ -293,10 +170,12 @@
                             Selecciona la unidad correspondiente.
                         </div>
 
-                        <select id="unidad"
-                                name="unidad"
-                                class="form-select"
-                                required>
+                        <select
+                            id="unidad"
+                            name="unidad"
+                            class="form-select"
+                            required
+                        >
 
                             <option value="">
                                 Selecciona una unidad
@@ -321,34 +200,38 @@
 
 
             <!-- AGENDA -->
-            <div id="agenda-card"
-                 class="card shadow-sm mb-4">
+
+            <div id="agenda-card" class="card shadow-sm mb-4">
 
                 <div class="card-body">
 
                     <div class="d-flex justify-content-between align-items-center mb-3">
 
                         <div>
+
                             <h5 class="card-title mb-1">
                                 Disponibilidad
                             </h5>
 
-                            <div id="semana-titulo"
-                                 class="text-muted">
-                            </div>
+                            <div id="semana-titulo" class="text-muted"></div>
+
                         </div>
 
                         <div class="btn-group">
 
-                            <button type="button"
-                                    id="semana-anterior"
-                                    class="btn btn-outline-secondary">
+                            <button
+                                type="button"
+                                id="semana-anterior"
+                                class="btn btn-outline-secondary"
+                            >
                                 ‹
                             </button>
 
-                            <button type="button"
-                                    id="semana-siguiente"
-                                    class="btn btn-outline-secondary">
+                            <button
+                                type="button"
+                                id="semana-siguiente"
+                                class="btn btn-outline-secondary"
+                            >
                                 ›
                             </button>
 
@@ -357,7 +240,6 @@
                     </div>
 
 
-                    <!-- LEYENDA -->
                     <div class="leyenda mb-3">
 
                         <div class="leyenda-item">
@@ -384,18 +266,19 @@
 
 
                     <div class="agenda-contenedor">
-                        <div id="agenda"
-                             class="agenda">
-                        </div>
+
+                        <div id="agenda" class="agenda"></div>
+
                     </div>
 
                 </div>
+
             </div>
 
 
             <!-- RESERVA SELECCIONADA -->
-            <div id="reserva-seleccionada"
-                 class="card shadow-sm mb-4">
+
+            <div id="reserva-seleccionada" class="card shadow-sm mb-4">
 
                 <div class="card-body">
 
@@ -406,198 +289,202 @@
                     <div class="row g-3 mb-4">
 
                         <div class="col-md-4">
+
                             <div class="regla-card">
+
                                 <strong>Fecha</strong>
-                                <span id="resumen-fecha">-</span>
+
+                                <span id="resumen-fecha">
+                                    -
+                                </span>
+
                             </div>
+
                         </div>
 
+
                         <div class="col-md-4">
+
                             <div class="regla-card">
+
                                 <strong>Inicio</strong>
-                                <span id="resumen-inicio">-</span>
+
+                                <span id="resumen-inicio">
+                                    -
+                                </span>
+
                             </div>
+
                         </div>
 
+
                         <div class="col-md-4">
+
                             <div class="regla-card">
+
                                 <strong>Término</strong>
-                                <span id="resumen-fin">-</span>
+
+                                <span id="resumen-fin">
+                                    -
+                                </span>
+
                             </div>
+
                         </div>
 
                     </div>
 
 
-                    <!-- DURACIÓN -->
+                    <!-- AJUSTE VISUAL DE DURACIÓN -->
                     <div class="mb-4">
-
-                        <label class="form-label fw-semibold">
-                            Duración
-                        </label>
-
-                        <div id="duracion-opciones"
-                             class="duracion-opciones">
-
-                            <button type="button"
-                                    class="btn btn-outline-primary duracion-opcion"
-                                    data-minutos="30">
-                                30 min
-                            </button>
-
-                            <button type="button"
-                                    class="btn btn-outline-primary duracion-opcion"
-                                    data-minutos="60">
-                                1 hora
-                            </button>
-
-                            <button type="button"
-                                    class="btn btn-outline-primary duracion-opcion"
-                                    data-minutos="90">
-                                1,5 horas
-                            </button>
-
-                            <button type="button"
-                                    class="btn btn-outline-primary duracion-opcion"
-                                    data-minutos="120">
-                                2 horas
-                            </button>
-
-                            <button type="button"
-                                    class="btn btn-outline-primary duracion-opcion"
-                                    data-minutos="150">
-                                2,5 horas
-                            </button>
-
-                            <button type="button"
-                                    class="btn btn-outline-primary duracion-opcion"
-                                    data-minutos="180">
-                                3 horas
-                            </button>
-
-                            <button type="button"
-                                    class="btn btn-outline-primary duracion-opcion"
-                                    data-minutos="240">
-                                4 horas
-                            </button>
-
-                            <button type="button"
-                                    class="btn btn-outline-primary duracion-opcion"
-                                    data-minutos="300">
-                                5 horas
-                            </button>
-
-                            <button type="button"
-                                    class="btn btn-outline-primary duracion-opcion"
-                                    data-minutos="360">
-                                6 horas
-                            </button>
-
+                        <div id="mensaje-duracion" class="form-text mt-2">
+                            Arrastra el borde inferior de la reserva en el calendario para ajustar su duración.
                         </div>
-
-                        <div id="mensaje-duracion"
-                             class="form-text mt-2">
-                            Selecciona la duración de tu reserva.
-                        </div>
-
                     </div>
 
 
                     <!-- REGLAS -->
+
                     <div class="row g-3">
 
                         <div class="col-md-3">
+
                             <div class="regla-card">
+
                                 <strong>Duración máxima</strong>
-                                <span id="regla-duracion">-</span>
+
+                                <span id="regla-duracion">
+                                    -
+                                </span>
+
                             </div>
+
                         </div>
 
+
                         <div class="col-md-3">
+
                             <div class="regla-card">
+
                                 <strong>Anticipación máxima</strong>
-                                <span id="regla-anticipacion">-</span>
+
+                                <span id="regla-anticipacion">
+                                    -
+                                </span>
+
                             </div>
+
                         </div>
 
+
                         <div class="col-md-3">
+
                             <div class="regla-card">
+
                                 <strong>Capacidad</strong>
-                                <span id="regla-capacidad">-</span>
+
+                                <span id="regla-capacidad">
+                                    -
+                                </span>
+
                             </div>
+
                         </div>
 
+
                         <div class="col-md-3">
+
                             <div class="regla-card">
+
                                 <strong>Reservas consecutivas</strong>
-                                <span id="regla-consecutivas">-</span>
+
+                                <span id="regla-consecutivas">
+                                    -
+                                </span>
+
                             </div>
+
                         </div>
 
                     </div>
 
                 </div>
+
             </div>
 
 
             <!-- FORMULARIO -->
+
             <div class="card shadow-sm">
 
                 <div class="card-body">
 
-                    <form method="post"
-                          id="form-reserva">
+                    <form method="post" id="form-reserva">
 
                         {% csrf_token %}
 
-                        <input type="hidden"
-                               name="area_comun"
-                               id="area_comun_form">
+                        <input
+                            type="hidden"
+                            name="area_comun"
+                            id="area_comun_form"
+                        >
 
-                        <input type="hidden"
-                               name="unidad"
-                               id="unidad_form">
+                        <input
+                            type="hidden"
+                            name="unidad"
+                            id="unidad_form"
+                        >
 
-                        <input type="hidden"
-                               name="fecha_reserva"
-                               id="fecha_reserva">
+                        <input
+                            type="hidden"
+                            name="fecha_reserva"
+                            id="fecha_reserva"
+                        >
 
-                        <input type="hidden"
-                               name="fin_reserva"
-                               id="fin_reserva">
+                        <input
+                            type="hidden"
+                            name="fin_reserva"
+                            id="fin_reserva"
+                        >
 
 
                         <div class="mb-4">
 
-                            <label for="notas"
-                                   class="form-label">
+                            <label
+                                for="notas"
+                                class="form-label"
+                            >
                                 Notas
                             </label>
 
-                            <textarea id="notas"
-                                      name="notas"
-                                      class="form-control"
-                                      rows="4"
-                                      placeholder="Agrega alguna observación si es necesario..."></textarea>
+                            <textarea
+                                id="notas"
+                                name="notas"
+                                class="form-control"
+                                rows="4"
+                                placeholder="Agrega alguna observación si es necesario..."
+                            ></textarea>
 
                         </div>
 
 
-                        <div id="mensaje-formulario"
-                             class="mb-3">
-                        </div>
+                        <div id="mensaje-formulario" class="mb-3"></div>
 
 
                         <div class="d-flex justify-content-end gap-2">
 
-                            <a href="{% url 'reservaciones_lista' %}"
-                               class="btn btn-outline-secondary">
+                            <a
+                                href="{% url 'reservaciones_lista' %}"
+                                class="btn btn-outline-secondary"
+                            >
                                 Cancelar
                             </a>
 
-                            <button type="submit"
-                                    id="btn-confirmar"
-                                    class="btn btn-primary">
+                            <button
+                                type="submit"
+                                id="btn-confirmar"
+                                class="btn btn-primary"
+                            >
                                 Confirmar reserva
                             </button>
 
@@ -606,12 +493,14 @@
                     </form>
 
                 </div>
+
             </div>
 
         </div>
 
 
         <!-- PANEL LATERAL -->
+
         <div class="col-lg-3">
 
             <div class="card shadow-sm">
@@ -633,11 +522,11 @@
                         </li>
 
                         <li class="mb-2">
-                            Haz clic en el horario que deseas.
+                            Haz clic en la hora de inicio que deseas.
                         </li>
 
                         <li class="mb-2">
-                            Selecciona la duración.
+                            Arrastra el borde inferior azul para ampliar o reducir la duración.
                         </li>
 
                         <li>
@@ -647,12 +536,15 @@
                     </ol>
 
                 </div>
+
             </div>
 
 
-            <div id="reglas-area"
-                 class="card shadow-sm mt-3"
-                 style="display:none;">
+            <div
+                id="reglas-area"
+                class="card shadow-sm mt-3"
+                style="display:none;"
+            >
 
                 <div class="card-body">
 
@@ -666,6 +558,7 @@
                     </p>
 
                 </div>
+
             </div>
 
         </div>
@@ -701,66 +594,145 @@ const reglaCapacidad=document.getElementById("regla-capacidad");
 const reglaConsecutivas=document.getElementById("regla-consecutivas");
 const mensajeDuracion=document.getElementById("mensaje-duracion");
 const mensajeFormulario=document.getElementById("mensaje-formulario");
-const opcionesDuracion=document.querySelectorAll(".duracion-opcion");
 
 let semanaActual=obtenerLunes(new Date());
 let horarios=[];
 let reservaciones=[];
 let reglas={};
 let seleccion=null;
+let redimensionando=false;
+let seAcabaDeRedimensionar=false;
+
 
 function obtenerLunes(fecha){
+
     const resultado=new Date(fecha);
+
     resultado.setHours(0,0,0,0);
+
     const dia=resultado.getDay();
+
     const diferencia=dia===0?-6:1-dia;
+
     resultado.setDate(resultado.getDate()+diferencia);
+
     return resultado;
 }
+
 
 function agregarDias(fecha,dias){
+
     const resultado=new Date(fecha);
+
     resultado.setDate(resultado.getDate()+dias);
+
     return resultado;
 }
+
 
 function formatearFecha(fecha){
-    return fecha.toLocaleDateString("es-CL",{
-        day:"2-digit",
-        month:"2-digit",
-        year:"numeric"
-    });
+
+    return fecha.toLocaleDateString(
+        "es-CL",
+        {
+            day:"2-digit",
+            month:"2-digit",
+            year:"numeric"
+        }
+    );
 }
+
 
 function formatearFechaCorta(fecha){
-    return fecha.toLocaleDateString("es-CL",{
-        day:"2-digit",
-        month:"2-digit"
-    });
+
+    return fecha.toLocaleDateString(
+        "es-CL",
+        {
+            day:"2-digit",
+            month:"2-digit"
+        }
+    );
 }
+
 
 function formatearHora(fecha){
-    return fecha.toLocaleTimeString("es-CL",{
-        hour:"2-digit",
-        minute:"2-digit",
-        hour12:false
-    });
+
+    return fecha.toLocaleTimeString(
+        "es-CL",
+        {
+            hour:"2-digit",
+            minute:"2-digit",
+            hour12:false
+        }
+    );
 }
 
+
 function crearFechaHora(fecha,minutos){
+
     const resultado=new Date(fecha);
+
     resultado.setHours(0,0,0,0);
+
     resultado.setMinutes(minutos);
+
     return resultado;
 }
 
+
 function fechaEsHoy(fecha){
+
     const ahora=new Date();
 
     return fecha.getFullYear()===ahora.getFullYear() &&
            fecha.getMonth()===ahora.getMonth() &&
            fecha.getDate()===ahora.getDate();
 }
+
+
+/*
+ * IMPORTANTE:
+ *
+ * Django entrega las reservas en formato ISO.
+ * No usamos directamente new Date(reserva.inicio),
+ * porque JavaScript puede aplicar una conversión UTC
+ * y desplazar la reserva varias horas.
+ *
+ * Esta función toma solamente la fecha y hora visibles
+ * entregadas por Django y las interpreta como hora local.
+ */
+
+function convertirReservaAHoraLocal(valor){
+
+    if(!valor){
+        return null;
+    }
+
+    const coincidencia=valor.match(
+        /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/
+    );
+
+    if(!coincidencia){
+        return null;
+    }
+
+    const año=Number(coincidencia[1]);
+    const mes=Number(coincidencia[2])-1;
+    const dia=Number(coincidencia[3]);
+    const hora=Number(coincidencia[4]);
+    const minuto=Number(coincidencia[5]);
+
+    return new Date(
+        año,
+        mes,
+        dia,
+        hora,
+        minuto,
+        0,
+        0
+    );
+}
+
 
 areaSelect.addEventListener("change",function(){
 
@@ -779,8 +751,11 @@ areaSelect.addEventListener("change",function(){
     mensajeFormulario.innerHTML="";
 
     if(!areaId){
+
         agendaCard.style.display="none";
+
         resumenArea.textContent="";
+
         return;
     }
 
@@ -792,6 +767,7 @@ areaSelect.addEventListener("change",function(){
 
     cargarDisponibilidad();
 });
+
 
 async function cargarDisponibilidad(){
 
@@ -806,16 +782,16 @@ async function cargarDisponibilidad(){
 
     try{
 
-        const url=
-            "{% url 'reservacion_disponibilidad' %}"+
-            "?area_id="+
-            encodeURIComponent(areaId)+
-            "&fecha="+
-            encodeURIComponent(formatoFechaAPI(semanaActual));
+        const url="{% url 'reservacion_disponibilidad' %}"+
+                  "?area_id="+encodeURIComponent(areaId)+
+                  "&fecha="+encodeURIComponent(
+                      formatoFechaAPI(semanaActual)
+                  );
 
         const respuesta=await fetch(url);
 
         if(!respuesta.ok){
+
             throw new Error(
                 "No se pudo obtener la disponibilidad."
             );
@@ -824,10 +800,13 @@ async function cargarDisponibilidad(){
         const datos=await respuesta.json();
 
         horarios=datos.horarios||[];
+
         reservaciones=datos.reservaciones||[];
+
         reglas=datos.reglas||{};
 
         actualizarReglas();
+
         renderizarAgenda();
 
     }catch(error){
@@ -840,6 +819,7 @@ async function cargarDisponibilidad(){
             '</div>';
     }
 }
+
 
 function formatoFechaAPI(fecha){
 
@@ -856,6 +836,7 @@ function formatoFechaAPI(fecha){
     return año+"-"+mes+"-"+dia;
 }
 
+
 function actualizarReglas(){
 
     if(
@@ -867,16 +848,13 @@ function actualizarReglas(){
         reglaDuracion.textContent=
             reglas.duracion_maxima+
             " hora"+
-            (
-                Number(reglas.duracion_maxima)===1
-                ?""
-                :"s"
-            );
+            (Number(reglas.duracion_maxima)===1?"":"s");
 
     }else{
 
         reglaDuracion.textContent="Sin límite";
     }
+
 
     if(
         reglas.dias_anticipacion_maxima!==null &&
@@ -887,16 +865,13 @@ function actualizarReglas(){
         reglaAnticipacion.textContent=
             reglas.dias_anticipacion_maxima+
             " día"+
-            (
-                Number(reglas.dias_anticipacion_maxima)===1
-                ?""
-                :"s"
-            );
+            (Number(reglas.dias_anticipacion_maxima)===1?"":"s");
 
     }else{
 
         reglaAnticipacion.textContent="Sin límite";
     }
+
 
     if(
         reglas.capacidad!==null &&
@@ -905,19 +880,21 @@ function actualizarReglas(){
     ){
 
         reglaCapacidad.textContent=
-            reglas.capacidad+
-            " personas";
+            reglas.capacidad+" personas";
 
     }else{
 
         reglaCapacidad.textContent="No definida";
     }
 
+
     reglaConsecutivas.textContent=
         reglas.permite_reservas_consecutivas
         ?"Permitidas"
         :"No permitidas";
+
 }
+
 
 function renderizarAgenda(){
 
@@ -926,18 +903,18 @@ function renderizarAgenda(){
     const dias=[];
 
     for(let i=0;i<7;i++){
+
         dias.push(
-            agregarDias(
-                semanaActual,
-                i
-            )
+            agregarDias(semanaActual,i)
         );
     }
+
 
     semanaTitulo.textContent=
         formatearFechaCorta(dias[0])+
         " - "+
         formatearFecha(dias[6]);
+
 
     const header=document.createElement("div");
 
@@ -946,6 +923,7 @@ function renderizarAgenda(){
     header.appendChild(
         document.createElement("div")
     );
+
 
     const nombresDias=[
         "Lun",
@@ -957,40 +935,37 @@ function renderizarAgenda(){
         "Dom"
     ];
 
-    dias.forEach(function(dia,indice){
 
-        const celda=document.createElement("div");
+    dias.forEach(
+        function(dia,indice){
 
-        celda.innerHTML=
-            nombresDias[indice]+
-            "<br>"+
-            formatearFechaCorta(dia);
+            const celda=
+                document.createElement("div");
 
-        if(fechaEsHoy(dia)){
-            celda.classList.add(
-                "agenda-dia-hoy"
-            );
+            celda.innerHTML=
+                nombresDias[indice]+
+                "<br>"+
+                formatearFechaCorta(dia);
+
+            if(fechaEsHoy(dia)){
+
+                celda.classList.add(
+                    "agenda-dia-hoy"
+                );
+            }
+
+            header.appendChild(celda);
         }
+    );
 
-        header.appendChild(celda);
-    });
 
     agenda.appendChild(header);
+
 
     const cuerpo=document.createElement("div");
 
     cuerpo.className="agenda-cuerpo";
 
-    /*
-     * Cada fila representa un intervalo de 30 minutos.
-     *
-     * Ejemplo:
-     *
-     * 10:00 - 10:30
-     * 10:30 - 11:00
-     * 11:00 - 11:30
-     * 11:30 - 12:00
-     */
 
     for(
         let minutos=360;
@@ -998,134 +973,157 @@ function renderizarAgenda(){
         minutos+=30
     ){
 
-        const etiqueta=document.createElement("div");
+        const etiqueta=
+            document.createElement("div");
 
         etiqueta.className="hora-label";
 
-        const horaInicio=Math.floor(
-            minutos/60
-        );
 
-        const minutoInicio=minutos%60;
+        const horaInicio=
+            Math.floor(minutos/60);
 
-        const minutosFin=minutos+30;
+        const minutoInicio=
+            minutos%60;
 
-        const horaFin=Math.floor(
-            minutosFin/60
-        );
+        const minutosFin=
+            minutos+30;
 
-        const minutoFin=minutosFin%60;
+        const horaFin=
+            Math.floor(minutosFin/60);
+
+        const minutoFin=
+            minutosFin%60;
+
 
         const inicioTexto=
             String(horaInicio).padStart(2,"0")+
             ":"+
             String(minutoInicio).padStart(2,"0");
 
+
         const finTexto=
             String(horaFin).padStart(2,"0")+
             ":"+
             String(minutoFin).padStart(2,"0");
+
 
         etiqueta.textContent=
             inicioTexto+
             " - "+
             finTexto;
 
+
         cuerpo.appendChild(etiqueta);
 
-        dias.forEach(function(dia,diaIndice){
 
-            const bloque=document.createElement("div");
+        dias.forEach(
+            function(dia,diaIndice){
 
-            bloque.className="bloque-horario";
-
-            bloque.dataset.dia=diaIndice;
-
-            bloque.dataset.minutos=minutos;
-
-            const fechaInicio=
-                crearFechaHora(
-                    dia,
-                    minutos
-                );
-
-            const fechaFin=
-                new Date(fechaInicio);
-
-            fechaFin.setMinutes(
-                fechaFin.getMinutes()+30
-            );
-
-            if(
-                bloqueEstaDentroHorario(
-                    diaIndice,
-                    minutos,
-                    minutos+30
-                )
-            ){
-
-                bloque.classList.add(
-                    "disponible"
-                );
-
-            }else{
-
-                bloque.classList.add(
-                    "fuera-horario"
-                );
-            }
-
-            if(fechaFin<=new Date()){
-
-                bloque.classList.add(
-                    "pasado"
-                );
-            }
-
-            if(
-                bloqueEstaOcupado(
-                    fechaInicio,
-                    fechaFin
-                )
-            ){
-
-                bloque.classList.remove(
-                    "disponible"
-                );
-
-                bloque.classList.add(
-                    "ocupado"
-                );
-
-                const reservaVisual=
+                const bloque=
                     document.createElement("div");
 
-                reservaVisual.className=
-                    "bloque-reserva";
+                bloque.className=
+                    "bloque-horario";
 
-                bloque.appendChild(
-                    reservaVisual
-                );
-            }
+                bloque.dataset.dia=
+                    diaIndice;
 
-            bloque.addEventListener(
-                "click",
-                function(){
+                bloque.dataset.minutos=
+                    minutos;
 
-                    seleccionarBloque(
+
+                const fechaInicio=
+                    crearFechaHora(
                         dia,
+                        minutos
+                    );
+
+
+                const fechaFin=
+                    new Date(fechaInicio);
+
+                fechaFin.setMinutes(
+                    fechaFin.getMinutes()+30
+                );
+
+
+                if(
+                    bloqueEstaDentroHorario(
+                        diaIndice,
                         minutos,
-                        bloque
+                        minutos+30
+                    )
+                ){
+
+                    bloque.classList.add(
+                        "disponible"
+                    );
+
+                }else{
+
+                    bloque.classList.add(
+                        "fuera-horario"
                     );
                 }
-            );
 
-            cuerpo.appendChild(bloque);
-        });
+
+                if(fechaFin<=new Date()){
+
+                    bloque.classList.add(
+                        "pasado"
+                    );
+                }
+
+
+                if(
+                    bloqueEstaOcupado(
+                        fechaInicio,
+                        fechaFin
+                    )
+                ){
+
+                    bloque.classList.remove(
+                        "disponible"
+                    );
+
+                    bloque.classList.add(
+                        "ocupado"
+                    );
+
+
+                    const reservaVisual=
+                        document.createElement("div");
+
+                    reservaVisual.className=
+                        "bloque-reserva";
+
+                    bloque.appendChild(
+                        reservaVisual
+                    );
+                }
+
+
+                bloque.addEventListener(
+                    "click",
+                    function(){
+                        if(redimensionando || seAcabaDeRedimensionar){
+                            return;
+                        }
+
+                        seleccionarBloque(dia, minutos, bloque);
+                    }
+                );
+
+
+                cuerpo.appendChild(bloque);
+            }
+        );
     }
+
 
     agenda.appendChild(cuerpo);
 }
+
 
 function bloqueEstaDentroHorario(
     diaSemana,
@@ -1133,51 +1131,87 @@ function bloqueEstaDentroHorario(
     fin
 ){
 
-    return horarios.some(function(horario){
+    return horarios.some(
+        function(horario){
 
-        const inicioHorario=
-            convertirHoraMinutos(
-                horario.hora_inicio
-            );
+            const inicioHorario=
+                convertirHoraMinutos(
+                    horario.hora_inicio
+                );
 
-        const finHorario=
-            convertirHoraMinutos(
-                horario.hora_fin
-            );
+            const finHorario=
+                convertirHoraMinutos(
+                    horario.hora_fin
+                );
 
-        return Number(
-            horario.dia_semana
-        )===diaSemana &&
-        inicio>=inicioHorario &&
-        fin<=finHorario;
-    });
+
+            return Number(
+                horario.dia_semana
+            )===diaSemana &&
+
+            inicio>=inicioHorario &&
+
+            fin<=finHorario;
+        }
+    );
 }
+
 
 function convertirHoraMinutos(hora){
 
-    const partes=hora.split(":");
+    const partes=
+        hora.split(":");
 
     return Number(partes[0])*60+
            Number(partes[1]);
 }
 
-function bloqueEstaOcupado(
-    inicio,
-    fin
-){
 
-    return reservaciones.some(function(reserva){
+/*
+ * Aquí estaba el problema principal.
+ *
+ * Antes:
+ *
+ * new Date(reserva.inicio)
+ *
+ * podía convertir la hora mediante UTC.
+ *
+ * Ahora usamos convertirReservaAHoraLocal()
+ * para conservar exactamente la hora entregada
+ * por Django.
+ */
 
-        const inicioReserva=
-            new Date(reserva.inicio);
+function bloqueEstaOcupado(inicio,fin){
 
-        const finReserva=
-            new Date(reserva.fin);
+    return reservaciones.some(
+        function(reserva){
 
-        return inicio<finReserva &&
-               fin>inicioReserva;
-    });
+            const inicioReserva=
+                convertirReservaAHoraLocal(
+                    reserva.inicio
+                );
+
+            const finReserva=
+                convertirReservaAHoraLocal(
+                    reserva.fin
+                );
+
+
+            if(
+                !inicioReserva ||
+                !finReserva
+            ){
+
+                return false;
+            }
+
+
+            return inicio<finReserva &&
+                   fin>inicioReserva;
+        }
+    );
 }
+
 
 function seleccionarBloque(
     dia,
@@ -1186,24 +1220,21 @@ function seleccionarBloque(
 ){
 
     if(
-        bloque.classList.contains(
-            "fuera-horario"
-        ) ||
-        bloque.classList.contains(
-            "ocupado"
-        ) ||
-        bloque.classList.contains(
-            "pasado"
-        )
+        bloque.classList.contains("fuera-horario") ||
+        bloque.classList.contains("ocupado") ||
+        bloque.classList.contains("pasado")
     ){
+
         return;
     }
+
 
     const fecha=
         crearFechaHora(
             dia,
             minutos
         );
+
 
     if(!fechaCumpleAnticipacion(fecha)){
 
@@ -1215,10 +1246,6 @@ function seleccionarBloque(
         return;
     }
 
-    /*
-     * Al hacer clic en otro horario se reemplaza
-     * completamente la selección anterior.
-     */
 
     seleccion={
         fecha:fecha,
@@ -1226,54 +1253,58 @@ function seleccionarBloque(
         duracion:30
     };
 
+
     actualizarSeleccion();
 }
+
 
 function limpiarSeleccionVisual(){
 
     document.querySelectorAll(
         ".bloque-horario"
-    ).forEach(function(elemento){
+    ).forEach(
+        function(elemento){
 
-        elemento.classList.remove(
-            "seleccionado",
-            "seleccionado-inicio",
-            "seleccionado-fin"
-        );
-
-        const indicador=
-            elemento.querySelector(
-                ".indicador-termino"
+            elemento.classList.remove(
+                "seleccionado",
+                "seleccionado-inicio",
+                "seleccionado-fin"
             );
 
-        if(indicador){
-            indicador.remove();
-        }
 
-        const etiqueta=
-            elemento.querySelector(
-                ".etiqueta-termino"
-            );
+            const indicador=
+                elemento.querySelector(
+                    ".indicador-termino"
+                );
 
-        if(etiqueta){
-            etiqueta.remove();
+            if(indicador){
+
+                indicador.remove();
+            }
+
+
+            const etiqueta=elemento.querySelector(".etiqueta-termino");
+            if(etiqueta) etiqueta.remove();
+
+            const handle=elemento.querySelector(".resize-handle");
+            if(handle) handle.remove();
         }
-    });
+    );
+
 
     fechaReserva.value="";
+
     finReserva.value="";
 }
+
 
 function actualizarSeleccion(){
 
     if(!seleccion)return;
 
-    /*
-     * Primero limpiamos absolutamente toda
-     * la selección anterior.
-     */
 
     limpiarSeleccionVisual();
+
 
     const inicio=
         seleccion.inicioMinutos;
@@ -1287,7 +1318,9 @@ function actualizarSeleccion(){
             seleccion.fecha
         );
 
+
     let puedeSeleccionarse=true;
+
 
     for(
         let minutos=inicio;
@@ -1301,23 +1334,20 @@ function actualizarSeleccion(){
                 minutos
             );
 
+
         if(
             !bloque ||
-            bloque.classList.contains(
-                "fuera-horario"
-            ) ||
-            bloque.classList.contains(
-                "ocupado"
-            ) ||
-            bloque.classList.contains(
-                "pasado"
-            )
+            bloque.classList.contains("fuera-horario") ||
+            bloque.classList.contains("ocupado") ||
+            bloque.classList.contains("pasado")
         ){
 
             puedeSeleccionarse=false;
+
             break;
         }
     }
+
 
     if(!puedeSeleccionarse){
 
@@ -1330,8 +1360,11 @@ function actualizarSeleccion(){
         return;
     }
 
+
     let primerBloque=null;
+
     let ultimoBloque=null;
+
 
     for(
         let minutos=inicio;
@@ -1345,18 +1378,24 @@ function actualizarSeleccion(){
                 minutos
             );
 
+
         if(!bloque)continue;
+
 
         bloque.classList.add(
             "seleccionado"
         );
 
+
         if(!primerBloque){
+
             primerBloque=bloque;
         }
 
+
         ultimoBloque=bloque;
     }
+
 
     if(primerBloque){
 
@@ -1365,25 +1404,30 @@ function actualizarSeleccion(){
         );
     }
 
+
     const fechaInicio=
         crearFechaHora(
             seleccion.fecha,
             seleccion.inicioMinutos
         );
 
+
     const fechaFin=
         new Date(fechaInicio);
+
 
     fechaFin.setMinutes(
         fechaFin.getMinutes()+
         seleccion.duracion
     );
 
+
     if(ultimoBloque){
 
         ultimoBloque.classList.add(
             "seleccionado-fin"
         );
+
 
         const indicador=
             document.createElement("div");
@@ -1395,6 +1439,7 @@ function actualizarSeleccion(){
             indicador
         );
 
+
         const etiqueta=
             document.createElement("span");
 
@@ -1404,57 +1449,163 @@ function actualizarSeleccion(){
         etiqueta.textContent=
             formatearHora(fechaFin);
 
-        ultimoBloque.appendChild(
-            etiqueta
-        );
+        ultimoBloque.appendChild(etiqueta);
+
+        const handle=document.createElement("div");
+        handle.className="resize-handle";
+        handle.title="Arrastra para ajustar la duración";
+        handle.setAttribute("aria-label", "Arrastra para ajustar la duración");
+        ultimoBloque.appendChild(handle);
     }
+
 
     fechaReserva.value=
         convertirParaDjango(
             fechaInicio
         );
 
+
     finReserva.value=
         convertirParaDjango(
             fechaFin
         );
 
+
     reservaSeleccionada.style.display=
         "block";
+
 
     resumenFecha.textContent=
         formatearFecha(
             fechaInicio
         );
 
+
     resumenInicio.textContent=
         formatearHora(
             fechaInicio
         );
+
 
     resumenFin.textContent=
         formatearHora(
             fechaFin
         );
 
+
     mensajeDuracion.textContent=
         "Horario seleccionado: "+
         formatearHora(fechaInicio)+
         " - "+
-        formatearHora(fechaFin);
+        formatearHora(fechaFin)+
+        ". Arrastra el borde inferior azul para ajustar la duración.";
+
 
     mensajeDuracion.className=
         "form-text mt-2 text-success";
 
-    actualizarBotonDuracion();
 
     actualizarBotonConfirmar();
 }
 
-function obtenerBloque(
-    dia,
-    minutos
-){
+
+function obtenerDuracionMaximaMinutos(){
+    if(
+        reglas.duracion_maxima !== null &&
+        reglas.duracion_maxima !== undefined &&
+        reglas.duracion_maxima !== "" &&
+        Number(reglas.duracion_maxima) > 0
+    ){
+        return Number(reglas.duracion_maxima) * 60;
+    }
+
+    // Si el área no tiene máximo configurado, mantener el límite visual
+    // de seis horas que utilizaba el selector anterior.
+    return 360;
+}
+
+
+function duracionDisponible(duracion){
+    if(!seleccion || duracion < 30 || duracion > obtenerDuracionMaximaMinutos()){
+        return false;
+    }
+
+    const diaIndice=obtenerIndiceDia(seleccion.fecha);
+
+    for(let minutos=seleccion.inicioMinutos; minutos<seleccion.inicioMinutos+duracion; minutos+=30){
+        const bloque=obtenerBloque(diaIndice,minutos);
+
+        if(
+            !bloque ||
+            bloque.classList.contains("fuera-horario") ||
+            bloque.classList.contains("ocupado") ||
+            bloque.classList.contains("pasado")
+        ){
+            return false;
+        }
+    }
+
+    return true;
+}
+
+
+agenda.addEventListener("pointerdown", function(event){
+    const handle=event.target.closest(".resize-handle");
+    if(!handle || !seleccion) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    redimensionando=true;
+    seAcabaDeRedimensionar=true;
+    document.body.style.userSelect="none";
+});
+
+
+document.addEventListener("pointermove", function(event){
+    if(!redimensionando || !seleccion) return;
+
+    const bloque=document.elementFromPoint(event.clientX,event.clientY)?.closest(".bloque-horario");
+    if(!bloque) return;
+
+    const diaIndice=obtenerIndiceDia(seleccion.fecha);
+    if(Number(bloque.dataset.dia)!==diaIndice) return;
+
+    const minutosObjetivo=Number(bloque.dataset.minutos)+30;
+    const nuevaDuracion=minutosObjetivo-seleccion.inicioMinutos;
+
+    if(nuevaDuracion===seleccion.duracion) return;
+
+    if(duracionDisponible(nuevaDuracion)){
+        seleccion.duracion=nuevaDuracion;
+        actualizarSeleccion();
+    }else{
+        mensajeDuracion.textContent=
+            "No puedes ampliar más: el horario está ocupado, fuera del horario permitido o supera la duración máxima.";
+        mensajeDuracion.className="form-text mt-2 text-warning";
+    }
+});
+
+
+document.addEventListener("pointerup", function(){
+    if(!redimensionando) return;
+
+    redimensionando=false;
+    document.body.style.userSelect="";
+
+    window.setTimeout(function(){
+        seAcabaDeRedimensionar=false;
+    }, 250);
+
+    if(seleccion){
+        mensajeDuracion.textContent=
+            "Duración: "+(seleccion.duracion/60).toLocaleString("es-CL")+
+            " h. Arrastra el borde inferior azul para ajustarla.";
+        mensajeDuracion.className="form-text mt-2 text-success";
+    }
+});
+
+
+function obtenerBloque(dia,minutos){
 
     return document.querySelector(
         '.bloque-horario[data-dia="'+
@@ -1465,81 +1616,30 @@ function obtenerBloque(
     );
 }
 
+
 function obtenerIndiceDia(fecha){
 
-    const dia=fecha.getDay();
+    const dia=
+        fecha.getDay();
 
-    return dia===0
-        ?6
-        :dia-1;
+    return dia===0?6:dia-1;
 }
 
-opcionesDuracion.forEach(function(boton){
-
-    boton.addEventListener(
-        "click",
-        function(){
-
-            if(!seleccion)return;
-
-            const minutos=
-                Number(
-                    this.dataset.minutos
-                );
-
-            if(
-                reglas.duracion_maxima &&
-                minutos>
-                Number(
-                    reglas.duracion_maxima
-                )*60
-            ){
-
-                mensajeDuracion.textContent=
-                    "La duración supera el máximo permitido para esta área.";
-
-                mensajeDuracion.className=
-                    "form-text mt-2 text-danger";
-
-                return;
-            }
-
-            seleccion.duracion=minutos;
-
-            actualizarSeleccion();
-        }
-    );
-});
-
-function actualizarBotonDuracion(){
-
-    opcionesDuracion.forEach(function(boton){
-
-        const minutos=
-            Number(
-                boton.dataset.minutos
-            );
-
-        boton.classList.toggle(
-            "activa",
-            seleccion &&
-            minutos===
-            seleccion.duracion
-        );
-    });
-}
 
 function fechaCumpleAnticipacion(fecha){
 
     if(!reglas.dias_anticipacion_maxima){
+
         return true;
     }
+
 
     const ahora=new Date();
 
     ahora.setHours(
         0,0,0,0
     );
+
 
     const fechaComparar=
         new Date(fecha);
@@ -1548,25 +1648,19 @@ function fechaCumpleAnticipacion(fecha){
         0,0,0,0
     );
 
+
     const diferencia=
         Math.floor(
-            (
-                fechaComparar-
-                ahora
-            )/
-            (
-                1000*
-                60*
-                60*
-                24
-            )
+            (fechaComparar-ahora)/
+            (1000*60*60*24)
         );
 
-    return diferencia<=
-        Number(
-            reglas.dias_anticipacion_maxima
-        );
+
+    return diferencia<=Number(
+        reglas.dias_anticipacion_maxima
+    );
 }
+
 
 function convertirParaDjango(fecha){
 
@@ -1593,6 +1687,7 @@ function convertirParaDjango(fecha){
             fecha.getMinutes()
         ).padStart(2,"0");
 
+
     return año+
         "-"+
         mes+
@@ -1603,6 +1698,7 @@ function convertirParaDjango(fecha){
         ":"+
         minuto;
 }
+
 
 function actualizarBotonConfirmar(){
 
@@ -1623,10 +1719,12 @@ function actualizarBotonConfirmar(){
     }
 }
 
+
 if(unidad){
 
     unidadForm.value=
         unidad.value;
+
 
     unidad.addEventListener(
         "change",
@@ -1639,6 +1737,7 @@ if(unidad){
         }
     );
 }
+
 
 semanaAnterior.addEventListener(
     "click",
@@ -1661,6 +1760,7 @@ semanaAnterior.addEventListener(
     }
 );
 
+
 semanaSiguiente.addEventListener(
     "click",
     function(){
@@ -1682,6 +1782,7 @@ semanaSiguiente.addEventListener(
     }
 );
 
+
 document.getElementById(
     "form-reserva"
 ).addEventListener(
@@ -1689,6 +1790,7 @@ document.getElementById(
     function(event){
 
         mensajeFormulario.innerHTML="";
+
 
         if(!areaForm.value){
 
@@ -1702,6 +1804,7 @@ document.getElementById(
             return;
         }
 
+
         if(!unidadForm.value){
 
             event.preventDefault();
@@ -1713,6 +1816,7 @@ document.getElementById(
 
             return;
         }
+
 
         if(
             !fechaReserva.value ||
@@ -1729,6 +1833,7 @@ document.getElementById(
             return;
         }
 
+
         const inicio=
             new Date(
                 fechaReserva.value
@@ -1738,6 +1843,7 @@ document.getElementById(
             new Date(
                 finReserva.value
             );
+
 
         if(fin<=inicio){
 
@@ -1752,7 +1858,6 @@ document.getElementById(
 );
 
 });
-
 </script>
 
 {% endblock %}

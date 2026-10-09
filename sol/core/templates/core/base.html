@@ -337,6 +337,10 @@
                         🏢 Condominios
                     </a>
 
+                    <a href="{% url 'reservaciones_lista' %}">
+                        📅 Reservas
+                    </a>
+
 
                     {% if usuario_actual.rol.nombre == "Administrador" and usuario_actual.condominio %}
 
@@ -384,6 +388,10 @@
 
                         <a href="{% url 'condominios_lista' %}">
                             🏢 Condominios
+                        </a>
+
+                        <a href="{% url 'reservaciones_lista' %}">
+                            📅 Reservas
                         </a>
 
 

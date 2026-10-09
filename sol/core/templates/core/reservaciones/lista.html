@@ -1,115 +1,118 @@
 {% extends "core/base.html" %}
 
-{% block title %}
-    Reservaciones
-{% endblock %}
-
-{% block page_title %}
-    Reservaciones
-{% endblock %}
+{% block title %}Reservaciones{% endblock %}
+{% block page_title %}Reservaciones{% endblock %}
 
 {% block content %}
 
 <div class="card-custom">
 
     <div class="d-flex justify-content-between align-items-center mb-4">
-
         <div>
             <h2 class="mb-1">
-                Mis reservaciones
+                {% if usuario_actual.rol == "RESIDENTE" %}
+                    Mis reservaciones
+                {% else %}
+                    Reservaciones
+                {% endif %}
             </h2>
 
             <p class="text-muted mb-0">
-                Consulta y administra tus reservas de áreas comunes.
+                {% if usuario_actual.rol == "RESIDENTE" %}
+                    Consulta y administra tus reservas de áreas comunes.
+                {% else %}
+                    Consulta las reservas de áreas comunes del condominio.
+                {% endif %}
             </p>
         </div>
 
-        <a
-            href="{% url 'reservacion_crear' %}"
-            class="button"
-        >
+        <a href="{% url 'reservacion_crear' %}" class="button">
             + Nueva reserva
         </a>
-
     </div>
-
 
     {% if reservaciones %}
 
         <div class="table-responsive">
-
             <table class="table table-hover align-middle">
 
                 <thead>
-
                     <tr>
                         <th>Área común</th>
+
+                        {% if usuario_actual.rol != "RESIDENTE" %}
+                            <th>Residente</th>
+                            <th>Unidad</th>
+                        {% endif %}
+
                         <th>Fecha</th>
                         <th>Inicio</th>
                         <th>Término</th>
                         <th>Estado</th>
                     </tr>
-
                 </thead>
 
                 <tbody>
-
                     {% for reservacion in reservaciones %}
-
                         <tr>
 
-                            <td>
-                                {{ reservacion.area_comun.nombre }}
-                            </td>
+                            <td>{{ reservacion.area_comun.nombre }}</td>
 
-                            <td>
-                                {{ reservacion.fecha_reserva|date:"d/m/Y" }}
-                            </td>
+                            {% if usuario_actual.rol != "RESIDENTE" %}
 
-                            <td>
-                                {{ reservacion.fecha_reserva|date:"H:i" }}
-                            </td>
+                                <td>
+                                    {{ reservacion.usuario.nombre }}
+                                    {{ reservacion.usuario.apellido }}
+                                </td>
 
-                            <td>
-                                {{ reservacion.fin_reserva|date:"H:i" }}
-                            </td>
+                                <td>
+                                    {% if reservacion.unidad %}
+                                        {{ reservacion.unidad.edificio.nombre }}
+                                        - Unidad {{ reservacion.unidad.numero_unidad }}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
 
-                            <td>
-                                {{ reservacion.get_estado_display }}
-                            </td>
+                            {% endif %}
+
+                            <td>{{ reservacion.fecha_reserva|date:"d/m/Y" }}</td>
+                            <td>{{ reservacion.fecha_reserva|date:"H:i" }}</td>
+                            <td>{{ reservacion.fin_reserva|date:"H:i" }}</td>
+                            <td>{{ reservacion.get_estado_display }}</td>
 
                         </tr>
-
                     {% endfor %}
-
                 </tbody>
 
             </table>
-
         </div>
 
     {% else %}
 
         <div class="text-center py-5">
 
-            <div style="font-size: 40px;">
-                📅
-            </div>
+            <div style="font-size: 40px;">📅</div>
 
             <h4 class="mt-3">
-                No tienes reservaciones
+                {% if usuario_actual.rol == "RESIDENTE" %}
+                    No tienes reservaciones
+                {% else %}
+                    No hay reservaciones
+                {% endif %}
             </h4>
 
             <p class="text-muted">
-                Cuando realices una reserva de un área común,
-                aparecerá aquí.
+                {% if usuario_actual.rol == "RESIDENTE" %}
+                    Cuando realices una reserva de un área común, aparecerá aquí.
+                {% else %}
+                    Cuando los residentes realicen reservas de áreas comunes,
+                    aparecerán aquí.
+                {% endif %}
             </p>
 
-            <a
-                href="{% url 'reservacion_crear' %}"
-                class="button"
-            >
-                Crear mi primera reserva
+            <a href="{% url 'reservacion_crear' %}" class="button">
+                Crear una reserva
             </a>
 
         </div>
