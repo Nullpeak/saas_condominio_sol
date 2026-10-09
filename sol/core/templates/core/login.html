@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Iniciar sesión - CondoGestión</title>
+
+    <style>
+
+        /* ============================== GENERAL ============================== */
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: Arial, sans-serif;
+            background: #f1f5f9;
+            color: #0f172a;
+        }
+
+
+        /* ============================== CONTENEDOR ============================== */
+
+        .login-page {
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 25px;
+        }
+
+
+        /* ============================== TARJETA ============================== */
+
+        .login-card {
+            width: 100%;
+            max-width: 430px;
+            background: white;
+            border-radius: 14px;
+            padding: 40px;
+            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.10);
+        }
+
+
+        /* ============================== LOGO ============================== */
+
+        .login-logo {
+            text-align: center;
+            font-size: 42px;
+            margin-bottom: 12px;
+        }
+
+
+        /* ============================== TITULO ============================== */
+
+        .login-title {
+            text-align: center;
+            margin: 0;
+            font-size: 26px;
+        }
+
+        .login-description {
+            text-align: center;
+            color: #64748b;
+            margin-top: 10px;
+            margin-bottom: 30px;
+        }
+
+
+        /* ============================== ERROR ============================== */
+
+        .login-error {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #b91c1c;
+            padding: 12px 14px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+
+        /* ============================== CAMPOS ============================== */
+
+        .login-field {
+            margin-bottom: 20px;
+        }
+
+        .login-field label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 7px;
+        }
+
+        .login-field input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            font-size: 15px;
+        }
+
+        .login-field input:focus {
+            outline: none;
+            border-color: #64748b;
+        }
+
+
+        /* ============================== BOTÓN ============================== */
+
+        .login-button {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            background: #0f172a;
+            color: white;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .login-button:hover {
+            opacity: 0.9;
+        }
+
+
+        /* ============================== RECUPERACIÓN ============================== */
+
+        .login-recovery {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .login-recovery a {
+            color: #334155;
+            text-decoration: none;
+        }
+
+        .login-recovery a:hover {
+            text-decoration: underline;
+        }
+
+
+        /* ============================== RESPONSIVE ============================== */
+
+        @media (max-width: 500px) {
+
+            .login-page {
+                padding: 15px;
+            }
+
+            .login-card {
+                padding: 28px 22px;
+            }
+
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+    <div class="login-page">
+
+        <div class="login-card">
+
+
+            <!-- ============================== ENCABEZADO ============================== -->
+
+            <div class="login-logo">
+                🏢
+            </div>
+
+            <h1 class="login-title">
+                CondoGestión
+            </h1>
+
+            <p class="login-description">
+                Ingresa tus credenciales para acceder al sistema.
+            </p>
+
+
+            <!-- ============================== ERROR ============================== -->
+
+            {% if error %}
+
+                <div class="login-error">
+                    {{ error }}
+                </div>
+
+            {% endif %}
+
+
+            <!-- ============================== FORMULARIO ============================== -->
+
+            <form method="post">
+
+                {% csrf_token %}
+
+
+                <div class="login-field">
+
+                    <label for="username">
+                        Usuario
+                    </label>
+
+                    <input
+                        type="text"
+                        id="username"
+                        name="username"
+                        placeholder="Ingresa tu usuario"
+                        autocomplete="username"
+                        required
+                        autofocus
+                    >
+
+                </div>
+
+
+                <div class="login-field">
+
+                    <label for="password">
+                        Contraseña
+                    </label>
+
+                    <input
+                        type="password"
+                        id="password"
+                        name="password"
+                        placeholder="Ingresa tu contraseña"
+                        autocomplete="current-password"
+                        required
+                    >
+
+                </div>
+
+
+                <button
+                    type="submit"
+                    class="login-button"
+                >
+                    Iniciar sesión
+                </button>
+
+
+                <div class="login-recovery">
+
+                    <a href="{% url 'password_reset_request' %}">
+                        ¿Olvidaste tu contraseña?
+                    </a>
+
+                </div>
+
+            </form>
+
+        </div>
+
+    </div>
+
+</body>
+
+</html>

@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>CondoGestión - Administración de condominios</title>
+
+    <style>
+
+        /* ============================== GENERAL ============================== */
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            color: #0f172a;
+            background: #f8fafc;
+        }
+
+
+        /* ============================== NAVBAR ============================== */
+
+        .navbar {
+            height: 70px;
+            background: white;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 7%;
+        }
+
+        .logo {
+            font-size: 21px;
+            font-weight: 700;
+        }
+
+        .logo span {
+            color: #64748b;
+        }
+
+
+        /* ============================== BOTONES ============================== */
+
+        .button {
+            display: inline-block;
+            padding: 11px 18px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            background: #0f172a;
+            color: white;
+        }
+
+        .button:hover {
+            opacity: 0.9;
+        }
+
+        .button-secondary {
+            background: #e2e8f0;
+            color: #0f172a;
+        }
+
+
+        /* ============================== HERO ============================== */
+
+        .hero {
+            padding: 90px 7%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 60px;
+            max-width: 1300px;
+            margin: auto;
+        }
+
+        .hero-content {
+            max-width: 650px;
+        }
+
+        .hero h1 {
+            font-size: 48px;
+            line-height: 1.1;
+            margin: 0;
+        }
+
+        .hero h1 span {
+            color: #64748b;
+        }
+
+        .hero p {
+            font-size: 19px;
+            line-height: 1.6;
+            color: #64748b;
+            margin: 22px 0 30px;
+        }
+
+        .hero-actions {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .hero-icon {
+            font-size: 150px;
+            opacity: 0.9;
+        }
+
+
+        /* ============================== CARACTERÍSTICAS ============================== */
+
+        .features-section {
+            background: white;
+            padding: 70px 7%;
+        }
+
+        .section-title {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .section-title h2 {
+            margin-bottom: 10px;
+        }
+
+        .section-title p {
+            color: #64748b;
+        }
+
+        .features {
+            max-width: 1100px;
+            margin: auto;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+        }
+
+        .feature {
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 25px;
+            background: #f8fafc;
+        }
+
+        .feature-icon {
+            font-size: 28px;
+            margin-bottom: 12px;
+        }
+
+        .feature h3 {
+            margin: 0 0 10px;
+        }
+
+        .feature p {
+            color: #64748b;
+            line-height: 1.5;
+            margin: 0;
+        }
+
+
+        /* ============================== CTA ============================== */
+
+        .cta {
+            padding: 70px 7%;
+            text-align: center;
+        }
+
+        .cta h2 {
+            margin-bottom: 12px;
+        }
+
+        .cta p {
+            color: #64748b;
+            margin-bottom: 25px;
+        }
+
+
+        /* ============================== FOOTER ============================== */
+
+        footer {
+            border-top: 1px solid #e2e8f0;
+            background: white;
+            padding: 25px 7%;
+            text-align: center;
+            color: #64748b;
+            font-size: 14px;
+        }
+
+
+        /* ============================== RESPONSIVE ============================== */
+
+        @media (max-width: 800px) {
+
+            .hero {
+                padding: 60px 7%;
+                text-align: center;
+            }
+
+            .hero-content {
+                max-width: none;
+            }
+
+            .hero h1 {
+                font-size: 38px;
+            }
+
+            .hero-actions {
+                justify-content: center;
+            }
+
+            .hero-icon {
+                display: none;
+            }
+
+            .features {
+                grid-template-columns: 1fr;
+            }
+
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+
+    <!-- ============================== NAVBAR ============================== -->
+
+    <nav class="navbar">
+
+        <div class="logo">
+            🏢 Condo<span>Gestión</span>
+        </div>
+
+        <a
+            href="{% url 'login' %}"
+            class="button"
+        >
+            Iniciar sesión
+        </a>
+
+    </nav>
+
+
+    <!-- ============================== HERO ============================== -->
+
+    <main>
+
+        <section class="hero">
+
+            <div class="hero-content">
+
+                <h1>
+                    Administración de condominios
+                    <span>más simple.</span>
+                </h1>
+
+                <p>
+                    CondoGestión centraliza la información y gestión
+                    de condominios en una plataforma web, facilitando
+                    la administración de unidades, usuarios y
+                    operaciones del condominio.
+                </p>
+
+                <div class="hero-actions">
+
+                    <a
+                        href="{% url 'login' %}"
+                        class="button"
+                    >
+                        Iniciar sesión
+                    </a>
+
+                    <a
+                        href="#caracteristicas"
+                        class="button button-secondary"
+                    >
+                        Conocer más
+                    </a>
+
+                </div>
+
+            </div>
+
+
+            <div class="hero-icon">
+                🏢
+            </div>
+
+        </section>
+
+
+        <!-- ============================== CARACTERÍSTICAS ============================== -->
+
+        <section
+            class="features-section"
+            id="caracteristicas"
+        >
+
+            <div class="section-title">
+
+                <h2>
+                    Una plataforma para centralizar la gestión
+                </h2>
+
+                <p>
+                    Información organizada y accesible desde un solo lugar.
+                </p>
+
+            </div>
+
+
+            <div class="features">
+
+
+                <div class="feature">
+
+                    <div class="feature-icon">
+                        🏢
+                    </div>
+
+                    <h3>
+                        Gestión de condominios
+                    </h3>
+
+                    <p>
+                        Administra condominios, edificios y
+                        unidades habitacionales desde una misma plataforma.
+                    </p>
+
+                </div>
+
+
+                <div class="feature">
+
+                    <div class="feature-icon">
+                        👥
+                    </div>
+
+                    <h3>
+                        Usuarios y permisos
+                    </h3>
+
+                    <p>
+                        Gestiona usuarios y controla el acceso
+                        según los diferentes roles del sistema.
+                    </p>
+
+                </div>
+
+
+                <div class="feature">
+
+                    <div class="feature-icon">
+                        📋
+                    </div>
+
+                    <h3>
+                        Información centralizada
+                    </h3>
+
+                    <p>
+                        Mantén organizada la información relevante
+                        del condominio y sus unidades.
+                    </p>
+
+                </div>
+
+
+            </div>
+
+        </section>
+
+
+        <!-- ============================== CTA ============================== -->
+
+        <section class="cta">
+
+            <h2>
+                Accede a CondoGestión
+            </h2>
+
+            <p>
+                Ingresa con tu cuenta para comenzar a utilizar
+                la plataforma.
+            </p>
+
+            <a
+                href="{% url 'login' %}"
+                class="button"
+            >
+                Iniciar sesión
+            </a>
+
+        </section>
+
+    </main>
+
+
+    <!-- ============================== FOOTER ============================== -->
+
+    <footer>
+
+        CondoGestión · Plataforma de administración de condominios
+
+    </footer>
+
+
+</body>
+
+</html>
