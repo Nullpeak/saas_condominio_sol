@@ -1,0 +1,339 @@
+{% extends "core/base.html" %}
+
+{% block title %}
+Editar área común - CondoGestión
+{% endblock %}
+
+{% block page_title %}
+Editar área común
+{% endblock %}
+
+{% block content %}
+
+<div class="card">
+
+    <h2>
+        Editar área común
+    </h2>
+
+    <p>
+        Modifica la información de <strong>{{ area.nombre }}</strong>.
+    </p>
+
+</div>
+
+
+{% if errores %}
+
+<div class="card">
+
+    <div style="
+        background: #fef2f2;
+        border: 1px solid #fecaca;
+        color: #b91c1c;
+        padding: 14px;
+        border-radius: 7px;
+    ">
+
+        <strong>No se pudo guardar:</strong>
+
+        <ul>
+            {% for error in errores %}
+                <li>{{ error }}</li>
+            {% endfor %}
+        </ul>
+
+    </div>
+
+</div>
+
+{% endif %}
+
+
+<div class="card">
+
+    <form method="post">
+
+        {% csrf_token %}
+
+
+        <!-- ============================== INFORMACIÓN BÁSICA ============================== -->
+
+        <h3>
+            Información del área
+        </h3>
+
+        <!-- ============================== NOMBRE ============================== -->
+
+        <div style="margin-bottom: 18px;">
+
+            <label for="nombre">
+                <strong>Nombre</strong>
+            </label>
+
+            <br>
+
+            <input
+                type="text"
+                id="nombre"
+                name="nombre"
+                maxlength="100"
+                value="{{ datos.nombre|default:area.nombre }}"
+                required
+                style="
+                    width: 100%;
+                    padding: 10px;
+                    margin-top: 6px;
+                    border: 1px solid #d1d5db;
+                    border-radius: 7px;
+                "
+            >
+
+        </div>
+
+
+        <!-- ============================== DESCRIPCIÓN ============================== -->
+
+        <div style="margin-bottom: 18px;">
+
+            <label for="descripcion">
+                <strong>Descripción</strong>
+            </label>
+
+            <br>
+
+            <textarea
+                id="descripcion"
+                name="descripcion"
+                rows="4"
+                style="
+                    width: 100%;
+                    padding: 10px;
+                    margin-top: 6px;
+                    border: 1px solid #d1d5db;
+                    border-radius: 7px;
+                    resize: vertical;
+                "
+            >{{ datos.descripcion|default:area.descripcion }}</textarea>
+
+        </div>
+
+
+        <!-- ============================== CAPACIDAD ============================== -->
+
+        <div style="margin-bottom: 24px;">
+
+            <label for="capacidad">
+                <strong>Capacidad</strong>
+            </label>
+
+            <br>
+
+            <input
+                type="number"
+                id="capacidad"
+                name="capacidad"
+                min="1"
+                value="{{ datos.capacidad|default:area.capacidad }}"
+                style="
+                    width: 100%;
+                    padding: 10px;
+                    margin-top: 6px;
+                    border: 1px solid #d1d5db;
+                    border-radius: 7px;
+                "
+            >
+
+            <small style="color: #64748b;">
+                Cantidad máxima de personas. Puede dejarse vacío.
+            </small>
+
+        </div>
+
+
+        <!-- ============================== RESERVAS ============================== -->
+
+        <hr>
+
+        <h3 style="margin-top: 24px;">
+            Configuración de reservas
+        </h3>
+
+        <p style="color: #64748b;">
+            Estas opciones permiten definir las reglas de reserva
+            específicas para esta área común.
+        </p>
+
+
+        <!-- ============================== RESERVABLE ============================== -->
+
+        <div style="margin-bottom: 18px;">
+
+            <label>
+
+                <input
+                    type="checkbox"
+                    name="reservable"
+                    {% if datos.reservable or area.reservable and not datos %}
+                        checked
+                    {% endif %}
+                >
+
+                <strong>
+                    Esta área permite reservas
+                </strong>
+
+            </label>
+
+        </div>
+
+
+        <!-- ============================== REQUIERE RESERVA ============================== -->
+
+        <div style="margin-bottom: 18px;">
+
+            <label>
+
+                <input
+                    type="checkbox"
+                    name="requiere_reserva"
+                    {% if datos.requiere_reserva or area.requiere_reserva and not datos %}
+                        checked
+                    {% endif %}
+                >
+
+                <strong>
+                    El uso del área requiere una reserva
+                </strong>
+
+            </label>
+
+            <br>
+
+            <small style="color: #64748b;">
+                Si está activado, los residentes deberán realizar una
+                reserva para utilizar el área.
+            </small>
+
+        </div>
+
+
+        <!-- ============================== DURACIÓN MÁXIMA ============================== -->
+
+        <div style="margin-bottom: 18px;">
+
+            <label for="duracion_maxima">
+                <strong>Duración máxima de reserva (horas)</strong>
+            </label>
+
+            <br>
+
+            <input
+                type="number"
+                id="duracion_maxima"
+                name="duracion_maxima"
+                min="1"
+                value="{{ datos.duracion_maxima|default:area.duracion_maxima }}"
+                style="
+                    width: 100%;
+                    padding: 10px;
+                    margin-top: 6px;
+                    border: 1px solid #d1d5db;
+                    border-radius: 7px;
+                "
+            >
+
+            <small style="color: #64748b;">
+                Cantidad máxima de horas que puede durar una reserva.
+                Puede dejarse vacío si no existe un límite.
+            </small>
+
+        </div>
+
+
+        <!-- ============================== RESERVAS CONSECUTIVAS ============================== -->
+
+        <div style="margin-bottom: 18px;">
+
+            <label>
+
+                <input
+                    type="checkbox"
+                    name="permite_reservas_consecutivas"
+                    {% if datos.permite_reservas_consecutivas or area.permite_reservas_consecutivas and not datos %}
+                        checked
+                    {% endif %}
+                >
+
+                <strong>
+                    Permitir reservas consecutivas
+                </strong>
+
+            </label>
+
+            <br>
+
+            <small style="color: #64748b;">
+                Permite que una misma persona realice reservas
+                consecutivas para el área.
+            </small>
+
+        </div>
+
+
+        <!-- ============================== ANTICIPACIÓN ============================== -->
+
+        <div style="margin-bottom: 24px;">
+
+            <label for="dias_anticipacion_maxima">
+                <strong>Máximo de días de anticipación</strong>
+            </label>
+
+            <br>
+
+            <input
+                type="number"
+                id="dias_anticipacion_maxima"
+                name="dias_anticipacion_maxima"
+                min="1"
+                value="{{ datos.dias_anticipacion_maxima|default:area.dias_anticipacion_maxima }}"
+                style="
+                    width: 100%;
+                    padding: 10px;
+                    margin-top: 6px;
+                    border: 1px solid #d1d5db;
+                    border-radius: 7px;
+                "
+            >
+
+            <small style="color: #64748b;">
+                Cantidad máxima de días antes de la fecha en que se
+                puede realizar una reserva. Puede dejarse vacío si
+                no existe un límite.
+            </small>
+
+        </div>
+
+
+        <!-- ============================== BOTONES ============================== -->
+
+        <button
+            type="submit"
+            class="button"
+        >
+            Guardar cambios
+        </button>
+
+        <a
+            href="{% url 'areas_comunes_lista' condominio.id %}"
+            class="button button-secondary"
+            style="margin-left: 8px;"
+        >
+            Cancelar
+        </a>
+
+    </form>
+
+</div>
+
+{% endblock %}

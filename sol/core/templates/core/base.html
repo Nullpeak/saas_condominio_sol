@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>
+        {% block title %}
+            CondoGestión
+        {% endblock %}
+    </title>
+
+
+    <!-- ========================================================= -->
+    <!-- BOOTSTRAP 5                                               -->
+    <!-- ========================================================= -->
+
+    <link
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css"
+        rel="stylesheet"
+    >
+
+
+    <!-- ========================================================= -->
+    <!-- ESTILOS PROPIOS                                           -->
+    <!-- ========================================================= -->
+
+    <style>
+
+        /* ============================== GENERAL ============================== */
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, Helvetica, sans-serif;
+            background: #f4f6f8;
+            color: #1f2937;
+        }
+
+
+        /* ============================== ESTRUCTURA ============================== */
+
+        .app {
+            display: flex;
+            min-height: 100vh;
+        }
+
+
+        /* ============================== SIDEBAR ============================== */
+
+        .sidebar {
+            width: 240px;
+            background: #172033;
+            color: white;
+            padding: 24px 16px;
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+        }
+
+        .logo {
+            font-size: 21px;
+            font-weight: bold;
+            padding: 0 12px 28px;
+        }
+
+        .logo span {
+            color: #60a5fa;
+        }
+
+        .menu-title {
+            color: #94a3b8;
+            font-size: 12px;
+            text-transform: uppercase;
+            margin: 10px 12px;
+        }
+
+        .menu a {
+            display: block;
+            color: #dbe3ee;
+            text-decoration: none;
+            padding: 11px 12px;
+            border-radius: 7px;
+            margin-bottom: 4px;
+            font-size: 14px;
+        }
+
+        .menu a:hover {
+            background: #26344d;
+            color: white;
+        }
+
+
+        /* ============================== CONTENIDO ============================== */
+
+        .content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .topbar {
+            height: 70px;
+            background: white;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 30px;
+        }
+
+        .page-title {
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+
+        /* ============================== USUARIO ============================== */
+
+        .user-area {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .user-info {
+            text-align: right;
+            font-size: 13px;
+        }
+
+        .user-name {
+            font-weight: bold;
+        }
+
+        .user-role {
+            color: #64748b;
+        }
+
+
+        /* ============================== CERRAR SESIÓN ============================== */
+
+        .logout {
+            display: inline-block;
+            color: #dc2626;
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            text-decoration: none;
+            padding: 9px 14px;
+            border-radius: 7px;
+            font-size: 14px;
+            transition: 0.2s;
+        }
+
+        .logout:hover {
+            background: #fee2e2;
+            color: #b91c1c;
+        }
+
+
+        /* ============================== CONTENIDO PRINCIPAL ============================== */
+
+        .main {
+            padding: 30px;
+        }
+
+
+        /* ============================== COMPONENTES PROPIOS ============================== */
+
+        .card-custom {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            padding: 22px;
+            margin-bottom: 20px;
+        }
+
+        .stat {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            padding: 20px;
+        }
+
+
+        /* ============================== BOTONES PROPIOS ============================== */
+
+        .button {
+            display: inline-block;
+            background: #2563eb;
+            color: white;
+            text-decoration: none;
+            border: none;
+            border-radius: 7px;
+            padding: 10px 16px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .button:hover {
+            background: #1d4ed8;
+            color: white;
+        }
+
+        .button-secondary {
+            background: #e5e7eb;
+            color: #1f2937;
+        }
+
+        .button-secondary:hover {
+            background: #d1d5db;
+            color: #1f2937;
+        }
+
+
+        /* ============================== RESPONSIVE ============================== */
+
+        @media (max-width: 800px) {
+
+            .sidebar {
+                width: 190px;
+            }
+
+            .topbar {
+                padding: 0 20px;
+            }
+
+            .main {
+                padding: 20px;
+            }
+
+        }
+
+
+        @media (max-width: 600px) {
+
+            .app {
+                display: block;
+            }
+
+            .sidebar {
+                width: 100%;
+                padding: 15px;
+            }
+
+            .logo {
+                padding-bottom: 15px;
+            }
+
+            .topbar {
+                height: auto;
+                padding: 15px 20px;
+            }
+
+            .user-area {
+                gap: 10px;
+            }
+
+            .user-info {
+                display: none;
+            }
+
+            .logout {
+                padding: 8px 10px;
+            }
+
+            .main {
+                padding: 15px;
+            }
+
+        }
+
+    </style>
+
+
+    {% block extra_css %}
+    {% endblock %}
+
+</head>
+
+
+<body>
+
+<div class="app">
+
+
+    <!-- ========================================================= -->
+    <!-- SIDEBAR                                                   -->
+    <!-- ========================================================= -->
+
+    <aside class="sidebar">
+
+        <div class="logo">
+            🏢 Condo<span>Gestión</span>
+        </div>
+
+
+        <nav class="menu">
+
+
+            <!-- ============================== PRINCIPAL ============================== -->
+
+            <div class="menu-title">
+                Principal
+            </div>
+
+            <a href="{% url 'inicio' %}">
+                🏠 Inicio
+            </a>
+
+
+            <!-- ============================== ADMINISTRACIÓN ============================== -->
+
+            {% if usuario_actual %}
+
+                {% if usuario_actual.rol.nombre == "Super Administrador" or usuario_actual.rol.nombre == "Administrador" %}
+
+                    <div class="menu-title">
+                        Administración
+                    </div>
+
+                    <a href="{% url 'administracion' %}">
+                        ⚙️ Administración
+                    </a>
+
+                    <a href="{% url 'usuarios_lista' %}">
+                        👥 Usuarios
+                    </a>
+
+                    <a href="{% url 'condominios_lista' %}">
+                        🏢 Condominios
+                    </a>
+
+
+                    {% if usuario_actual.rol.nombre == "Administrador" and usuario_actual.condominio %}
+
+                        <a href="{% url 'areas_comunes_lista' usuario_actual.condominio.id %}">
+                            🏊 Áreas comunes
+                        </a>
+
+                    {% endif %}
+
+                {% endif %}
+
+
+                <!-- ============================== RESIDENTE ============================== -->
+
+                {% if usuario_actual.rol.nombre == "Residente" %}
+
+                    <div class="menu-title">
+                        Módulos
+                    </div>
+
+                    <a href="{% url 'reservaciones_lista' %}">
+                        📅 Reservas
+                    </a>
+
+                {% endif %}
+
+
+            {% else %}
+
+                {% if usuario %}
+
+                    {% if usuario.rol.nombre == "Super Administrador" or usuario.rol.nombre == "Administrador" %}
+
+                        <div class="menu-title">
+                            Administración
+                        </div>
+
+                        <a href="{% url 'administracion' %}">
+                            ⚙️ Administración
+                        </a>
+
+                        <a href="{% url 'usuarios_lista' %}">
+                            👥 Usuarios
+                        </a>
+
+                        <a href="{% url 'condominios_lista' %}">
+                            🏢 Condominios
+                        </a>
+
+
+                        {% if usuario.rol.nombre == "Administrador" and usuario.condominio %}
+
+                            <a href="{% url 'areas_comunes_lista' usuario.condominio.id %}">
+                                🏊 Áreas comunes
+                            </a>
+
+                        {% endif %}
+
+                    {% endif %}
+
+
+                    <!-- ============================== RESIDENTE ============================== -->
+
+                    {% if usuario.rol.nombre == "Residente" %}
+
+                        <div class="menu-title">
+                            Módulos
+                        </div>
+
+                        <a href="{% url 'reservaciones_lista' %}">
+                            📅 Reservas
+                        </a>
+
+                    {% endif %}
+
+                {% endif %}
+
+            {% endif %}
+
+
+            <!-- ============================== MÓDULOS ============================== -->
+
+            <div class="menu-title">
+                Módulos
+            </div>
+
+            <a href="#">
+                🚗 Visitas
+            </a>
+
+            <a href="#">
+                🔧 Mantenimiento
+            </a>
+
+            <a href="#">
+                💰 Gastos comunes
+            </a>
+
+            <a href="#">
+                📢 Comunicaciones
+            </a>
+
+            <a href="#">
+                📊 Reportes
+            </a>
+
+
+        </nav>
+
+    </aside>
+
+
+    <!-- ========================================================= -->
+    <!-- CONTENIDO                                                 -->
+    <!-- ========================================================= -->
+
+    <div class="content">
+
+
+        <!-- ============================== TOPBAR ============================== -->
+
+        <header class="topbar">
+
+            <div class="page-title">
+
+                {% block page_title %}
+                    CondoGestión
+                {% endblock %}
+
+            </div>
+
+
+            <div class="user-area">
+
+                <div class="user-info">
+
+                    {% if usuario_actual %}
+
+                        <div class="user-name">
+                            {{ usuario_actual.nombre }}
+                            {{ usuario_actual.apellido }}
+                        </div>
+
+                        <div class="user-role">
+                            {{ usuario_actual.rol.nombre }}
+                        </div>
+
+                    {% else %}
+
+                        <div class="user-name">
+                            {{ usuario.nombre }}
+                            {{ usuario.apellido }}
+                        </div>
+
+                        <div class="user-role">
+                            {{ usuario.rol.nombre }}
+                        </div>
+
+                    {% endif %}
+
+                </div>
+
+
+                <a
+                    class="logout"
+                    href="{% url 'logout' %}"
+                >
+                    🚪 Cerrar sesión
+                </a>
+
+            </div>
+
+        </header>
+
+
+        <!-- ============================== CONTENIDO PRINCIPAL ============================== -->
+
+        <main class="main">
+
+            {% block content %}
+            {% endblock %}
+
+        </main>
+
+
+    </div>
+
+</div>
+
+<script
+    src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
+></script>
+
+{% block extra_js %}
+{% endblock %}
+
+</body>
+</html>

@@ -1,0 +1,184 @@
+{% extends "core/base.html" %}
+
+{% block title %}
+Edificios - {{ condominio.nombre }} - CondoGestión
+{% endblock %}
+
+{% block page_title %}
+Edificios
+{% endblock %}
+
+{% block content %}
+
+<!-- ============================== ENCABEZADO ============================== -->
+
+<div class="card">
+
+```
+<h2>
+    {{ condominio.nombre }}
+</h2>
+
+<p style="color: #64748b;">
+    Administración de los edificios del condominio.
+</p>
+
+<p style="margin-top: 10px;">
+    <strong>Dirección:</strong>
+    {{ condominio.direccion }}
+</p>
+```
+
+</div>
+
+<!-- ============================== LISTADO DE EDIFICIOS ============================== -->
+
+<div class="card">
+
+```
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 15px; flex-wrap: wrap;">
+
+    <div>
+
+        <h2 style="margin: 0;">
+            Edificios
+        </h2>
+
+        <p style="margin-top: 6px; color: #64748b;">
+            {{ edificios|length }} edificio{{ edificios|length|pluralize }} registrado{{ edificios|length|pluralize }}.
+        </p>
+
+    </div>
+
+</div>
+
+
+<div class="grid" style="margin-top: 20px;">
+
+    {% for edificio in edificios %}
+
+        <div class="card" style="margin: 0;">
+
+            <h3>
+                {{ edificio.nombre }}
+            </h3>
+
+            <p style="color: #64748b;">
+                Edificio N.º {{ edificio.numero }}
+            </p>
+
+
+            <!-- ============================== INFORMACIÓN ============================== -->
+
+            <div style="margin-top: 18px;">
+
+                <p>
+                    <strong>Pisos:</strong>
+
+                    {% if edificio.numero_pisos %}
+                        {{ edificio.numero_pisos }}
+                    {% else %}
+                        No configurado
+                    {% endif %}
+
+                </p>
+
+
+                <p style="margin-top: 8px;">
+
+                    <strong>Viviendas por piso:</strong>
+
+                    {% if edificio.viviendas_por_piso %}
+                        {{ edificio.viviendas_por_piso }}
+                    {% else %}
+                        No configurado
+                    {% endif %}
+
+                </p>
+
+
+                <p style="margin-top: 8px;">
+
+                    <strong>Subterráneo:</strong>
+
+                    {% if edificio.subterraneo %}
+                        Sí
+                    {% else %}
+                        No
+                    {% endif %}
+
+                </p>
+
+
+                <p style="margin-top: 8px;">
+
+                    <strong>Unidades generadas:</strong>
+
+                    {{ edificio.unidades.count }}
+
+                </p>
+
+            </div>
+
+
+            <!-- ============================== ACCIONES ============================== -->
+
+            <div
+                style="margin-top: 20px; display: flex; gap: 8px; flex-wrap: wrap;"
+            >
+
+                <a
+                    href="{% url 'unidades_lista' edificio.id %}"
+                    class="button"
+                >
+                    Ver unidades
+                </a>
+
+                <a
+                    href="{% url 'edificio_editar' edificio.id %}"
+                    class="button button-secondary"
+                >
+                    Configurar edificio
+                </a>
+
+            </div>
+
+        </div>
+
+    {% empty %}
+
+        <div class="card">
+
+            <h3>
+                No hay edificios registrados
+            </h3>
+
+            <p style="color: #64748b;">
+                Este condominio todavía no tiene edificios registrados.
+            </p>
+
+        </div>
+
+    {% endfor %}
+
+</div>
+```
+
+</div>
+
+<!-- ============================== NAVEGACIÓN ============================== -->
+
+<div style="margin-top: 20px;">
+
+```
+<a
+    href="{% url 'condominios_lista' %}"
+    class="button button-secondary"
+>
+    Volver a condominios
+</a>
+```
+
+</div>
+
+{% endblock %}

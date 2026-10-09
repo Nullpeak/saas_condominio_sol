@@ -119,17 +119,6 @@ def user_directory_path(instance, filename):
     carpeta = instance.user.username if instance.user_id else (instance.slug or "sin_usuario")
     return f"user_images/{carpeta}/{filename}"
 
-
-class Rol(models.Model):
-    nombre = models.CharField(max_length=50, unique=True)
-
-    class Meta:
-        db_table = "rol"
-        verbose_name_plural = "roles"
-
-    def __str__(self):
-        return self.nombre
-
 class Ciudad(models.Model):
     nombre = models.CharField(max_length=50, unique=True)
 
@@ -141,6 +130,11 @@ class Ciudad(models.Model):
         return self.nombre
 #
 class Usuario(models.Model):
+    class Rol(models.TextChoices):
+        SUPER = "Super Administrador", "super administrador"
+        ADMINISTRADOR = "Administrador", "administrador"
+        GESTOR = "Gestor", "gestor"
+        RESIDENTE = "Residente", "residente"
     user = models.OneToOneField(settings.AUTH_USER_MODEL,on_delete=models.CASCADE,null=True,blank=True,)
     condominio = models.ForeignKey("Condominio",on_delete=models.SET_NULL,null=True,blank=True,related_name="staff",)
     nombre = models.CharField(max_length=30)
@@ -149,7 +143,7 @@ class Usuario(models.Model):
     apellido2 = models.CharField(max_length=30, blank=True)
     avatar = models.ImageField(upload_to=user_directory_path, null=True, blank=True)
     rut = models.CharField(max_length=12,blank=True,null=True,unique=True,validators=[validar_rut],)
-    rol = models.ForeignKey(Rol,verbose_name="Rol",on_delete=models.PROTECT,related_name="usuarios",)
+    rol = models.CharField(verbose_name="Rol",choices=Rol.choices,default=Rol.RESIDENTE)
     slug = models.SlugField(unique=True, blank=True, null=True)
     email = models.EmailField(max_length=50, unique=True)
     telefono = models.CharField(max_length=15, blank=True)
@@ -212,6 +206,10 @@ class AreaComun(models.Model):
     descripcion = models.TextField(blank=True)
     capacidad = models.PositiveSmallIntegerField(null=True, blank=True)
     reservable = models.BooleanField(default=False)
+    duracion_maxima = models.PositiveSmallIntegerField(null=True,blank=True,validators=[MinValueValidator(1)],)
+    requiere_reserva = models.BooleanField(default=True,)
+    permite_reservas_consecutivas = models.BooleanField(default=False,)
+    dias_anticipacion_maxima = models.PositiveSmallIntegerField(null=True,blank=True,validators=[MinValueValidator(1)],)
     costo = models.ForeignKey(Costo,on_delete=models.SET_NULL,null=True,blank=True,related_name="areas_comunes",)
 
     class Meta:
@@ -220,6 +218,54 @@ class AreaComun(models.Model):
 
     def __str__(self):
         return f"{self.nombre} - {self.condominio}"
+#
+class HorarioAreaComun(models.Model):
+    area_comun = models.ForeignKey(
+        AreaComun,
+        on_delete=models.CASCADE,
+        related_name="horarios",
+    )
+
+    # 0 = lunes
+    # 1 = martes
+    # 2 = miércoles
+    # 3 = jueves
+    # 4 = viernes
+    # 5 = sábado
+    # 6 = domingo
+    dia_semana = models.PositiveSmallIntegerField()
+
+    hora_inicio = models.TimeField()
+    hora_fin = models.TimeField()
+
+    class Meta:
+        db_table = "horario_area_comun"
+        ordering = [
+            "dia_semana",
+            "hora_inicio",
+        ]
+
+    def __str__(self):
+        return (
+            f"{self.area_comun.nombre} - "
+            f"{self.hora_inicio.strftime('%H:%M')} a "
+            f"{self.hora_fin.strftime('%H:%M')}"
+        )
+
+    def clean(self):
+        super().clean()
+
+        if self.dia_semana < 0 or self.dia_semana > 6:
+            raise ValidationError(
+                "El día de la semana debe estar entre 0 y 6."
+            )
+
+        if self.hora_inicio >= self.hora_fin:
+            raise ValidationError(
+                "La hora de inicio debe ser anterior "
+                "a la hora de término."
+            )
+
 #
 class Pago(models.Model):
     class Estado(models.TextChoices):

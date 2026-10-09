@@ -1,0 +1,123 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Configura tu condominio</title>
+  <style>
+    /* Ajusta estas variables para igualar los colores y la tipografía del landing */
+    :root {
+      --bg: #f5f6f8;
+      --surface: #ffffff;
+      --text: #1d2433;
+      --muted: #5f6b7e;
+      --line: #d9dde5;
+      --accent: #1f5eff;
+      --accent-text: #ffffff;
+      --danger: #b3261e;
+      --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #12151c; --surface: #1a1f29; --text: #e8ebf1;
+        --muted: #9aa5b8; --line: #2c3342; --accent: #5b8cff;
+        --accent-text: #0b1020; --danger: #ff8a80;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; background: var(--bg); color: var(--text);
+      font-family: var(--font); line-height: 1.5; padding: 2rem 1rem;
+    }
+    main { max-width: 640px; margin: 0 auto; }
+    h1 { font-size: 1.75rem; margin: 0 0 .5rem; }
+    .intro { color: var(--muted); margin: 0 0 2rem; max-width: 52ch; }
+    fieldset {
+      border: 1px solid var(--line); background: var(--surface);
+      border-radius: 10px; padding: 1.25rem 1.5rem 1.5rem; margin: 0 0 1.5rem;
+    }
+    legend { font-weight: 600; padding: 0 .5rem; }
+    .field { margin-top: 1rem; }
+    label { display: block; font-size: .9rem; margin-bottom: .3rem; }
+    input, select {
+      width: 100%; padding: .6rem .75rem; font: inherit; color: var(--text);
+      background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+    }
+    input:focus-visible, select:focus-visible, button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+    .error { color: var(--danger); font-size: .85rem; margin: .3rem 0 0; }
+    button {
+      width: 100%; padding: .8rem 1rem; font: inherit; font-weight: 600; cursor: pointer;
+      background: var(--accent); color: var(--accent-text); border: 0; border-radius: 8px;
+    }
+    .note { color: var(--muted); font-size: .85rem; margin-top: 1rem; text-align: center; }
+    @media (min-width: 600px) { fieldset { padding: 1.5rem 2rem 2rem; } }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Configura tu condominio</h1>
+  <p class="intro">
+    Crea la cuenta de super administrador y registra el primer condominio.
+    Este paso se puede hacer una sola vez.
+  </p>
+
+  <form method="post" enctype="multipart/form-data" novalidate>
+    {% csrf_token %}
+
+    <fieldset>
+      <legend>Super administrador</legend>
+      {% for field in user_form %}
+        <div class="field">
+          <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+          {{ field }}
+          {% for e in field.errors %}<p class="error">{{ e }}</p>{% endfor %}
+        </div>
+      {% endfor %}
+    </fieldset>
+
+    <fieldset>
+      <legend>Condominio</legend>
+      {% for field in condo_form %}
+        <div class="field">
+          <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+          {{ field }}
+          {% for e in field.errors %}<p class="error">{{ e }}</p>{% endfor %}
+        </div>
+      {% endfor %}
+      <datalist id="lista-ciudades">
+        {% for ciudad in condo_form.ciudades_sugeridas %}<option value="{{ ciudad }}">{% endfor %}
+      </datalist>
+      <p class="note" style="text-align:left">Al elegir el país se cargan sus ciudades; escribe para filtrar.</p>
+    </fieldset>
+
+    <button type="submit">Crear cuenta y condominio</button>
+    <p class="note">Al terminar entrarás directo al panel.</p>
+  </form>
+</main>
+<script>
+  // Al cambiar el país, pide sus ciudades y llena la lista de sugerencias.
+  const pais = document.getElementById("id_c-pais");
+  const ciudad = document.getElementById("id_c-ciudad");
+  const lista = document.getElementById("lista-ciudades");
+  pais.addEventListener("change", async () => {
+    ciudad.value = "";
+    lista.replaceChildren();
+    if (!pais.value) return;
+    ciudad.placeholder = "Cargando ciudades…";
+    try {
+      const r = await fetch("{% url 'launch:ciudades' %}?pais=" + encodeURIComponent(pais.value));
+      const data = await r.json();
+      for (const nombre of data.ciudades) {
+        const o = document.createElement("option");
+        o.value = nombre;
+        lista.appendChild(o);
+      }
+      ciudad.placeholder = data.ciudades.length ? "Escribe para buscar" : "No hay ciudades para este país";
+    } catch (e) {
+      ciudad.placeholder = "No se pudieron cargar las ciudades";
+    }
+  });
+</script>
+</body>
+</html>

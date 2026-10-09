@@ -1,0 +1,284 @@
+{% extends "core/base.html" %}
+
+{% block title %}
+Unidades - {{ edificio.nombre }} - CondoGestión
+{% endblock %}
+
+{% block page_title %}
+Unidades
+{% endblock %}
+
+{% block content %}
+
+<!-- ============================== ENCABEZADO ============================== -->
+
+<div class="card">
+
+    <h2>
+        {{ condominio.nombre }}
+    </h2>
+
+    <p style="color: #64748b; margin-top: 6px;">
+        Gestión de las unidades habitacionales del edificio.
+    </p>
+
+    <p style="margin-top: 12px;">
+        <strong>Edificio:</strong>
+        {{ edificio.nombre }}
+    </p>
+
+</div>
+
+
+<!-- ============================== RESUMEN ============================== -->
+
+<div class="card">
+
+    <h2>
+        Unidades
+    </h2>
+
+    <p style="color: #64748b;">
+        {{ unidades|length }} unidad{{ unidades|length|pluralize }} registrada{{ unidades|length|pluralize }}.
+    </p>
+
+</div>
+
+
+<!-- ============================== LISTADO ============================== -->
+
+<div class="card">
+
+    <div style="overflow-x: auto;">
+
+        <table
+            style="
+                width: 100%;
+                border-collapse: collapse;
+                min-width: 750px;
+            "
+        >
+
+            <thead>
+
+                <tr>
+
+                    <th
+                        style="
+                            text-align: left;
+                            padding: 12px;
+                            border-bottom: 1px solid #e2e8f0;
+                        "
+                    >
+                        Unidad
+                    </th>
+
+                    <th
+                        style="
+                            text-align: left;
+                            padding: 12px;
+                            border-bottom: 1px solid #e2e8f0;
+                        "
+                    >
+                        Piso
+                    </th>
+
+                    <th
+                        style="
+                            text-align: left;
+                            padding: 12px;
+                            border-bottom: 1px solid #e2e8f0;
+                        "
+                    >
+                        Posición
+                    </th>
+
+                    <th
+                        style="
+                            text-align: left;
+                            padding: 12px;
+                            border-bottom: 1px solid #e2e8f0;
+                        "
+                    >
+                        Propietario
+                    </th>
+
+                    <th
+                        style="
+                            text-align: left;
+                            padding: 12px;
+                            border-bottom: 1px solid #e2e8f0;
+                        "
+                    >
+                        Arrendatario
+                    </th>
+
+                    <th
+                        style="
+                            text-align: left;
+                            padding: 12px;
+                            border-bottom: 1px solid #e2e8f0;
+                        "
+                    >
+                        Acciones
+                    </th>
+
+                </tr>
+
+            </thead>
+
+
+            <tbody>
+
+                {% for unidad in unidades %}
+
+                    <tr>
+
+                        <td
+                            style="
+                                padding: 12px;
+                                border-bottom: 1px solid #e2e8f0;
+                            "
+                        >
+                            <strong>
+                                {{ unidad.numero_unidad }}
+                            </strong>
+                        </td>
+
+
+                        <td
+                            style="
+                                padding: 12px;
+                                border-bottom: 1px solid #e2e8f0;
+                            "
+                        >
+                            {{ unidad.piso }}
+                        </td>
+
+
+                        <td
+                            style="
+                                padding: 12px;
+                                border-bottom: 1px solid #e2e8f0;
+                            "
+                        >
+                            {{ unidad.posicion }}
+                        </td>
+
+
+                        <td
+                            style="
+                                padding: 12px;
+                                border-bottom: 1px solid #e2e8f0;
+                            "
+                        >
+
+                            {% if unidad.dueno %}
+
+                                {{ unidad.dueno.nombre }}
+                                {{ unidad.dueno.apellido }}
+
+                            {% else %}
+
+                                <span style="color: #64748b;">
+                                    Sin propietario
+                                </span>
+
+                            {% endif %}
+
+                        </td>
+
+
+                        <td
+                            style="
+                                padding: 12px;
+                                border-bottom: 1px solid #e2e8f0;
+                            "
+                        >
+
+                            {% if unidad.arrendatario %}
+
+                                {{ unidad.arrendatario.nombre }}
+                                {{ unidad.arrendatario.apellido }}
+
+                            {% else %}
+
+                                <span style="color: #64748b;">
+                                    Sin arrendatario
+                                </span>
+
+                            {% endif %}
+
+                        </td>
+
+
+                        <td
+                            style="
+                                padding: 12px;
+                                border-bottom: 1px solid #e2e8f0;
+                            "
+                        >
+
+                            <a
+                                href="{% url 'unidad_editar' unidad.id %}"
+                                class="button"
+                            >
+                                Editar
+                            </a>
+
+                        </td>
+
+                    </tr>
+
+
+                {% empty %}
+
+                    <tr>
+
+                        <td
+                            colspan="6"
+                            style="
+                                padding: 30px;
+                                text-align: center;
+                                color: #64748b;
+                            "
+                        >
+
+                            Este edificio no tiene unidades generadas.
+
+                        </td>
+
+                    </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</div>
+
+
+<!-- ============================== NAVEGACIÓN ============================== -->
+
+<div
+    style="
+        margin-top: 20px;
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    "
+>
+
+    <a
+        href="{% url 'edificios_lista' condominio.id %}"
+        class="button button-secondary"
+    >
+        Volver a edificios
+    </a>
+
+</div>
+
+{% endblock %}

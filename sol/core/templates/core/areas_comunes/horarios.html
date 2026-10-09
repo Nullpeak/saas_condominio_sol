@@ -1,0 +1,2291 @@
+{% extends "core/base.html" %}
+
+{% block title %}Horarios - {{ area.nombre }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .horarios-page {
+        padding-bottom: 40px;
+    }
+
+    .calendar-wrapper {
+        border: 1px solid #dee2e6;
+        border-radius: 10px;
+        overflow-x: auto;
+        background: #fff;
+    }
+
+    .calendar-header {
+        display: grid;
+        grid-template-columns: 80px repeat(7, minmax(150px, 1fr));
+        min-width: 1130px;
+        border-bottom: 1px solid #dee2e6;
+        background: #f8f9fa;
+    }
+
+    .calendar-header > div {
+        padding: 12px 8px;
+        text-align: center;
+        font-weight: 600;
+        border-right: 1px solid #dee2e6;
+    }
+
+    .calendar-header > div:last-child {
+        border-right: none;
+    }
+
+    .calendar-body {
+        position: relative;
+        display: grid;
+        grid-template-columns: 80px repeat(7, minmax(150px, 1fr));
+        min-width: 1130px;
+        height: 1536px;
+    }
+
+    .time-column {
+        position: relative;
+        border-right: 1px solid #dee2e6;
+        background: #fafafa;
+    }
+
+    .time-label {
+        position: absolute;
+        left: 0;
+        width: 100%;
+        padding-right: 8px;
+        text-align: right;
+        font-size: 12px;
+        color: #6c757d;
+        transform: translateY(-50%);
+        pointer-events: none;
+        z-index: 2;
+    }
+
+    .time-label.first-label {
+        transform: translateY(0);
+        padding-top: 5px;
+    }
+
+    .time-label.last-label {
+        transform: translateY(-100%);
+        padding-bottom: 5px;
+    }
+
+    .day-column {
+        position: relative;
+        border-right: 1px solid #dee2e6;
+        height: 1536px;
+
+        background-image:
+            linear-gradient(
+                to bottom,
+                #e9ecef 1px,
+                transparent 1px
+            ),
+            linear-gradient(
+                to bottom,
+                #f3f4f5 1px,
+                transparent 1px
+            );
+
+        background-size:
+            100% 64px,
+            100% 32px;
+
+        background-position:
+            0 0,
+            0 0;
+    }
+
+    .day-column:last-child {
+        border-right: none;
+    }
+
+    .horario-block {
+        position: absolute;
+        left: 6px;
+        right: 6px;
+        min-height: 20px;
+
+        background: #0d6efd;
+        border: 1px solid #0a58ca;
+        border-radius: 6px;
+
+        color: white;
+        font-size: 12px;
+
+        padding: 13px 8px 8px 8px;
+
+        cursor: grab;
+        user-select: none;
+
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
+
+        z-index: 5;
+
+        overflow: hidden;
+    }
+
+    .horario-block:active {
+        cursor: grabbing;
+    }
+
+    .horario-block.dragging {
+        opacity: 0.85;
+        z-index: 20;
+    }
+
+    .horario-time {
+        font-weight: 700;
+        font-size: 12px;
+        margin-bottom: 2px;
+        pointer-events: none;
+    }
+
+    .horario-day {
+        font-size: 11px;
+        opacity: 0.9;
+        pointer-events: none;
+    }
+
+    .resize-handle {
+        position: absolute;
+        left: 0;
+        right: 0;
+        height: 14px;
+
+        cursor: ns-resize;
+
+        z-index: 10;
+    }
+
+    .resize-handle.top {
+        top: 0;
+    }
+
+    .resize-handle.bottom {
+        bottom: 0;
+    }
+
+    .resize-handle::after {
+        content: "";
+        position: absolute;
+        left: 50%;
+        top: 50%;
+
+        width: 28px;
+        height: 3px;
+
+        transform: translate(-50%, -50%);
+
+        background: rgba(255, 255, 255, 0.75);
+        border-radius: 3px;
+    }
+
+    .calendar-help {
+        font-size: 13px;
+        color: #6c757d;
+    }
+
+    .midnight-separator {
+        position: absolute;
+        left: 0;
+        right: 0;
+
+        height: 2px;
+
+        background: #adb5bd;
+
+        z-index: 3;
+        pointer-events: none;
+    }
+
+    .midnight-label {
+        position: absolute;
+        left: 4px;
+
+        padding: 2px 5px;
+
+        font-size: 10px;
+        color: #6c757d;
+
+        background: #fafafa;
+
+        z-index: 4;
+        pointer-events: none;
+    }
+
+    @media (max-width: 768px) {
+        .calendar-header,
+        .calendar-body {
+            min-width: 1000px;
+        }
+    }
+</style>
+{% endblock %}
+
+
+{% block content %}
+
+<div class="container-fluid horarios-page">
+
+    <!-- CABECERA -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+
+        <div>
+            <h2 class="mb-1">
+                Horarios de {{ area.nombre }}
+            </h2>
+
+            <div class="text-muted">
+                {{ condominio.nombre }}
+            </div>
+        </div>
+
+        <div class="d-flex gap-2">
+
+            <a
+                href="{% url 'areas_comunes_lista' condominio.id %}"
+                class="btn btn-outline-secondary"
+            >
+                Volver
+            </a>
+
+            <button
+                type="button"
+                class="btn btn-primary"
+                onclick="abrirModalNuevo()"
+            >
+                + Agregar horario
+            </button>
+
+        </div>
+
+    </div>
+
+
+    <!-- AYUDA -->
+    <div class="alert alert-light border calendar-help mb-3">
+
+        <strong>Cómo usar el calendario:</strong>
+
+        Arrastra un horario para moverlo.
+
+        Arrastra el borde superior para cambiar la hora de inicio.
+
+        Arrastra el borde inferior para cambiar la hora de término.
+
+        Los cambios se guardan automáticamente.
+
+        <br>
+
+        <strong>Nota:</strong>
+        el calendario comienza a las <strong>06:00</strong> y deja las
+        horas de madrugada al final para facilitar el acceso a los horarios
+        más utilizados.
+
+    </div>
+
+
+    <!-- CALENDARIO -->
+    <div class="calendar-wrapper">
+
+        <!-- ENCABEZADO DE DÍAS -->
+        <div class="calendar-header">
+
+            <div></div>
+
+            <div>Lunes</div>
+            <div>Martes</div>
+            <div>Miércoles</div>
+            <div>Jueves</div>
+            <div>Viernes</div>
+            <div>Sábado</div>
+            <div>Domingo</div>
+
+        </div>
+
+
+        <!-- CUERPO -->
+        <div
+            class="calendar-body"
+            id="calendarBody"
+        >
+
+            <!-- COLUMNA DE HORAS -->
+            <div class="time-column">
+
+                <!-- 06:00 -->
+                <div
+                    class="time-label first-label"
+                    style="top: 0px;"
+                >
+                    06:00
+                </div>
+
+
+                <!-- 07:00 -->
+                <div
+                    class="time-label"
+                    style="top: 64px;"
+                >
+                    07:00
+                </div>
+
+
+                <!-- 08:00 -->
+                <div
+                    class="time-label"
+                    style="top: 128px;"
+                >
+                    08:00
+                </div>
+
+
+                <!-- 09:00 -->
+                <div
+                    class="time-label"
+                    style="top: 192px;"
+                >
+                    09:00
+                </div>
+
+
+                <!-- 10:00 -->
+                <div
+                    class="time-label"
+                    style="top: 256px;"
+                >
+                    10:00
+                </div>
+
+
+                <!-- 11:00 -->
+                <div
+                    class="time-label"
+                    style="top: 320px;"
+                >
+                    11:00
+                </div>
+
+
+                <!-- 12:00 -->
+                <div
+                    class="time-label"
+                    style="top: 384px;"
+                >
+                    12:00
+                </div>
+
+
+                <!-- 13:00 -->
+                <div
+                    class="time-label"
+                    style="top: 448px;"
+                >
+                    13:00
+                </div>
+
+
+                <!-- 14:00 -->
+                <div
+                    class="time-label"
+                    style="top: 512px;"
+                >
+                    14:00
+                </div>
+
+
+                <!-- 15:00 -->
+                <div
+                    class="time-label"
+                    style="top: 576px;"
+                >
+                    15:00
+                </div>
+
+
+                <!-- 16:00 -->
+                <div
+                    class="time-label"
+                    style="top: 640px;"
+                >
+                    16:00
+                </div>
+
+
+                <!-- 17:00 -->
+                <div
+                    class="time-label"
+                    style="top: 704px;"
+                >
+                    17:00
+                </div>
+
+
+                <!-- 18:00 -->
+                <div
+                    class="time-label"
+                    style="top: 768px;"
+                >
+                    18:00
+                </div>
+
+
+                <!-- 19:00 -->
+                <div
+                    class="time-label"
+                    style="top: 832px;"
+                >
+                    19:00
+                </div>
+
+
+                <!-- 20:00 -->
+                <div
+                    class="time-label"
+                    style="top: 896px;"
+                >
+                    20:00
+                </div>
+
+
+                <!-- 21:00 -->
+                <div
+                    class="time-label"
+                    style="top: 960px;"
+                >
+                    21:00
+                </div>
+
+
+                <!-- 22:00 -->
+                <div
+                    class="time-label"
+                    style="top: 1024px;"
+                >
+                    22:00
+                </div>
+
+
+                <!-- 23:00 -->
+                <div
+                    class="time-label"
+                    style="top: 1088px;"
+                >
+                    23:00
+                </div>
+
+
+                <!-- MEDIANOC -->
+                <div
+                    class="time-label"
+                    style="top: 1152px;"
+                >
+                    24:00 / 00:00
+                </div>
+
+
+                <!-- 01:00 -->
+                <div
+                    class="time-label"
+                    style="top: 1216px;"
+                >
+                    01:00
+                </div>
+
+
+                <!-- 02:00 -->
+                <div
+                    class="time-label"
+                    style="top: 1280px;"
+                >
+                    02:00
+                </div>
+
+
+                <!-- 03:00 -->
+                <div
+                    class="time-label"
+                    style="top: 1344px;"
+                >
+                    03:00
+                </div>
+
+
+                <!-- 04:00 -->
+                <div
+                    class="time-label"
+                    style="top: 1408px;"
+                >
+                    04:00
+                </div>
+
+
+                <!-- 05:00 -->
+                <div
+                    class="time-label"
+                    style="top: 1472px;"
+                >
+                    05:00
+                </div>
+
+
+                <!-- 06:00 FINAL -->
+                <div
+                    class="time-label last-label"
+                    style="top: 1536px;"
+                >
+                    06:00
+                </div>
+
+            </div>
+
+
+            <!-- COLUMNAS DE DÍAS -->
+
+            {% for dia in "0123456" %}
+
+                <div
+                    class="day-column"
+                    data-day="{{ dia }}"
+                >
+
+                    {% for horario in horarios %}
+
+                        {% if horario.dia_semana|stringformat:"s" == dia %}
+
+                            <div
+                                class="horario-block"
+                                data-id="{{ horario.id }}"
+                                data-day="{{ horario.dia_semana }}"
+                                data-start="{{ horario.hora_inicio|time:'H:i' }}"
+                                data-end="{{ horario.hora_fin|time:'H:i' }}"
+                            >
+
+                                <div class="resize-handle top"></div>
+
+                                <div class="horario-time">
+                                    {{ horario.hora_inicio|time:"H:i" }}
+                                    -
+                                    {{ horario.hora_fin|time:"H:i" }}
+                                </div>
+
+                                <div class="horario-day">
+                                    {% if horario.dia_semana == 0 %}
+                                        Lunes
+                                    {% elif horario.dia_semana == 1 %}
+                                        Martes
+                                    {% elif horario.dia_semana == 2 %}
+                                        Miércoles
+                                    {% elif horario.dia_semana == 3 %}
+                                        Jueves
+                                    {% elif horario.dia_semana == 4 %}
+                                        Viernes
+                                    {% elif horario.dia_semana == 5 %}
+                                        Sábado
+                                    {% elif horario.dia_semana == 6 %}
+                                        Domingo
+                                    {% endif %}
+                                </div>
+
+                                <div class="resize-handle bottom"></div>
+
+                            </div>
+
+                        {% endif %}
+
+                    {% endfor %}
+
+                </div>
+
+            {% endfor %}
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- ========================================================= -->
+<!-- MODAL NUEVO / EDITAR -->
+<!-- ========================================================= -->
+
+<div
+    class="modal fade"
+    id="horarioModal"
+    tabindex="-1"
+    aria-hidden="true"
+>
+
+    <div class="modal-dialog">
+
+        <div class="modal-content">
+
+            <div class="modal-header">
+
+                <h5
+                    class="modal-title"
+                    id="horarioModalTitle"
+                >
+                    Nuevo horario
+                </h5>
+
+                <button
+                    type="button"
+                    class="btn-close"
+                    data-bs-dismiss="modal"
+                ></button>
+
+            </div>
+
+
+            <div class="modal-body">
+
+                <input
+                    type="hidden"
+                    id="horarioId"
+                >
+
+
+                <div class="mb-3">
+
+                    <label
+                        for="diaSemana"
+                        class="form-label"
+                    >
+                        Día
+                    </label>
+
+                    <select
+                        id="diaSemana"
+                        class="form-select"
+                    >
+
+                        <option value="0">Lunes</option>
+                        <option value="1">Martes</option>
+                        <option value="2">Miércoles</option>
+                        <option value="3">Jueves</option>
+                        <option value="4">Viernes</option>
+                        <option value="5">Sábado</option>
+                        <option value="6">Domingo</option>
+
+                    </select>
+
+                </div>
+
+
+                <div class="row">
+
+                    <div class="col-md-6 mb-3">
+
+                        <label
+                            for="horaInicio"
+                            class="form-label"
+                        >
+                            Hora inicio
+                        </label>
+
+                        <input
+                            type="time"
+                            id="horaInicio"
+                            class="form-control"
+                            step="1800"
+                        >
+
+                    </div>
+
+
+                    <div class="col-md-6 mb-3">
+
+                        <label
+                            for="horaFin"
+                            class="form-label"
+                        >
+                            Hora término
+                        </label>
+
+                        <input
+                            type="time"
+                            id="horaFin"
+                            class="form-control"
+                            step="1800"
+                        >
+
+                    </div>
+
+                </div>
+
+
+                <div
+                    id="modalError"
+                    class="alert alert-danger d-none"
+                ></div>
+
+            </div>
+
+
+            <div class="modal-footer">
+
+                <button
+                    type="button"
+                    class="btn btn-secondary"
+                    data-bs-dismiss="modal"
+                >
+                    Cancelar
+                </button>
+
+                <button
+                    type="button"
+                    class="btn btn-primary"
+                    onclick="guardarHorario()"
+                >
+                    Guardar
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- ========================================================= -->
+<!-- MODAL ELIMINAR -->
+<!-- ========================================================= -->
+
+<div
+    class="modal fade"
+    id="eliminarHorarioModal"
+    tabindex="-1"
+    aria-hidden="true"
+>
+
+    <div class="modal-dialog modal-dialog-centered">
+
+        <div class="modal-content">
+
+            <div class="modal-header">
+
+                <h5 class="modal-title">
+                    Eliminar horario
+                </h5>
+
+                <button
+                    type="button"
+                    class="btn-close"
+                    data-bs-dismiss="modal"
+                ></button>
+
+            </div>
+
+
+            <div class="modal-body">
+
+                ¿Estás seguro de que deseas eliminar este horario?
+
+            </div>
+
+
+            <div class="modal-footer">
+
+                <button
+                    type="button"
+                    class="btn btn-secondary"
+                    data-bs-dismiss="modal"
+                >
+                    Cancelar
+                </button>
+
+                <button
+                    type="button"
+                    class="btn btn-danger"
+                    onclick="confirmarEliminarHorario()"
+                >
+                    Eliminar
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+{% endblock %}
+
+
+{% block extra_js %}
+
+<script>
+
+    /*
+     * ============================================================
+     * CONFIGURACIÓN DEL CALENDARIO
+     * ============================================================
+     */
+
+    const START_MINUTES = 0;
+    const END_MINUTES = 24 * 60;
+
+    const TOTAL_MINUTES = 24 * 60;
+
+    /*
+     * El calendario visual comienza a las 06:00.
+     *
+     * Los datos reales siguen utilizando 00:00 - 23:59.
+     */
+    const DISPLAY_START_MINUTES = 6 * 60;
+
+    /*
+     * 30 minutos = 32px
+     * 60 minutos = 64px
+     */
+    const SLOT_MINUTES = 30;
+    const SLOT_HEIGHT = 32;
+
+    /*
+     * Punto visual donde termina el día normal
+     * y comienza la madrugada.
+     *
+     * 06:00 -> 0
+     * 24:00 -> 1080
+     * 00:00 -> 1080
+     */
+    const MIDNIGHT_VISUAL = 18 * 60;
+
+
+    /*
+     * ============================================================
+     * CONVERSIÓN DE HORAS
+     * ============================================================
+     */
+
+    function timeToMinutes(timeString) {
+
+        const parts = timeString.split(":");
+
+        return (
+            parseInt(parts[0], 10) * 60
+            +
+            parseInt(parts[1], 10)
+        );
+    }
+
+
+    function minutesToTime(minutes) {
+
+        minutes = Math.round(minutes);
+
+        const hours = Math.floor(minutes / 60);
+
+        const mins = minutes % 60;
+
+        return (
+            String(hours).padStart(2, "0")
+            +
+            ":"
+            +
+            String(mins).padStart(2, "0")
+        );
+    }
+
+
+    /*
+     * Convierte una hora real a su posición visual.
+     *
+     * 06:00 -> 0
+     * 08:00 -> 120
+     * 12:00 -> 360
+     * 23:00 -> 1020
+     * 00:00 -> 1080
+     * 02:00 -> 1200
+     * 05:00 -> 1380
+     */
+    function actualMinutesToVisualMinutes(actualMinutes) {
+
+        return (
+            actualMinutes
+            -
+            DISPLAY_START_MINUTES
+            +
+            TOTAL_MINUTES
+        ) % TOTAL_MINUTES;
+    }
+
+
+    /*
+     * Convierte una posición visual a una hora real.
+     *
+     * 0 -> 06:00
+     * 1080 -> 00:00
+     * 1200 -> 02:00
+     */
+    function visualMinutesToActualMinutes(visualMinutes) {
+
+        visualMinutes = Math.round(visualMinutes);
+
+        if (visualMinutes < MIDNIGHT_VISUAL) {
+
+            return DISPLAY_START_MINUTES + visualMinutes;
+
+        }
+
+        return visualMinutes - MIDNIGHT_VISUAL;
+    }
+
+
+    /*
+     * ============================================================
+     * POSICIONAR HORARIOS
+     * ============================================================
+     */
+
+    function posicionarHorarioBlock(block) {
+
+        const start = timeToMinutes(
+            block.dataset.start
+        );
+
+        const end = timeToMinutes(
+            block.dataset.end
+        );
+
+        const visualStart =
+            actualMinutesToVisualMinutes(start);
+
+        const duration =
+            end - start;
+
+        const top =
+            (visualStart / SLOT_MINUTES)
+            *
+            SLOT_HEIGHT;
+
+        const height =
+            (duration / SLOT_MINUTES)
+            *
+            SLOT_HEIGHT;
+
+        block.style.top = `${top}px`;
+
+        block.style.height = `${height}px`;
+
+        /*
+         * Actualizamos el texto por si el horario
+         * fue modificado mediante drag/resize.
+         */
+        const horarioTime =
+            block.querySelector(".horario-time");
+
+        if (horarioTime) {
+
+            horarioTime.textContent =
+                `${block.dataset.start} - ${block.dataset.end}`;
+
+        }
+
+        actualizarDiaTexto(block);
+    }
+
+
+    function actualizarDiaTexto(block) {
+
+        const dia =
+            parseInt(block.dataset.day, 10);
+
+        const nombres = [
+            "Lunes",
+            "Martes",
+            "Miércoles",
+            "Jueves",
+            "Viernes",
+            "Sábado",
+            "Domingo"
+        ];
+
+        const elemento =
+            block.querySelector(".horario-day");
+
+        if (elemento) {
+
+            elemento.textContent =
+                nombres[dia];
+
+        }
+    }
+
+
+    /*
+     * Posicionar todos los bloques inicialmente.
+     */
+
+    document
+        .querySelectorAll(".horario-block")
+        .forEach(posicionarHorarioBlock);
+
+
+    /*
+     * ============================================================
+     * VARIABLES DE DRAG / RESIZE
+     * ============================================================
+     */
+
+    let accionActual = null;
+
+    let horarioActual = null;
+
+    let pointerStartX = 0;
+    let pointerStartY = 0;
+
+    let dragOriginalDay = 0;
+
+    let dragOriginalStart = 0;
+    let dragOriginalEnd = 0;
+
+    let dragOriginalVisualStart = 0;
+
+    let resizeOriginalStart = 0;
+    let resizeOriginalEnd = 0;
+
+    let ultimaPosicionVisual = 0;
+
+
+    /*
+     * ============================================================
+     * INICIO DE DRAG
+     * ============================================================
+     */
+
+    document
+        .querySelectorAll(".horario-block")
+        .forEach(block => {
+
+            block.addEventListener(
+                "pointerdown",
+                iniciarDrag
+            );
+
+        });
+
+
+    function iniciarDrag(event) {
+
+        /*
+         * Si se está tomando uno de los bordes,
+         * no iniciamos movimiento del bloque.
+         */
+        if (
+            event.target.classList.contains("resize-handle")
+        ) {
+            return;
+        }
+
+        event.preventDefault();
+
+        horarioActual = event.currentTarget;
+
+        accionActual = "drag";
+
+        pointerStartX = event.clientX;
+        pointerStartY = event.clientY;
+
+        dragOriginalDay =
+            parseInt(
+                horarioActual.dataset.day,
+                10
+            );
+
+        dragOriginalStart =
+            timeToMinutes(
+                horarioActual.dataset.start
+            );
+
+        dragOriginalEnd =
+            timeToMinutes(
+                horarioActual.dataset.end
+            );
+
+        dragOriginalVisualStart =
+            actualMinutesToVisualMinutes(
+                dragOriginalStart
+            );
+
+        ultimaPosicionVisual =
+            dragOriginalVisualStart;
+
+        horarioActual.classList.add("dragging");
+
+        horarioActual.setPointerCapture(
+            event.pointerId
+        );
+
+    }
+
+
+    /*
+     * ============================================================
+     * RESIZE
+     * ============================================================
+     */
+
+    document
+        .querySelectorAll(".resize-handle")
+        .forEach(handle => {
+
+            handle.addEventListener(
+                "pointerdown",
+                iniciarResize
+            );
+
+        });
+
+
+    function iniciarResize(event) {
+
+        event.preventDefault();
+
+        event.stopPropagation();
+
+        horarioActual =
+            event.currentTarget.closest(
+                ".horario-block"
+            );
+
+        if (!horarioActual) {
+            return;
+        }
+
+        pointerStartX = event.clientX;
+        pointerStartY = event.clientY;
+
+        resizeOriginalStart =
+            timeToMinutes(
+                horarioActual.dataset.start
+            );
+
+        resizeOriginalEnd =
+            timeToMinutes(
+                horarioActual.dataset.end
+            );
+
+        if (
+            event.currentTarget.classList.contains("top")
+        ) {
+
+            accionActual = "resize-top";
+
+        } else {
+
+            accionActual = "resize-bottom";
+
+        }
+
+        horarioActual.classList.add("dragging");
+
+        event.currentTarget.setPointerCapture(
+            event.pointerId
+        );
+
+    }
+
+
+    /*
+     * ============================================================
+     * MOVIMIENTO DEL POINTER
+     * ============================================================
+     */
+
+    document.addEventListener(
+        "pointermove",
+        manejarPointerMove
+    );
+
+
+    function manejarPointerMove(event) {
+
+        if (
+            !accionActual ||
+            !horarioActual
+        ) {
+            return;
+        }
+
+        const deltaY =
+            event.clientY - pointerStartY;
+
+        /*
+         * Cada 30 minutos equivale a 32px.
+         */
+        const deltaSlots =
+            Math.round(
+                deltaY / SLOT_HEIGHT
+            );
+
+        const deltaMinutes =
+            deltaSlots * SLOT_MINUTES;
+
+
+        /*
+         * ========================================================
+         * MOVER BLOQUE COMPLETO
+         * ========================================================
+         */
+
+        if (accionActual === "drag") {
+
+            let nuevaPosicionVisual =
+                dragOriginalVisualStart
+                +
+                deltaMinutes;
+
+
+            const duracion =
+                dragOriginalEnd
+                -
+                dragOriginalStart;
+
+
+            /*
+             * Limitar al calendario completo.
+             */
+            nuevaPosicionVisual =
+                Math.max(
+                    0,
+                    Math.min(
+                        TOTAL_MINUTES - duracion,
+                        nuevaPosicionVisual
+                    )
+                );
+
+
+            /*
+             * Evitar que un bloque cruce la medianoche.
+             *
+             * Visualmente la medianoche está en 1080 minutos.
+             */
+            if (
+                nuevaPosicionVisual < MIDNIGHT_VISUAL
+                &&
+                nuevaPosicionVisual + duracion > MIDNIGHT_VISUAL
+            ) {
+
+                if (deltaMinutes > 0) {
+
+                    nuevaPosicionVisual =
+                        MIDNIGHT_VISUAL;
+
+                } else {
+
+                    nuevaPosicionVisual =
+                        MIDNIGHT_VISUAL - duracion;
+
+                }
+
+            }
+
+
+            ultimaPosicionVisual =
+                nuevaPosicionVisual;
+
+
+            /*
+             * Calcular el nuevo día.
+             */
+            const rect =
+                horarioActual
+                    .parentElement
+                    .getBoundingClientRect();
+
+
+            const deltaX =
+                event.clientX
+                -
+                pointerStartX;
+
+
+            const columnWidth =
+                rect.width;
+
+
+            /*
+             * Obtener la columna original.
+             */
+            const columnas =
+                Array.from(
+                    document.querySelectorAll(
+                        ".day-column"
+                    )
+                );
+
+
+            let columnaActual =
+                columnas.findIndex(
+                    column =>
+                        column.dataset.day
+                        ==
+                        String(dragOriginalDay)
+                );
+
+
+            /*
+             * Calcular cuántas columnas avanzó.
+             *
+             * El ancho de cada columna se obtiene
+             * directamente del calendario.
+             */
+            const dayColumnWidth =
+                columnas[0]
+                    ? columnas[0].getBoundingClientRect().width
+                    : columnWidth;
+
+
+            let deltaDays =
+                Math.round(
+                    deltaX / dayColumnWidth
+                );
+
+
+            let nuevoDia =
+                dragOriginalDay + deltaDays;
+
+
+            /*
+             * Limitar entre lunes y domingo.
+             */
+            nuevoDia =
+                Math.max(
+                    0,
+                    Math.min(
+                        6,
+                        nuevoDia
+                    )
+                );
+
+
+            /*
+             * Posición visual.
+             */
+            horarioActual.style.top =
+                (
+                    nuevaPosicionVisual
+                    /
+                    SLOT_MINUTES
+                    *
+                    SLOT_HEIGHT
+                )
+                +
+                "px";
+
+
+            /*
+             * Convertir nuevamente a hora real.
+             */
+            const nuevoInicio =
+                visualMinutesToActualMinutes(
+                    nuevaPosicionVisual
+                );
+
+
+            const nuevoFin =
+                nuevoInicio + duracion;
+
+
+            /*
+             * El nuevo fin nunca debería superar
+             * las 24:00 debido a las restricciones anteriores.
+             */
+            if (
+                nuevoFin <= END_MINUTES
+            ) {
+
+                horarioActual.dataset.start =
+                    minutesToTime(nuevoInicio);
+
+                horarioActual.dataset.end =
+                    minutesToTime(nuevoFin);
+
+            }
+
+
+            horarioActual.dataset.day =
+                String(nuevoDia);
+
+
+            actualizarDiaTexto(
+                horarioActual
+            );
+
+            return;
+        }
+
+
+        /*
+         * ========================================================
+         * REDIMENSIONAR DESDE ARRIBA
+         * ========================================================
+         */
+
+        if (
+            accionActual === "resize-top"
+        ) {
+
+            let nuevoInicio =
+                resizeOriginalStart
+                +
+                deltaMinutes;
+
+
+            /*
+             * No permitir que el inicio
+             * alcance o supere el término.
+             */
+            nuevoInicio =
+                Math.max(
+                    START_MINUTES,
+                    Math.min(
+                        resizeOriginalEnd
+                        -
+                        SLOT_MINUTES,
+                        nuevoInicio
+                    )
+                );
+
+
+            horarioActual.dataset.start =
+                minutesToTime(nuevoInicio);
+
+
+            posicionarHorarioBlock(
+                horarioActual
+            );
+
+            return;
+        }
+
+
+        /*
+         * ========================================================
+         * REDIMENSIONAR DESDE ABAJO
+         * ========================================================
+         */
+
+        if (
+            accionActual === "resize-bottom"
+        ) {
+
+            let nuevoFin =
+                resizeOriginalEnd
+                +
+                deltaMinutes;
+
+
+            /*
+             * No permitir superar 24:00
+             * ni quedar antes del inicio.
+             */
+            nuevoFin =
+                Math.max(
+                    resizeOriginalStart
+                    +
+                    SLOT_MINUTES,
+                    Math.min(
+                        END_MINUTES,
+                        nuevoFin
+                    )
+                );
+
+
+            horarioActual.dataset.end =
+                minutesToTime(nuevoFin);
+
+
+            posicionarHorarioBlock(
+                horarioActual
+            );
+
+        }
+
+    }
+
+
+    /*
+     * ============================================================
+     * FIN DEL DRAG / RESIZE
+     * ============================================================
+     */
+
+    document.addEventListener(
+        "pointerup",
+        finalizarPointer
+    );
+
+
+    document.addEventListener(
+        "pointercancel",
+        finalizarPointer
+    );
+
+
+    async function finalizarPointer() {
+
+        if (
+            !accionActual ||
+            !horarioActual
+        ) {
+            return;
+        }
+
+        const accion =
+            accionActual;
+
+        const block =
+            horarioActual;
+
+        accionActual = null;
+
+        horarioActual = null;
+
+        block.classList.remove(
+            "dragging"
+        );
+
+
+        /*
+         * Guardar automáticamente.
+         */
+        await guardarCambiosBlock(
+            block
+        );
+
+    }
+
+
+    /*
+     * ============================================================
+     * GUARDAR CAMBIOS DEL BLOQUE
+     * ============================================================
+     */
+
+    async function guardarCambiosBlock(block) {
+
+        const id =
+            block.dataset.id;
+
+        const dia =
+            parseInt(
+                block.dataset.day,
+                10
+            );
+
+        const inicio =
+            block.dataset.start;
+
+        const fin =
+            block.dataset.end;
+
+
+        try {
+
+            const response =
+                await fetch(
+                    "{% url 'area_comun_horario_actualizar' 0 %}"
+                        .replace(
+                            "/0/",
+                            `/${id}/`
+                        ),
+                    {
+                        method: "POST",
+
+                        headers: {
+                            "Content-Type":
+                                "application/json",
+
+                            "X-CSRFToken":
+                                obtenerCSRFToken()
+                        },
+
+                        body: JSON.stringify({
+                            dia_semana: dia,
+                            hora_inicio: inicio,
+                            hora_fin: fin
+                        })
+                    }
+                );
+
+
+            const data =
+                await response.json();
+
+
+            if (!response.ok || !data.ok) {
+
+                alert(
+                    data.error ||
+                    "No fue posible guardar el horario."
+                );
+
+                /*
+                 * Recargar para recuperar
+                 * los datos originales.
+                 */
+                window.location.reload();
+
+                return;
+            }
+
+
+            /*
+             * Utilizar los datos devueltos
+             * por el servidor.
+             */
+            block.dataset.day =
+                String(data.dia_semana);
+
+            block.dataset.start =
+                data.hora_inicio;
+
+            block.dataset.end =
+                data.hora_fin;
+
+
+            posicionarHorarioBlock(
+                block
+            );
+
+
+        } catch (error) {
+
+            console.error(error);
+
+            alert(
+                "Ocurrió un error al guardar el horario."
+            );
+
+            window.location.reload();
+
+        }
+
+    }
+
+
+    /*
+     * ============================================================
+     * CSRF
+     * ============================================================
+     */
+
+    function obtenerCSRFToken() {
+
+        const cookies =
+            document.cookie.split(";");
+
+
+        for (
+            let cookie of cookies
+        ) {
+
+            cookie =
+                cookie.trim();
+
+
+            if (
+                cookie.startsWith(
+                    "csrftoken="
+                )
+            ) {
+
+                return decodeURIComponent(
+                    cookie.substring(
+                        "csrftoken=".length
+                    )
+                );
+
+            }
+
+        }
+
+
+        return "";
+
+    }
+
+
+    /*
+     * ============================================================
+     * MODAL NUEVO
+     * ============================================================
+     */
+
+    function abrirModalNuevo() {
+
+        document.getElementById(
+            "horarioModalTitle"
+        ).textContent =
+            "Nuevo horario";
+
+
+        document.getElementById(
+            "horarioId"
+        ).value = "";
+
+
+        document.getElementById(
+            "diaSemana"
+        ).value = "0";
+
+
+        document.getElementById(
+            "horaInicio"
+        ).value = "08:00";
+
+
+        document.getElementById(
+            "horaFin"
+        ).value = "09:00";
+
+
+        ocultarModalError();
+
+
+        const modal =
+            bootstrap.Modal.getOrCreateInstance(
+                document.getElementById(
+                    "horarioModal"
+                )
+            );
+
+
+        modal.show();
+
+    }
+
+
+    /*
+     * ============================================================
+     * CLICK EN HORARIO
+     * ============================================================
+     */
+
+    document
+        .querySelectorAll(".horario-block")
+        .forEach(block => {
+
+            block.addEventListener(
+                "dblclick",
+                function(event) {
+
+                    if (
+                        event.target.classList.contains(
+                            "resize-handle"
+                        )
+                    ) {
+                        return;
+                    }
+
+                    abrirModalEditar(
+                        this
+                    );
+
+                }
+            );
+
+        });
+
+
+    function abrirModalEditar(block) {
+
+        document.getElementById(
+            "horarioModalTitle"
+        ).textContent =
+            "Editar horario";
+
+
+        document.getElementById(
+            "horarioId"
+        ).value =
+            block.dataset.id;
+
+
+        document.getElementById(
+            "diaSemana"
+        ).value =
+            block.dataset.day;
+
+
+        document.getElementById(
+            "horaInicio"
+        ).value =
+            block.dataset.start;
+
+
+        document.getElementById(
+            "horaFin"
+        ).value =
+            block.dataset.end;
+
+
+        ocultarModalError();
+
+
+        const modal =
+            bootstrap.Modal.getOrCreateInstance(
+                document.getElementById(
+                    "horarioModal"
+                )
+            );
+
+
+        modal.show();
+
+    }
+
+
+    /*
+     * ============================================================
+     * GUARDAR DESDE MODAL
+     * ============================================================
+     */
+
+    async function guardarHorario() {
+
+        const id =
+            document.getElementById(
+                "horarioId"
+            ).value;
+
+
+        const dia =
+            document.getElementById(
+                "diaSemana"
+            ).value;
+
+
+        const inicio =
+            document.getElementById(
+                "horaInicio"
+            ).value;
+
+
+        const fin =
+            document.getElementById(
+                "horaFin"
+            ).value;
+
+
+        ocultarModalError();
+
+
+        if (!inicio || !fin) {
+
+            mostrarModalError(
+                "Debes indicar ambas horas."
+            );
+
+            return;
+        }
+
+
+        if (inicio >= fin) {
+
+            mostrarModalError(
+                "La hora de término debe ser posterior a la hora de inicio."
+            );
+
+            return;
+        }
+
+
+        try {
+
+            let url;
+
+
+            /*
+             * NUEVO
+             */
+            if (!id) {
+
+                url =
+                    window.location.pathname;
+
+            }
+
+            /*
+             * EDITAR
+             */
+            else {
+
+                url =
+                    "{% url 'area_comun_horario_actualizar' 0 %}"
+                        .replace(
+                            "/0/",
+                            `/${id}/`
+                        );
+
+            }
+
+
+            let response;
+
+
+            /*
+             * NUEVO HORARIO
+             */
+            if (!id) {
+
+                const formData =
+                    new FormData();
+
+
+                formData.append(
+                    "dia_semana",
+                    dia
+                );
+
+                formData.append(
+                    "hora_inicio",
+                    inicio
+                );
+
+                formData.append(
+                    "hora_fin",
+                    fin
+                );
+
+                formData.append(
+                    "csrfmiddlewaretoken",
+                    obtenerCSRFToken()
+                );
+
+
+                response =
+                    await fetch(
+                        url,
+                        {
+                            method: "POST",
+                            body: formData
+                        }
+                    );
+
+            }
+
+
+            /*
+             * EDITAR HORARIO
+             */
+            else {
+
+                response =
+                    await fetch(
+                        url,
+                        {
+                            method: "POST",
+
+                            headers: {
+                                "Content-Type":
+                                    "application/json",
+
+                                "X-CSRFToken":
+                                    obtenerCSRFToken()
+                            },
+
+                            body: JSON.stringify({
+                                dia_semana:
+                                    parseInt(
+                                        dia,
+                                        10
+                                    ),
+
+                                hora_inicio:
+                                    inicio,
+
+                                hora_fin:
+                                    fin
+                            })
+                        }
+                    );
+
+            }
+
+
+            /*
+             * Si se creó un horario,
+             * Django normalmente redirige.
+             */
+            if (
+                !response.headers
+                    .get("content-type")
+                    ?.includes("application/json")
+            ) {
+
+                if (
+                    response.ok
+                ) {
+
+                    window.location.reload();
+
+                    return;
+
+                }
+
+            }
+
+
+            const data =
+                await response.json();
+
+
+            if (
+                !response.ok ||
+                !data.ok
+            ) {
+
+                mostrarModalError(
+                    data.error ||
+                    "No fue posible guardar el horario."
+                );
+
+                return;
+
+            }
+
+
+            /*
+             * Si estamos editando,
+             * actualizar visualmente sin recargar.
+             */
+            if (id) {
+
+                const block =
+                    document.querySelector(
+                        `.horario-block[data-id="${id}"]`
+                    );
+
+
+                if (block) {
+
+                    block.dataset.day =
+                        String(
+                            data.dia_semana
+                        );
+
+                    block.dataset.start =
+                        data.hora_inicio;
+
+                    block.dataset.end =
+                        data.hora_fin;
+
+
+                    /*
+                     * Si cambió de día,
+                     * moverlo físicamente a su nueva columna.
+                     */
+                    const nuevaColumna =
+                        document.querySelector(
+                            `.day-column[data-day="${data.dia_semana}"]`
+                        );
+
+
+                    if (nuevaColumna) {
+
+                        nuevaColumna.appendChild(
+                            block
+                        );
+
+                    }
+
+
+                    posicionarHorarioBlock(
+                        block
+                    );
+
+                }
+
+
+                bootstrap.Modal
+                    .getInstance(
+                        document.getElementById(
+                            "horarioModal"
+                        )
+                    )
+                    .hide();
+
+            }
+
+        } catch (error) {
+
+            console.error(error);
+
+            mostrarModalError(
+                "Ocurrió un error al guardar el horario."
+            );
+
+        }
+
+    }
+
+
+    /*
+     * ============================================================
+     * ERRORES DEL MODAL
+     * ============================================================
+     */
+
+    function mostrarModalError(
+        mensaje
+    ) {
+
+        const error =
+            document.getElementById(
+                "modalError"
+            );
+
+
+        error.textContent =
+            mensaje;
+
+
+        error.classList.remove(
+            "d-none"
+        );
+
+    }
+
+
+    function ocultarModalError() {
+
+        const error =
+            document.getElementById(
+                "modalError"
+            );
+
+
+        error.textContent = "";
+
+
+        error.classList.add(
+            "d-none"
+        );
+
+    }
+
+
+    /*
+     * ============================================================
+     * ELIMINAR HORARIO
+     * ============================================================
+     */
+
+    let horarioAEliminar = null;
+
+
+    /*
+     * Podemos abrir el modal de eliminación
+     * haciendo click derecho sobre un horario.
+     */
+    document
+        .querySelectorAll(".horario-block")
+        .forEach(block => {
+
+            block.addEventListener(
+                "contextmenu",
+                function(event) {
+
+                    event.preventDefault();
+
+                    horarioAEliminar =
+                        this.dataset.id;
+
+
+                    const modal =
+                        bootstrap.Modal.getOrCreateInstance(
+                            document.getElementById(
+                                "eliminarHorarioModal"
+                            )
+                        );
+
+
+                    modal.show();
+
+                }
+            );
+
+        });
+
+
+    async function confirmarEliminarHorario() {
+
+        if (
+            !horarioAEliminar
+        ) {
+            return;
+        }
+
+
+        try {
+
+            const url =
+                "{% url 'area_comun_horario_eliminar' 0 %}"
+                    .replace(
+                        "/0/",
+                        `/${horarioAEliminar}/`
+                    );
+
+
+            const formData =
+                new FormData();
+
+
+            formData.append(
+                "csrfmiddlewaretoken",
+                obtenerCSRFToken()
+            );
+
+
+            const response =
+                await fetch(
+                    url,
+                    {
+                        method: "POST",
+                        body: formData
+                    }
+                );
+
+
+            if (
+                response.ok
+            ) {
+
+                window.location.reload();
+
+                return;
+
+            }
+
+
+            alert(
+                "No fue posible eliminar el horario."
+            );
+
+
+        } catch (error) {
+
+            console.error(error);
+
+            alert(
+                "Ocurrió un error al eliminar el horario."
+            );
+
+        }
+
+    }
+
+</script>
+
+{% endblock %}

@@ -1,0 +1,152 @@
+{% extends "core/base.html" %}
+
+{% block title %}
+Condominios - CondoGestión
+{% endblock %}
+
+{% block page_title %}
+Condominios
+{% endblock %}
+
+{% block content %}
+
+<!-- ============================== ENCABEZADO ============================== -->
+
+<div class="card">
+
+```
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 15px; flex-wrap: wrap;">
+
+    <div>
+        <h2 style="margin-bottom: 5px;">
+            Gestión de condominios
+        </h2>
+
+        <p style="margin: 0; color: #64748b;">
+            Administra los condominios registrados en el sistema.
+        </p>
+    </div>
+
+    {% if usuario.rol.nombre == "Super Administrador" %}
+        <a class="button" href="{% url 'condominio_crear' %}">
+            + Nuevo condominio
+        </a>
+    {% endif %}
+
+</div>
+```
+
+</div>
+
+<!-- ============================== LISTADO ============================== -->
+
+<div class="card">
+
+```
+<h2>
+    Condominios registrados
+</h2>
+
+{% if condominios %}
+
+    <div style="display: grid; gap: 15px; margin-top: 20px;">
+
+        {% for condominio in condominios %}
+
+            <div style="border: 1px solid #e5e7eb; border-radius: 10px; padding: 20px;">
+
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 15px; flex-wrap: wrap;">
+
+                    <div>
+
+                        <h3 style="margin-bottom: 8px;">
+                            {{ condominio.nombre }}
+                        </h3>
+
+                        <p style="margin: 5px 0; color: #64748b;">
+                            <strong>Dirección:</strong>
+                            {{ condominio.direccion }}
+                        </p>
+
+                        <p style="margin: 5px 0; color: #64748b;">
+                            <strong>Ciudad:</strong>
+                            {{ condominio.ciudad.nombre }}
+                        </p>
+
+                        <p style="margin: 5px 0; color: #64748b;">
+                            <strong>Edificios:</strong>
+                            {{ condominio.edificios }}
+                        </p>
+
+                    </div>
+
+
+                    <div>
+
+                        {% if condominio.activo %}
+
+                            <span style="display: inline-block; padding: 5px 10px; border-radius: 20px; background: #dcfce7; color: #166534; font-size: 12px; font-weight: bold;">
+                                Activo
+                            </span>
+
+                        {% else %}
+
+                            <span style="display: inline-block; padding: 5px 10px; border-radius: 20px; background: #fee2e2; color: #991b1b; font-size: 12px; font-weight: bold;">
+                                Inactivo
+                            </span>
+
+                        {% endif %}
+
+                    </div>
+
+                </div>
+
+
+                <div style="margin-top: 18px; display: flex; gap: 10px; flex-wrap: wrap;">
+
+                    <a
+                        class="button"
+                        href="{% url 'edificios_lista' condominio.id %}"
+                    >
+                        Ver edificios
+                    </a>
+
+                    <a
+                        class="button button-secondary"
+                        href="{% url 'condominio_editar' condominio.id %}"
+                    >
+                        Editar
+                    </a>
+
+                </div>
+
+            </div>
+
+        {% endfor %}
+
+    </div>
+
+{% else %}
+
+    <div style="padding: 30px 10px; text-align: center; color: #64748b;">
+
+        <p>
+            No hay condominios registrados.
+        </p>
+
+        {% if usuario.rol.nombre == "Super Administrador" %}
+
+            <a class="button" href="{% url 'condominio_crear' %}">
+                Crear primer condominio
+            </a>
+
+        {% endif %}
+
+    </div>
+
+{% endif %}
+```
+
+</div>
+
+{% endblock %}

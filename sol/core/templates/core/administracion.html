@@ -1,0 +1,146 @@
+{% extends "core/base.html" %}
+
+{% block title %}
+Administración - CondoGestión
+{% endblock %}
+
+{% block page_title %}
+Administración
+{% endblock %}
+
+{% block content %}
+
+<!-- ============================== RESUMEN ============================== -->
+
+<div class="card">
+
+    <h2>
+        Administración del sistema
+    </h2>
+
+    <p>
+        Gestiona los usuarios y condominios disponibles según tus permisos.
+    </p>
+
+</div>
+
+
+<!-- ============================== CONDOMINIOS ============================== -->
+
+<div class="card">
+
+    <div style="display: flex; justify-content: space-between; align-items: center; gap: 15px; margin-bottom: 20px;">
+
+        <div>
+            <h2 style="margin-bottom: 5px;">
+                Condominios
+            </h2>
+
+            <p style="margin: 0; color: #64748b;">
+                Condominios disponibles para tu administración.
+            </p>
+        </div>
+
+        {% if usuario.rol.nombre == "Super Administrador" %}
+            <a class="button" href="{% url 'condominio_crear' %}">
+                + Nuevo condominio
+            </a>
+        {% endif %}
+
+    </div>
+
+
+    {% if condominios %}
+
+        <div style="display: grid; gap: 12px;">
+
+            {% for condominio in condominios %}
+
+                <div style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px;">
+
+                    <h3 style="margin-bottom: 10px;">
+                        {{ condominio.nombre }}
+                    </h3>
+
+                    <p style="margin: 5px 0;">
+                        <strong>Dirección:</strong>
+                        {{ condominio.direccion }}
+                    </p>
+
+                    <p style="margin: 5px 0;">
+                        <strong>Ciudad:</strong>
+                        {{ condominio.ciudad.nombre }}
+                    </p>
+
+                    <p style="margin: 5px 0;">
+                        <strong>Edificios:</strong>
+                        {{ condominio.edificios }}
+                    </p>
+
+                    <div style="margin-top: 14px;">
+
+                        <a class="button button-secondary"
+                           href="{% url 'edificios_lista' condominio.id %}">
+                            Ver edificios
+                        </a>
+
+                        <a class="button"
+                           href="{% url 'condominio_editar' condominio.id %}">
+                            Editar
+                        </a>
+
+                    </div>
+
+                </div>
+
+            {% endfor %}
+
+        </div>
+
+    {% else %}
+
+        <p style="color: #64748b;">
+            No hay condominios disponibles.
+        </p>
+
+    {% endif %}
+
+</div>
+
+
+<!-- ============================== USUARIOS ============================== -->
+
+<div class="card">
+
+    <h2>
+        Usuarios
+    </h2>
+
+    <p style="color: #64748b;">
+        Administra las cuentas de usuarios y sus permisos.
+    </p>
+
+    <a class="button" href="{% url 'usuarios_lista' %}">
+        Gestionar usuarios
+    </a>
+
+</div>
+
+
+<!-- ============================== ACCIONES ============================== -->
+
+<div class="card">
+
+    <h2>
+        Próximamente
+    </h2>
+
+    <p style="color: #64748b;">
+        Esta sección se ampliará con los módulos de reservas,
+        visitas, mantenimiento, gastos comunes, comunicaciones
+        y reportes del sistema.
+    </p>
+
+</div>
+
+{% endblock %}  

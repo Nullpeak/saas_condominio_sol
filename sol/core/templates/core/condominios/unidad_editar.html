@@ -1,0 +1,206 @@
+{% extends "core/base.html" %}
+
+{% block title %}
+Editar unidad - {{ unidad.numero_unidad }} - CondoGestión
+{% endblock %}
+
+{% block page_title %}
+Editar unidad
+{% endblock %}
+
+{% block content %}
+
+<!-- ============================== ENCABEZADO ============================== -->
+
+<div class="card">
+
+    <h2>
+        Editar unidad {{ unidad.numero_unidad }}
+    </h2>
+
+    <p style="color: #64748b; margin-top: 6px;">
+        Modifica el propietario y arrendatario de esta unidad.
+    </p>
+
+    <p style="margin-top: 12px;">
+        <strong>Condominio:</strong>
+        {{ unidad.edificio.condominio.nombre }}
+    </p>
+
+    <p>
+        <strong>Edificio:</strong>
+        {{ unidad.edificio.nombre }}
+    </p>
+
+    <p>
+        <strong>Unidad:</strong>
+        {{ unidad.numero_unidad }}
+    </p>
+
+</div>
+
+
+<!-- ============================== ERRORES ============================== -->
+
+{% if errores %}
+
+<div class="card">
+
+    <h2>
+        Errores
+    </h2>
+
+    {% for error in errores %}
+
+        <p style="color: #dc2626;">
+            {{ error }}
+        </p>
+
+    {% endfor %}
+
+</div>
+
+{% endif %}
+
+
+<!-- ============================== FORMULARIO ============================== -->
+
+<div class="card">
+
+    <h2>
+        Datos de la unidad
+    </h2>
+
+    <form method="post">
+
+        {% csrf_token %}
+
+
+        <!-- ============================== PROPIETARIO ============================== -->
+
+        <div style="margin-bottom: 20px;">
+
+            <label for="dueno_id">
+                <strong>
+                    Propietario
+                </strong>
+            </label>
+
+            <br>
+
+            <select
+                id="dueno_id"
+                name="dueno_id"
+                style="
+                    width: 100%;
+                    max-width: 500px;
+                    padding: 10px;
+                    margin-top: 6px;
+                "
+            >
+
+                <option value="">
+                    Sin propietario
+                </option>
+
+                {% for usuario in usuarios %}
+
+                    <option
+                        value="{{ usuario.id }}"
+                        {% if unidad.dueno_id == usuario.id %}
+                            selected
+                        {% endif %}
+                    >
+                        {{ usuario.nombre }}
+                        {{ usuario.nombre2 }}
+                        {{ usuario.apellido }}
+                        {{ usuario.apellido2 }}
+                    </option>
+
+                {% endfor %}
+
+            </select>
+
+        </div>
+
+
+        <!-- ============================== ARRENDATARIO ============================== -->
+
+        <div style="margin-bottom: 20px;">
+
+            <label for="arrendatario_id">
+                <strong>
+                    Arrendatario
+                </strong>
+            </label>
+
+            <br>
+
+            <select
+                id="arrendatario_id"
+                name="arrendatario_id"
+                style="
+                    width: 100%;
+                    max-width: 500px;
+                    padding: 10px;
+                    margin-top: 6px;
+                "
+            >
+
+                <option value="">
+                    Sin arrendatario
+                </option>
+
+                {% for usuario in usuarios %}
+
+                    <option
+                        value="{{ usuario.id }}"
+                        {% if unidad.arrendatario_id == usuario.id %}
+                            selected
+                        {% endif %}
+                    >
+                        {{ usuario.nombre }}
+                        {{ usuario.nombre2 }}
+                        {{ usuario.apellido }}
+                        {{ usuario.apellido2 }}
+                    </option>
+
+                {% endfor %}
+
+            </select>
+
+        </div>
+
+
+        <!-- ============================== BOTONES ============================== -->
+
+        <div
+            style="
+                margin-top: 25px;
+                display: flex;
+                gap: 10px;
+                flex-wrap: wrap;
+            "
+        >
+
+            <button
+                type="submit"
+                class="button"
+            >
+                Guardar cambios
+            </button>
+
+            <a
+                href="{% url 'unidades_lista' unidad.edificio.id %}"
+                class="button button-secondary"
+            >
+                Cancelar
+            </a>
+
+        </div>
+
+    </form>
+
+</div>
+
+{% endblock %}
