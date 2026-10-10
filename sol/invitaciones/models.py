@@ -5,7 +5,7 @@ from datetime import timedelta
 from django.db import models
 from django.utils import timezone
 
-from core.models import Condominio, Usuario
+from core.models import Condominio, Unidad, Usuario
 
 VIGENCIA = timedelta(days=3)
 
@@ -19,9 +19,18 @@ class Invitacion(models.Model):
     Invitación de un solo uso. NO existe cuenta hasta que la persona completa el formulario.
     En la BD solo se guarda el hash del token: si alguien lee la tabla, no puede reconstruir los links.
     """
+
+    class Relacion(models.TextChoices):
+        # Los valores coinciden con los campos de Unidad (dueno / arrendatario)
+        DUENO = "dueno", "Dueño"
+        ARRENDATARIO = "arrendatario", "Arrendatario"
+
     email = models.EmailField(max_length=50)
     rol = models.CharField(max_length=30, choices=Usuario.Rol.choices)
     condominio = models.ForeignKey(Condominio, on_delete=models.CASCADE, related_name="invitaciones")
+    # Solo para residentes: la unidad donde vivirá y en qué calidad
+    unidad = models.ForeignKey(Unidad, on_delete=models.CASCADE, null=True, blank=True, related_name="invitaciones")
+    relacion = models.CharField(max_length=15, choices=Relacion.choices, blank=True)
     invitado_por = models.ForeignKey(Usuario, on_delete=models.PROTECT, related_name="invitaciones_enviadas")
     token_hash = models.CharField(max_length=64, unique=True)
     creada = models.DateTimeField(auto_now_add=True)
@@ -56,6 +65,6 @@ class Invitacion(models.Model):
         return (
             cls.vigentes()
             .filter(token_hash=hash_token(token))
-            .select_related("condominio")
+            .select_related("condominio", "unidad__edificio")
             .first()
         )

@@ -36,7 +36,7 @@
         <p class="sub">Puede haber vencido o haberse usado antes. Pide a quien te invitó que te envíe otro.</p>
     {% else %}
         <h1>Crea tu cuenta</h1>
-        <p class="sub">Entrarás a {{ inv.condominio }} como {{ inv.get_rol_display }} con el correo <strong>{{ inv.email }}</strong>.</p>
+        <p class="sub">Entrarás a {{ inv.condominio }} como {{ inv.get_rol_display }} con el correo <strong>{{ inv.email }}</strong>.{% if inv.unidad %} Tu unidad: <strong>{{ inv.unidad.edificio.nombre }} · Unidad {{ inv.unidad.numero_unidad }}</strong> ({{ inv.get_relacion_display }}).{% endif %}</p>
 
         <form method="post">
             {% csrf_token %}
@@ -51,6 +51,9 @@
             </div>
             {% endif %}
 
+            <label for="{{ form.username.id_for_label }}">Nombre de usuario</label>{{ form.username }}
+            <div class="help">{{ form.username.help_text }}</div>
+
             <div class="campos">
                 <div><label for="{{ form.nombre.id_for_label }}">Nombre</label>{{ form.nombre }}</div>
                 <div><label for="{{ form.nombre2.id_for_label }}">Segundo nombre</label>{{ form.nombre2 }}</div>
@@ -63,6 +66,11 @@
 
             <label for="{{ form.telefono.id_for_label }}">Teléfono celular (opcional)</label>{{ form.telefono }}
             <div class="help">Ejemplo: +56 9 1234 5678</div>
+
+            {% if form.cantidad_residentes %}
+            <label for="{{ form.cantidad_residentes.id_for_label }}">{{ form.cantidad_residentes.label }}</label>{{ form.cantidad_residentes }}
+            <div class="help">{{ form.cantidad_residentes.help_text }}</div>
+            {% endif %}
 
             <label for="{{ form.password1.id_for_label }}">Contraseña</label>{{ form.password1 }}
             <label for="{{ form.password2.id_for_label }}">Repite la contraseña</label>{{ form.password2 }}

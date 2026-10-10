@@ -347,7 +347,7 @@
                         🏢 Condominios
                     </a>
 
-                    {% if perfil.rol == "Administrador" and perfil.condominio %}
+                    {% if perfil.rol == "Super Administrador" or "Administrador" and perfil.condominio %}
 
                         <a href="{% url 'areas_comunes_lista' perfil.condominio.id %}">
                             🏊 Áreas comunes

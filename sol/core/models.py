@@ -299,6 +299,7 @@ class Pago(models.Model):
         choices=Estado.choices,
         default=Estado.PENDIENTE,
     )
+    cantidad_residentes = models.PositiveSmallIntegerField(null=True, blank=True, validators=[MinValueValidator(1), MaxValueValidator(20)],)
     metodo_pago = models.CharField(
         max_length=15,
         choices=MetodoPago.choices,

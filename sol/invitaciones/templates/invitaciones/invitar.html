@@ -35,10 +35,12 @@
         {% if form.non_field_errors %}<div class="error">{{ form.non_field_errors }}</div>{% endif %}
 
         {% for campo in form %}
+            {% if campo.name == "edificio" %}<div id="bloque-residente">{% endif %}
             <label for="{{ campo.id_for_label }}">{{ campo.label }}</label>
             {{ campo }}
             {% if campo.help_text %}<div class="help">{{ campo.help_text }}</div>{% endif %}
             {% for e in campo.errors %}<div class="error">{{ e }}</div>{% endfor %}
+            {% if campo.name == "relacion" %}</div>{% endif %}
         {% endfor %}
 
         <button class="button mt-4" type="submit">Enviar invitaciones</button>
@@ -46,4 +48,60 @@
 
 </div>
 
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    (function () {
+        var rol = document.getElementById("id_rol");
+        var bloque = document.getElementById("bloque-residente");
+        var cond = document.getElementById("id_condominio");   // solo existe para el Super Administrador
+        var edif = document.getElementById("id_edificio");
+        var uni = document.getElementById("id_unidad");
+        if (!rol || !bloque || !edif || !uni) return;
+
+        // Unidad y edificio solo aplican cuando se invita a un residente
+        function mostrarBloque() { bloque.style.display = rol.value === "Residente" ? "" : "none"; }
+
+        // Copia de todas las opciones originales: se filtra sobre esta lista y no sobre el DOM
+        function leer(sel) {
+            return Array.prototype.map.call(sel.options, function (o) {
+                return { value: o.value, text: o.textContent,
+                         cond: o.getAttribute("data-condominio"), edif: o.getAttribute("data-edificio") };
+            });
+        }
+        var todasEdif = leer(edif), todasUni = leer(uni);
+
+        function rellenar(sel, items, elegido) {
+            sel.innerHTML = "";
+            items.forEach(function (it) {
+                var o = document.createElement("option");
+                o.value = it.value; o.textContent = it.text;
+                if (it.cond) o.setAttribute("data-condominio", it.cond);
+                if (it.edif) o.setAttribute("data-edificio", it.edif);
+                if (it.value === elegido) o.selected = true;   // conserva la selección si sigue disponible
+                sel.appendChild(o);
+            });
+        }
+
+        function filtrar() {
+            var c = cond ? cond.value : "";
+
+            // 1) edificios del condominio elegido (la opción vacía siempre queda)
+            rellenar(edif, todasEdif.filter(function (it) { return !it.value || !c || it.cond === c; }), edif.value);
+            var e = edif.value;
+
+            // 2) unidades del condominio y del edificio elegidos
+            rellenar(uni, todasUni.filter(function (it) {
+                return !it.value || ((!c || it.cond === c) && (!e || it.edif === e));
+            }), uni.value);
+        }
+
+        rol.addEventListener("change", mostrarBloque);
+        if (cond) cond.addEventListener("change", filtrar);
+        edif.addEventListener("change", filtrar);
+        mostrarBloque();
+        filtrar();
+    })();
+</script>
 {% endblock %}
