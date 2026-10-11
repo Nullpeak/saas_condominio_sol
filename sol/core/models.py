@@ -87,6 +87,7 @@ class Unidad(models.Model):
     piso = models.PositiveSmallIntegerField()
     posicion = models.PositiveSmallIntegerField()
     numero_unidad = models.CharField(max_length=10)
+    cantidad_residentes = models.PositiveSmallIntegerField(null=True, blank=True, validators=[MinValueValidator(1), MaxValueValidator(20)],)
     dueno = models.ForeignKey("Usuario",on_delete=models.PROTECT,null=True,blank=True,related_name="unidades_propias",)
     arrendatario = models.ForeignKey("Usuario",on_delete=models.SET_NULL,null=True,blank=True,related_name="unidades_arrendadas",)
 
@@ -299,7 +300,6 @@ class Pago(models.Model):
         choices=Estado.choices,
         default=Estado.PENDIENTE,
     )
-    cantidad_residentes = models.PositiveSmallIntegerField(null=True, blank=True, validators=[MinValueValidator(1), MaxValueValidator(20)],)
     metodo_pago = models.CharField(
         max_length=15,
         choices=MetodoPago.choices,

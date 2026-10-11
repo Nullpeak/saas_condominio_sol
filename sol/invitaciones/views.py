@@ -11,6 +11,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from core.models import Unidad, Usuario
+from .cupos import cupo_ocupado
 from .forms import AceptarInvitacionForm, InvitarForm
 from .models import Invitacion, VIGENCIA
 from .permisos import PUEDE_INVITAR
@@ -91,7 +92,7 @@ def _crear_cuenta(form, inv):
         if inv.unidad_id:
             # La unidad se bloquea para que dos invitados no tomen el mismo cupo a la vez
             unidad = Unidad.objects.select_for_update().get(pk=inv.unidad_id)
-            if getattr(unidad, f"{inv.relacion}_id"):
+            if cupo_ocupado(unidad, inv.relacion):
                 form.add_error(
                     None,
                     f"Esa unidad ya tiene un {inv.get_relacion_display().lower()} asignado. "
@@ -119,8 +120,16 @@ def _crear_cuenta(form, inv):
 
         if unidad:
             setattr(unidad, inv.relacion, perfil)  # unidad.dueno o unidad.arrendatario
-            unidad.cantidad_residentes = form.cleaned_data["cantidad_residentes"]
-            unidad.save(update_fields=[inv.relacion, "cantidad_residentes"])
+            campos = [inv.relacion]
+            cantidad = form.cleaned_data.get("cantidad_residentes")
+            # El arrendatario siempre actualiza el dato. El dueño solo lo fija si no hay arrendatario activo
+            # (se revisa aquí, con la unidad bloqueada, por si el arrendatario se registró mientras tanto).
+            if cantidad is not None and (
+                inv.relacion == "arrendatario" or not cupo_ocupado(unidad, "arrendatario")
+            ):
+                unidad.cantidad_residentes = cantidad
+                campos.append("cantidad_residentes")
+            unidad.save(update_fields=campos)
 
         inv.usada = timezone.now()
         inv.save(update_fields=["usada"])

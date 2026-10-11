@@ -8,6 +8,7 @@ from django.core.exceptions import ValidationError
 
 from core.models import Condominio, Edificio, Unidad, Usuario
 from core.validators import formatear_telefono, validar_email, validar_rut, validar_telefono
+from .cupos import cupo_ocupado
 from .models import Invitacion
 from .permisos import PUEDE_INVITAR, Rol
 
@@ -80,7 +81,7 @@ class InvitarForm(forms.Form):
         permitidos = PUEDE_INVITAR[perfil.rol]
         self.fields["rol"].choices = [(v, l.capitalize()) for v, l in Usuario.Rol.choices if v in permitidos]
 
-        unidades = Unidad.objects.select_related("edificio__condominio").order_by(
+        unidades = Unidad.objects.select_related("edificio__condominio", "dueno", "arrendatario").order_by(
             "edificio__condominio__nombre", "edificio__numero", "piso", "posicion"
         )
         # Solo edificios que ya tienen unidades generadas
@@ -106,10 +107,12 @@ class InvitarForm(forms.Form):
         texto = f"{u.edificio.nombre} · Unidad {u.numero_unidad}"
         if self.es_super:
             texto = f"{u.edificio.condominio} · {texto}"
-        if u.dueno_id:
+        if cupo_ocupado(u, "dueno"):
             texto += " (con dueño)"
-        if u.arrendatario_id:
+        if cupo_ocupado(u, "arrendatario"):
             texto += " (con arrendatario)"
+        elif u.arrendatario_id:
+            texto += " (arrendatario inactivo)"  # el cupo se puede reemplazar
         return texto
 
     def clean_emails(self):
@@ -173,7 +176,7 @@ class InvitarForm(forms.Form):
             self.add_error("unidad", "Esa unidad no pertenece al condominio seleccionado.")
         elif unidad and relacion:
             texto = RELACION_TEXTO[relacion]
-            if getattr(unidad, f"{relacion}_id"):
+            if cupo_ocupado(unidad, relacion):
                 self.add_error("unidad", f"Esa unidad ya tiene un {texto} asignado.")
             else:
                 pendientes = Invitacion.vigentes().filter(unidad=unidad, relacion=relacion)
@@ -212,8 +215,21 @@ class AceptarInvitacionForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.invitacion = invitacion
         self.fields["rut"].required = True  # igual que en tu vista usuario_crear
+        if not self._pide_cantidad(invitacion):
+            del self.fields["cantidad_residentes"]
+
+    @staticmethod
+    def _pide_cantidad(invitacion):
+        """
+        El arrendatario es quien informa cuántas personas viven en la unidad, y su dato manda.
+        El dueño solo lo informa si la unidad no tiene arrendatario activo (vive él mismo).
+        Los demás roles no lo informan.
+        """
         if not invitacion.unidad_id:
-            del self.fields["cantidad_residentes"]  # solo aplica a residentes
+            return False
+        if invitacion.relacion == Invitacion.Relacion.ARRENDATARIO:
+            return True
+        return not cupo_ocupado(invitacion.unidad, "arrendatario")
 
     def clean_username(self):
         username = self.cleaned_data["username"].strip().lower()
