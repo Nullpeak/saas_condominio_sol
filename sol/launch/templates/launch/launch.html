@@ -88,36 +88,12 @@
       <datalist id="lista-ciudades">
         {% for ciudad in condo_form.ciudades_sugeridas %}<option value="{{ ciudad }}">{% endfor %}
       </datalist>
-      <p class="note" style="text-align:left">Al elegir el país se cargan sus ciudades; escribe para filtrar.</p>
+      <p class="note" style="text-align:left">Escribe para ver las ciudades de Chile. Si la tuya no aparece, escríbela igual.</p>
     </fieldset>
 
     <button type="submit">Crear cuenta y condominio</button>
     <p class="note">Al terminar entrarás directo al panel.</p>
   </form>
 </main>
-<script>
-  // Al cambiar el país, pide sus ciudades y llena la lista de sugerencias.
-  const pais = document.getElementById("id_c-pais");
-  const ciudad = document.getElementById("id_c-ciudad");
-  const lista = document.getElementById("lista-ciudades");
-  pais.addEventListener("change", async () => {
-    ciudad.value = "";
-    lista.replaceChildren();
-    if (!pais.value) return;
-    ciudad.placeholder = "Cargando ciudades…";
-    try {
-      const r = await fetch("{% url 'launch:ciudades' %}?pais=" + encodeURIComponent(pais.value));
-      const data = await r.json();
-      for (const nombre of data.ciudades) {
-        const o = document.createElement("option");
-        o.value = nombre;
-        lista.appendChild(o);
-      }
-      ciudad.placeholder = data.ciudades.length ? "Escribe para buscar" : "No hay ciudades para este país";
-    } catch (e) {
-      ciudad.placeholder = "No se pudieron cargar las ciudades";
-    }
-  });
-</script>
 </body>
 </html>

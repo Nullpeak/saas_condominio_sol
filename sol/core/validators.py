@@ -1,5 +1,6 @@
 import re
 
+import phonenumbers
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 
@@ -48,9 +49,14 @@ def validar_rut(valor):
         )
 
 #============================== VALIDACIÓN TELÉFONO ==============================
+# Requiere: pip install phonenumbers
+
+# País que se asume cuando el número se escribe sin código internacional (sin "+").
+REGION_TELEFONO_POR_DEFECTO = "CL"
+
 
 def limpiar_telefono(telefono):
-    """Deja solo los números y conserva el prefijo +56 si existe."""
+    """Deja solo los números y conserva el + inicial si existe."""
     telefono = telefono.strip()
 
     if telefono.startswith("+"):
@@ -58,22 +64,31 @@ def limpiar_telefono(telefono):
 
     return re.sub(r"\D", "", telefono)
 
-def formatear_telefono(telefono):
-    """Normaliza teléfonos chilenos al formato +56912345678."""
-    limpio = limpiar_telefono(telefono)
-    if limpio.startswith("+56"):
-        return limpio
-    if limpio.startswith("56"):
-        return "+" + limpio
-    if len(limpio) == 9 and limpio.startswith("9"):
-        return "+56" + limpio
-    return limpio
 
-def validar_telefono(valor):
-    """Valida números de teléfono móviles chilenos."""
-    telefono = formatear_telefono(valor)
+def _parsear_telefono(valor, region):
+    """Interpreta el número; devuelve None si no se puede leer."""
+    try:
+        return phonenumbers.parse(valor.strip(), region)
+    except phonenumbers.NumberParseException:
+        return None
 
-    if not re.fullmatch(r"\+569\d{8}", telefono):
+
+def formatear_telefono(telefono, region=REGION_TELEFONO_POR_DEFECTO):
+    """Normaliza el teléfono al formato internacional E.164: +56912345678.
+
+    `region` es el código ISO del país (ej. "CL") que se asume si el número no
+    trae "+". Si el número no es válido, devuelve solo los dígitos limpios.
+    """
+    numero = _parsear_telefono(telefono, region)
+    if numero is not None and phonenumbers.is_valid_number(numero):
+        return phonenumbers.format_number(numero, phonenumbers.PhoneNumberFormat.E164)
+    return limpiar_telefono(telefono)
+
+
+def validar_telefono(valor, region=REGION_TELEFONO_POR_DEFECTO):
+    """Valida un teléfono de cualquier país (fijo o móvil) según su plan de numeración."""
+    numero = _parsear_telefono(valor, region)
+    if numero is None or not phonenumbers.is_valid_number(numero):
         raise ValidationError(
             "El teléfono no tiene un formato válido. "
             "Ejemplo: +56 9 1234 5678"

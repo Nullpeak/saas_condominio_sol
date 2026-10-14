@@ -10,7 +10,7 @@ from core.validators import (
     validar_telefono,
 )
 
-from .paises import ciudades_de, listar_paises
+from .ciudades import ciudades_chile
 
 
 class SuperUsuarioForm(forms.Form):
@@ -25,7 +25,9 @@ class SuperUsuarioForm(forms.Form):
         label="Teléfono",
         max_length=20,
         validators=[validar_telefono],
-        widget=forms.TextInput(attrs={"placeholder": "+56 9 1234 5678"}),
+        widget=forms.TextInput(
+            attrs={"placeholder": "+56 9 1234 5678", "inputmode": "tel", "autocomplete": "tel"}
+        ),
     )
     password1 = forms.CharField(label="Contraseña", widget=forms.PasswordInput)
     password2 = forms.CharField(label="Repite la contraseña", widget=forms.PasswordInput)
@@ -42,7 +44,10 @@ class SuperUsuarioForm(forms.Form):
 
     def clean_telefono(self):
         # Se guarda normalizado: +56912345678
-        return formatear_telefono(self.cleaned_data["telefono"])
+        telefono = formatear_telefono(self.cleaned_data["telefono"])
+        if len(telefono) > 15:  # largo máximo de Usuario.telefono
+            raise forms.ValidationError("El teléfono es demasiado largo.")
+        return telefono
 
     def clean(self):
         cleaned = super().clean()
@@ -61,7 +66,6 @@ class SuperUsuarioForm(forms.Form):
 class CondominioForm(forms.Form):
     nombre = forms.CharField(label="Nombre del condominio", max_length=150)
     direccion = forms.CharField(label="Dirección", max_length=255)
-    pais = forms.ChoiceField(label="País")
     ciudad = forms.CharField(
         label="Ciudad",
         max_length=50,
@@ -72,21 +76,12 @@ class CondominioForm(forms.Form):
     viviendas_por_piso = forms.IntegerField(label="Viviendas por piso", min_value=1)
     portada = forms.ImageField(label="Imagen de portada (opcional)", required=False)
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fields["pais"].choices = [("", "Elige un país")] + list(listar_paises())
-        # Si el formulario se reenvía con errores, el datalist de ciudades se vuelve a llenar.
-        pais = self.data.get(self.add_prefix("pais")) if self.is_bound else None
-        self.ciudades_sugeridas = ciudades_de(pais) if pais else ()
+    # Sugerencias para el campo ciudad (el template las dibuja como <datalist>).
+    ciudades_sugeridas = ciudades_chile()
 
-    def clean(self):
-        cleaned = super().clean()
-        pais, ciudad = cleaned.get("pais"), cleaned.get("ciudad")
-        if pais and ciudad:
-            por_nombre = {n.lower(): n for n in ciudades_de(pais)}
-            nombre = por_nombre.get(" ".join(ciudad.split()).lower())
-            if nombre is None:
-                self.add_error("ciudad", "Elige una ciudad de la lista del país seleccionado.")
-            else:
-                cleaned["ciudad"] = nombre
-        return cleaned
+    def clean_ciudad(self):
+        # Si coincide con una ciudad de la lista, se usa su nombre exacto;
+        # si no, se acepta lo escrito (comunas que la lista no incluye).
+        escrito = " ".join(self.cleaned_data["ciudad"].split())
+        por_nombre = {n.lower(): n for n in self.ciudades_sugeridas}
+        return por_nombre.get(escrito.lower(), escrito.title())

@@ -6,5 +6,4 @@ app_name = "launch"
 
 urlpatterns = [
     path("", views.launch, name="launch"),
-    path("ciudades/", views.ciudades, name="ciudades"),
 ]

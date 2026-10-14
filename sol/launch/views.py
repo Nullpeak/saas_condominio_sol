@@ -1,15 +1,15 @@
 from django.conf import settings
 from django.contrib.auth import get_user_model, login
 from django.db import transaction
-from django.http import Http404, JsonResponse
+from django.http import Http404
 from django.shortcuts import redirect, render
-from django.views.decorators.http import require_GET, require_http_methods
+from django.views.decorators.http import require_http_methods
 
 from core.models import Ciudad, Condominio, Usuario
 
+from .ciudades import ciudades_chile
 from .forms import CondominioForm, SuperUsuarioForm
 from .guards import setup_disponible, solo_primer_lanzamiento
-from .paises import ciudades_de
 
 
 @require_http_methods(["GET", "POST"])
@@ -28,13 +28,13 @@ def launch(request):
                 if not setup_disponible():
                     raise Http404
 
-                # Se carga en la tabla Ciudad todas las ciudades del país elegido
-                # y se usa la que escogió el usuario para el condominio.
+                # Se carga la tabla Ciudad con las ciudades de Chile y se usa la que
+                # escogió el usuario (si escribió una que no está, se crea).
                 Ciudad.objects.bulk_create(
-                    [Ciudad(nombre=n) for n in ciudades_de(c["pais"])],
+                    [Ciudad(nombre=n) for n in ciudades_chile()],
                     ignore_conflicts=True,
                 )
-                ciudad = Ciudad.objects.get(nombre=c["ciudad"])
+                ciudad, _ = Ciudad.objects.get_or_create(nombre=c["ciudad"])
                 condominio = Condominio.objects.create(
                     nombre=c["nombre"],
                     direccion=c["direccion"],
@@ -73,10 +73,3 @@ def launch(request):
         condo_form = CondominioForm(prefix="c")
 
     return render(request, "launch/launch.html", {"user_form": user_form, "condo_form": condo_form})
-
-
-@require_GET
-@solo_primer_lanzamiento
-def ciudades(request):
-    """Ciudades de un país, para llenar el selector del formulario."""
-    return JsonResponse({"ciudades": list(ciudades_de(request.GET.get("pais")))})
