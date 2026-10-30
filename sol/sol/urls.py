@@ -245,5 +245,6 @@ urlpatterns = [
         name="reservacion_cancelar"
     ),
     path("launch/", include("launch.urls")),
-    path("", include("invitaciones.urls"))
+    path("", include("invitaciones.urls")),
+    path("notificaciones/", include("notis.urls"))
 ]
