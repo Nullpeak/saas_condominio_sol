@@ -1,0 +1,144 @@
+{% extends "core/base.html" %}
+{% load l10n %}
+
+{% block title %}Tickets | CondoGestión{% endblock %}
+{% block page_title %}Tickets{% endblock %}
+
+{% block content %}
+<section class="card-custom">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+        <div>
+            <h2 class="h4 mb-1">{% if puede_gestionar %}Tickets del condominio{% else %}Mis tickets{% endif %}</h2>
+            <p class="text-muted mb-0">Consulta solicitudes, su estado y el registro de resolución.</p>
+        </div>
+        <a href="{% url 'tickets:crear' %}" class="button">+ Crear ticket</a>
+    </div>
+
+    <nav class="nav nav-pills gap-2 mb-4" aria-label="Sección de tickets">
+        <a class="nav-link {% if vista == 'activos' %}active{% endif %}" href="{% url 'tickets:lista' %}?vista=activos">Tickets activos</a>
+        <a class="nav-link {% if vista == 'historial' %}active{% endif %}" href="{% url 'tickets:lista' %}?vista=historial">Historial (resueltos y cerrados)</a>
+    </nav>
+
+    <form method="get" class="row g-3 align-items-end mb-4 p-3 rounded" style="background:#f8fafc;">
+        <div class="col-md-3">
+            <label for="q" class="form-label">Buscar</label>
+            <input type="search" class="form-control" id="q" name="q" value="{{ busqueda }}" placeholder="Nombre o descripción">
+        </div>
+        <div class="col-md-2">
+            <label for="estado" class="form-label">Estado</label>
+            <select class="form-select" id="estado" name="estado">
+                <option value="">Todos</option>
+                {% for codigo, etiqueta in estados %}<option value="{{ codigo }}" {% if estado_filtro == codigo %}selected{% endif %}>{{ etiqueta }}</option>{% endfor %}
+            </select>
+        </div>
+        {% if puede_gestionar %}
+            <div class="col-md-2">
+                <label for="unidad" class="form-label">Unidad</label>
+                <select class="form-select" id="unidad" name="unidad">
+                    <option value="">Todas</option>
+                    {% for unidad in unidades %}
+                        <option value="{{ unidad.id }}" {% if unidad_filtro == unidad.id|stringformat:"s" %}selected{% endif %}>{{ unidad.edificio.condominio.nombre }} · {{ unidad.edificio.nombre }} · {{ unidad.numero_unidad }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        {% endif %}
+        <div class="col-md-2">
+            <label for="desde" class="form-label">Desde</label>
+            <input type="date" class="form-control" id="desde" name="desde" value="{{ fecha_desde }}">
+        </div>
+        <div class="col-md-2">
+            <label for="hasta" class="form-label">Hasta</label>
+            <input type="date" class="form-control" id="hasta" name="hasta" value="{{ fecha_hasta }}">
+        </div>
+        <div class="col-md-1 d-flex gap-2">
+            <button type="submit" class="button">Ver</button>
+            <a href="{% url 'tickets:lista' %}" class="btn btn-outline-secondary">Limpiar</a>
+        </div>
+    </form>
+
+    {% if tickets %}
+        <div class="d-grid gap-3">
+            {% for ticket in tickets %}
+                <article class="p-3 p-lg-4 rounded border bg-white">
+                    <div class="d-flex flex-wrap justify-content-between gap-3">
+                        <div>
+                            <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                                <span class="text-muted">#{{ ticket.id }}</span>
+                                <h3 class="h5 mb-0">{{ ticket.titulo }}</h3>
+                                {% if ticket.estado == "resuelto" or ticket.estado == "cerrado" %}
+                                    <span class="badge text-bg-success">{{ ticket.get_estado_display }}</span>
+                                {% elif ticket.estado == "en_revision" %}
+                                    <span class="badge text-bg-info">{{ ticket.get_estado_display }}</span>
+                                {% else %}
+                                    <span class="badge text-bg-warning">{{ ticket.get_estado_display }}</span>
+                                {% endif %}
+                                {% if ticket.prioridad %}<span class="badge text-bg-light">{{ ticket.get_prioridad_display }}</span>{% endif %}
+                            </div>
+                            <div class="small text-muted">
+                                Creado por {{ ticket.usuario.nombre }} {{ ticket.usuario.apellido }} · {% localize off %}{{ ticket.creado|date:"d/m/Y H:i" }}{% endlocalize %}
+                                {% if ticket.unidad %} · {{ ticket.unidad.edificio.nombre }} / Unidad {{ ticket.unidad.numero_unidad }}{% endif %}
+                            </div>
+                        </div>
+                        {% if ticket.asignado %}<div class="small text-muted">Asignado a {{ ticket.asignado.nombre }} {{ ticket.asignado.apellido }}</div>{% endif %}
+                    </div>
+
+                    <p class="mt-3 mb-3" style="white-space:pre-line;">{{ ticket.descripcion }}</p>
+
+                    {% if ticket.archivos.all %}
+                        <div class="d-flex flex-wrap gap-3 mb-3">
+                            {% for adjunto in ticket.archivos.all %}
+                                {% url 'tickets:archivo' adjunto.id as archivo_url %}
+                                <div class="border rounded p-2" style="max-width:240px;">
+                                    {% if adjunto.es_imagen %}
+                                        <a href="{{ archivo_url }}" target="_blank" rel="noopener"><img src="{{ archivo_url }}" alt="Adjunto del ticket {{ ticket.id }}" class="img-fluid rounded" style="max-height:170px;"></a>
+                                    {% elif adjunto.es_video %}
+                                        <video src="{{ archivo_url }}" controls preload="metadata" class="rounded" style="max-width:210px; max-height:170px;"></video>
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+
+                    {% if ticket.resuelto %}
+                        <div class="alert alert-success py-2 mb-3">
+                            Última resolución registrada el {% localize off %}{{ ticket.resuelto|date:"d/m/Y H:i" }}{% endlocalize %}{% if ticket.resuelto_por %} por {{ ticket.resuelto_por.nombre }} {{ ticket.resuelto_por.apellido }} ({{ ticket.resuelto_por.rol }}){% endif %}.
+                        </div>
+                    {% endif %}
+
+                    {% if puede_gestionar %}
+                        <div class="d-flex flex-wrap gap-3 pt-3 border-top">
+                            {% if puede_asignar %}<form method="post" action="{% url 'tickets:asignar' ticket.id %}" class="d-flex flex-wrap align-items-end gap-2">
+                                {% csrf_token %}
+                                <div>
+                                    <label class="form-label small mb-1" for="gestor-{{ ticket.id }}">Asignar a gestor</label>
+                                    <select class="form-select form-select-sm" id="gestor-{{ ticket.id }}" name="gestor">
+                                        <option value="">Sin asignar</option>
+                                        {% for gestor in gestores %}<option value="{{ gestor.id }}" {% if ticket.asignado_id == gestor.id %}selected{% endif %}>{{ gestor.nombre }} {{ gestor.apellido }}</option>{% endfor %}
+                                    </select>
+                                </div>
+                                <button type="submit" class="btn btn-sm btn-outline-primary">Guardar asignación</button>
+                            </form>{% endif %}
+                            <form method="post" action="{% url 'tickets:cambiar_estado' ticket.id %}" class="d-flex flex-wrap align-items-end gap-2">
+                                {% csrf_token %}
+                                <div>
+                                    <label class="form-label small mb-1" for="estado-{{ ticket.id }}">Estado</label>
+                                    <select class="form-select form-select-sm" id="estado-{{ ticket.id }}" name="estado">
+                                        {% for codigo, etiqueta in estados %}<option value="{{ codigo }}" {% if ticket.estado == codigo %}selected{% endif %}>{{ etiqueta }}</option>{% endfor %}
+                                    </select>
+                                </div>
+                                <button type="submit" class="btn btn-sm btn-success">Actualizar estado</button>
+                            </form>
+                        </div>
+                    {% endif %}
+                </article>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="text-center py-5">
+            <h3 class="h5 mt-3">No hay tickets para mostrar</h3>
+            <p class="text-muted">Crea un ticket o ajusta los filtros.</p>
+            <a href="{% url 'tickets:crear' %}" class="button">Crear ticket</a>
+        </div>
+    {% endif %}
+</section>
+{% endblock %}

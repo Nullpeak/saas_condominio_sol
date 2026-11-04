@@ -78,6 +78,14 @@ class InvitarForm(forms.Form):
         super().__init__(*args, **kwargs)
         self.perfil = perfil
         self.es_super = perfil.rol == Rol.SUPER
+        self.condominios_permitidos = perfil.condominios_asignados().filter(activo=True)
+        self.puede_elegir_condominio = self.es_super or (
+            perfil.rol == Rol.ADMINISTRADOR and self.condominios_permitidos.count() > 1
+        )
+        if not self.es_super:
+            self.fields["condominio"].queryset = self.condominios_permitidos
+            if not self.puede_elegir_condominio:
+                del self.fields["condominio"]
         permitidos = PUEDE_INVITAR[perfil.rol]
         self.fields["rol"].choices = [(v, l.capitalize()) for v, l in Usuario.Rol.choices if v in permitidos]
 
@@ -91,8 +99,12 @@ class InvitarForm(forms.Form):
             .distinct()
             .order_by("condominio__nombre", "numero")
         )
-        if not self.es_super:
-            del self.fields["condominio"]  # los demás solo invitan a su propio condominio
+        if self.es_super:
+            pass
+        elif self.puede_elegir_condominio:
+            unidades = unidades.filter(edificio__condominio__in=self.condominios_permitidos)
+            edificios = edificios.filter(condominio__in=self.condominios_permitidos)
+        else:
             unidades = unidades.filter(edificio__condominio=perfil.condominio)
             edificios = edificios.filter(condominio=perfil.condominio)
         self.fields["unidad"].queryset = unidades
@@ -101,11 +113,11 @@ class InvitarForm(forms.Form):
         self.fields["unidad"].label_from_instance = self._etiqueta_unidad
 
     def _etiqueta_edificio(self, e):
-        return f"{e.condominio} · {e.nombre}" if self.es_super else e.nombre
+        return f"{e.condominio} · {e.nombre}" if self.es_super or self.puede_elegir_condominio else e.nombre
 
     def _etiqueta_unidad(self, u):
         texto = f"{u.edificio.nombre} · Unidad {u.numero_unidad}"
-        if self.es_super:
+        if self.es_super or self.puede_elegir_condominio:
             texto = f"{u.edificio.condominio} · {texto}"
         if cupo_ocupado(u, "dueno"):
             texto += " (con dueño)"
@@ -144,7 +156,7 @@ class InvitarForm(forms.Form):
         data = super().clean()
 
         # --- condominio ---
-        if self.es_super:
+        if self.es_super or self.puede_elegir_condominio:
             condominio = data.get("condominio")
             if not condominio and "condominio" not in self.errors:
                 self.add_error("condominio", "Selecciona el condominio.")

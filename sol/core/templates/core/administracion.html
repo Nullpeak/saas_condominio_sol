@@ -1,146 +1,61 @@
 {% extends "core/base.html" %}
 
-{% block title %}
-Administración - CondoGestión
-{% endblock %}
-
-{% block page_title %}
-Administración
-{% endblock %}
+{% block title %}Administración | CondoGestión{% endblock %}
+{% block page_title %}Administración{% endblock %}
 
 {% block content %}
+<header class="page-intro">
+    <h1>Administración</h1>
+    <p>Gestiona las cuentas, los condominios y sus servicios.</p>
+</header>
 
-<!-- ============================== RESUMEN ============================== -->
-
-<div class="card">
-
-    <h2>
-        Administración del sistema
-    </h2>
-
-    <p>
-        Gestiona los usuarios y condominios disponibles según tus permisos.
-    </p>
-
+<div class="d-flex flex-wrap gap-4 mb-4 text-secondary">
+    <span><strong class="text-dark">{{ usuarios|length }}</strong> usuarios</span>
+    <span><strong class="text-dark">{{ condominios|length }}</strong> condominios</span>
 </div>
 
+<nav class="quick-links" aria-label="Accesos de administración">
+    <a class="button" href="{% url 'usuarios_lista' %}">Gestionar usuarios</a>
+    <a class="button button-secondary" href="{% url 'usuario_crear' %}">Crear usuario</a>
+    <a class="button button-secondary" href="{% url 'condominios_lista' %}">Gestionar condominios</a>
+    {% if usuario.rol == "Super Administrador" or usuario.rol == "Administrador" %}<a class="button button-secondary" href="{% url 'condominio_crear' %}">Crear condominio</a>{% endif %}
+</nav>
 
-<!-- ============================== CONDOMINIOS ============================== -->
-
-<div class="card">
-
-    <div style="display: flex; justify-content: space-between; align-items: center; gap: 15px; margin-bottom: 20px;">
-
-        <div>
-            <h2 style="margin-bottom: 5px;">
-                Condominios
-            </h2>
-
-            <p style="margin: 0; color: #64748b;">
-                Condominios disponibles para tu administración.
-            </p>
-        </div>
-
-        {% if usuario.rol.nombre == "Super Administrador" %}
-            <a class="button" href="{% url 'condominio_crear' %}">
-                + Nuevo condominio
-            </a>
-        {% endif %}
-
-    </div>
-
-
+<section aria-labelledby="condominios-heading">
+    <h2 class="section-heading" id="condominios-heading">Condominios</h2>
     {% if condominios %}
-
-        <div style="display: grid; gap: 12px;">
-
-            {% for condominio in condominios %}
-
-                <div style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px;">
-
-                    <h3 style="margin-bottom: 10px;">
-                        {{ condominio.nombre }}
-                    </h3>
-
-                    <p style="margin: 5px 0;">
-                        <strong>Dirección:</strong>
-                        {{ condominio.direccion }}
-                    </p>
-
-                    <p style="margin: 5px 0;">
-                        <strong>Ciudad:</strong>
-                        {{ condominio.ciudad.nombre }}
-                    </p>
-
-                    <p style="margin: 5px 0;">
-                        <strong>Edificios:</strong>
-                        {{ condominio.edificios }}
-                    </p>
-
-                    <div style="margin-top: 14px;">
-
-                        <a class="button button-secondary"
-                           href="{% url 'edificios_lista' condominio.id %}">
-                            Ver edificios
-                        </a>
-
-                        <a class="button"
-                           href="{% url 'condominio_editar' condominio.id %}">
-                            Editar
-                        </a>
-
-                    </div>
-
-                </div>
-
-            {% endfor %}
-
+        <div class="table-responsive bg-white border rounded">
+            <table class="table table-hover align-middle mb-0">
+                <thead><tr><th>Condominio</th><th>Dirección</th><th>Ciudad</th><th>Edificios</th><th class="text-end">Acciones</th></tr></thead>
+                <tbody>
+                    {% for condominio in condominios %}
+                        <tr>
+                            <td class="fw-semibold">{{ condominio.nombre }}</td>
+                            <td>{{ condominio.direccion }}</td>
+                            <td>{{ condominio.ciudad.nombre }}</td>
+                            <td>{{ condominio.edificios_set.count }}</td>
+                            <td class="text-end text-nowrap">
+                                <a class="btn btn-sm btn-outline-secondary" href="{% url 'edificios_lista' condominio.id %}">Edificios</a>
+                                <a class="btn btn-sm btn-outline-secondary" href="{% url 'areas_comunes_lista' condominio.id %}">Áreas comunes</a>
+                                <a class="btn btn-sm btn-outline-primary" href="{% url 'condominio_editar' condominio.id %}">Editar</a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
-
     {% else %}
-
-        <p style="color: #64748b;">
-            No hay condominios disponibles.
-        </p>
-
+        <p class="text-secondary">No hay condominios disponibles.</p>
     {% endif %}
+</section>
 
-</div>
-
-
-<!-- ============================== USUARIOS ============================== -->
-
-<div class="card">
-
-    <h2>
-        Usuarios
-    </h2>
-
-    <p style="color: #64748b;">
-        Administra las cuentas de usuarios y sus permisos.
-    </p>
-
-    <a class="button" href="{% url 'usuarios_lista' %}">
-        Gestionar usuarios
-    </a>
-
-</div>
-
-
-<!-- ============================== ACCIONES ============================== -->
-
-<div class="card">
-
-    <h2>
-        Próximamente
-    </h2>
-
-    <p style="color: #64748b;">
-        Esta sección se ampliará con los módulos de reservas,
-        visitas, mantenimiento, gastos comunes, comunicaciones
-        y reportes del sistema.
-    </p>
-
-</div>
-
-{% endblock %}  
+<section class="mt-5" aria-labelledby="modulos-heading">
+    <h2 class="section-heading" id="modulos-heading">Operación del condominio</h2>
+    <div class="quick-links mt-0">
+        <a class="btn btn-outline-secondary" href="{% url 'reservaciones_lista' %}">Reservas</a>
+        <a class="btn btn-outline-secondary" href="{% url 'visitas:lista' %}">Visitas</a>
+        <a class="btn btn-outline-secondary" href="{% url 'tickets:lista' %}">Tickets</a>
+        <a class="btn btn-outline-secondary" href="{% url 'anuncios:lista' %}">Anuncios</a>
+    </div>
+</section>
+{% endblock %}

@@ -121,6 +121,11 @@ Editar unidad
 
             </select>
 
+            <label style="display:flex; align-items:center; gap:8px; margin-top:10px;">
+                <input type="checkbox" id="propietario_vive" name="propietario_vive" {% if unidad.propietario_vive %}checked{% endif %}>
+                El propietario vive en esta unidad
+            </label>
+
         </div>
 
 
@@ -202,5 +207,18 @@ Editar unidad
     </form>
 
 </div>
+
+{% block extra_js %}
+<script>
+    const propietario = document.getElementById("dueno_id");
+    const propietarioVive = document.getElementById("propietario_vive");
+    const actualizarOcupacion = () => {
+        propietarioVive.disabled = !propietario.value;
+        if (!propietario.value) propietarioVive.checked = false;
+    };
+    propietario.addEventListener("change", actualizarOcupacion);
+    actualizarOcupacion();
+</script>
+{% endblock %}
 
 {% endblock %}

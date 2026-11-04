@@ -12,25 +12,22 @@ Nuevo usuario
 
 <!-- ============================== ENCABEZADO ============================== -->
 
-<div class="card">
+<header class="page-intro">
 
-```
-<h2>
+<h1>
     Crear usuario
-</h2>
+</h1>
 
 <p style="color: #64748b;">
     Completa los datos para registrar un nuevo usuario en el sistema.
 </p>
-```
 
-</div>
+</header>
 
 <!-- ============================== FORMULARIO ============================== -->
 
 <div class="card">
 
-```
 <form method="post">
 
     {% csrf_token %}
@@ -253,7 +250,7 @@ Nuevo usuario
 
         {% if condominios %}
 
-            <div>
+            <div id="condominio-unico-contenedor">
 
                 <label for="condominio" style="display: block; margin-bottom: 6px; font-weight: 600;">
                     Condominio
@@ -284,6 +281,78 @@ Nuevo usuario
 
             </div>
 
+            <div id="condominios-admin-contenedor" style="display:none; grid-column:1/-1;">
+                <label for="condominios_administrados" style="display:block; margin-bottom:6px; font-weight:600;">Condominios a cargo</label>
+                <select id="condominios_administrados" name="condominios_administrados" multiple size="4" style="width:100%; padding:10px; border:1px solid #d1d5db; border-radius:7px;">
+                    {% for condominio in condominios %}
+                    <option value="{{ condominio.id }}" {% if condominio.id|stringformat:"s" in condominios_seleccionados %}selected{% endif %}>{{ condominio.nombre }}</option>
+                    {% endfor %}
+                </select>
+                <small style="color:#64748b;">El Administrador podrá gestionar los condominios seleccionados.</small>
+            </div>
+
+        {% endif %}
+
+        <div id="asignacion-unidad-residente" style="display: none; grid-column: 1 / -1; padding: 16px; border: 1px solid #dbe3ee; border-radius: 9px; background: #f8fafc;">
+            <strong style="display:block; margin-bottom:12px;">Unidad del residente</strong>
+            <div class="grid">
+                <div>
+                    <label for="es_propietario" style="display:block; margin-bottom:6px; font-weight:600;">¿Es propietario de la unidad?</label>
+                    <select id="es_propietario" name="es_propietario" required style="width:100%; padding:10px; border:1px solid #d1d5db; border-radius:7px;">
+                        <option value="">Selecciona</option>
+                        <option value="si" {% if datos.es_propietario == 'si' %}selected{% endif %}>Sí, es propietario</option>
+                        <option value="no" {% if datos.es_propietario == 'no' %}selected{% endif %}>No, es arrendatario</option>
+                    </select>
+                </div>
+                <div id="selector-edificio-contenedor">
+                    <label for="edificio" style="display:block; margin-bottom:6px; font-weight:600;">Edificio</label>
+                    <select id="edificio" name="edificio" style="width:100%; padding:10px; border:1px solid #d1d5db; border-radius:7px;">
+                        <option value="">Selecciona un edificio</option>
+                    </select>
+                    <small id="edificio-ayuda" style="color:#64748b;">Selecciona el edificio del residente.</small>
+                </div>
+                <div>
+                    <label for="unidad" style="display:block; margin-bottom:6px; font-weight:600;">Unidad</label>
+                    <select id="unidad" name="unidad" required style="width:100%; padding:10px; border:1px solid #d1d5db; border-radius:7px;">
+                        <option value="">Primero selecciona el condominio</option>
+                    </select>
+                    <small id="unidad-ayuda" style="color:#64748b;">Si es propietario, quedará registrado como propietario que vive ahí. Si no, se vinculará como arrendatario residente.</small>
+                </div>
+            </div>
+        </div>
+
+        {% if usuario.rol == "Super Administrador" %}
+            <div style="grid-column: 1 / -1; padding: 16px; border: 1px solid #dbe3ee; border-radius: 9px; background: #f8fafc;">
+                <label style="display: flex; align-items: center; gap: 9px; font-weight: 600;">
+                    <input type="checkbox" id="crear_condominio" name="crear_condominio" {% if datos.crear_condominio %}checked{% endif %}>
+                    Crear un condominio nuevo y asignarlo a este usuario
+                </label>
+                <div id="datos-nuevo-condominio" style="display: {% if datos.crear_condominio %}grid{% else %}none{% endif %}; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-top: 16px;">
+                    <div>
+                        <label for="nombre_condominio" style="display: block; margin-bottom: 6px; font-weight: 600;">Nombre del condominio</label>
+                        <input id="nombre_condominio" name="nombre_condominio" value="{{ datos.nombre_condominio|default:'' }}" placeholder="Ej. Condominio Portal del Sol" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 7px;">
+                    </div>
+                    <div>
+                        <label for="direccion_condominio" style="display: block; margin-bottom: 6px; font-weight: 600;">Dirección</label>
+                        <input id="direccion_condominio" name="direccion_condominio" value="{{ datos.direccion_condominio|default:'' }}" placeholder="Avenida y número" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 7px;">
+                    </div>
+                    <div>
+                        <label for="ciudad_condominio" style="display: block; margin-bottom: 6px; font-weight: 600;">Ciudad</label>
+                        <input id="ciudad_condominio" name="ciudad_condominio" list="ciudades-disponibles" value="{{ datos.ciudad_condominio|default:'' }}" placeholder="Escribe o selecciona una ciudad" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 7px;">
+                        <datalist id="ciudades-disponibles">{% for ciudad in ciudades_sugeridas %}<option value="{{ ciudad }}">{% endfor %}</datalist>
+                    </div>
+                    <div>
+                        <label for="edificios_condominio" style="display: block; margin-bottom: 6px; font-weight: 600;">Cantidad de edificios</label>
+                        <input type="number" id="edificios_condominio" name="edificios_condominio" value="{{ datos.edificios_condominio|default:'1' }}" min="1" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 7px;">
+                    </div>
+                </div>
+                <small class="d-block mt-2" style="color: #64748b;">El condominio y el usuario se guardarán juntos, y el usuario quedará asociado al nuevo condominio.</small>
+            </div>
+            <script>
+                document.getElementById("crear_condominio").addEventListener("change", function () {
+                    document.getElementById("datos-nuevo-condominio").style.display = this.checked ? "grid" : "none";
+                });
+            </script>
         {% endif %}
 
     </div>
@@ -326,8 +395,106 @@ Nuevo usuario
     </div>
 
 </form>
-```
 
 </div>
 
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(() => {
+    const rol = document.getElementById("rol");
+    const condominio = document.getElementById("condominio");
+    const condominioUnicoWrap = document.getElementById("condominio-unico-contenedor");
+    const condominiosAdminWrap = document.getElementById("condominios-admin-contenedor");
+    const condominiosAdmin = document.getElementById("condominios_administrados");
+    const crearCondominio = document.getElementById("crear_condominio");
+    const panel = document.getElementById("asignacion-unidad-residente");
+    const edificioWrap = document.getElementById("selector-edificio-contenedor");
+    const edificioSelect = document.getElementById("edificio");
+    const unidadSelect = document.getElementById("unidad");
+    const propietarioSelect = document.getElementById("es_propietario");
+    const unidadAyuda = document.getElementById("unidad-ayuda");
+    if (!rol || !panel || !edificioSelect || !unidadSelect) return;
+
+    const edificioInicial = "{{ datos.edificio|default:''|escapejs }}";
+    const unidadInicial = "{{ datos.unidad|default:''|escapejs }}";
+    const cargarUnidades = async () => {
+        edificioSelect.innerHTML = '<option value="">Selecciona un edificio</option>';
+        unidadSelect.innerHTML = '<option value="">Primero selecciona el condominio</option>';
+        unidadSelect.disabled = true;
+        if (!condominio || !condominio.value || !propietarioSelect || !propietarioSelect.value || (crearCondominio && crearCondominio.checked)) return;
+
+        try {
+            const parametros = new URLSearchParams({condominio: condominio.value, es_propietario: propietarioSelect.value});
+            const respuesta = await fetch("{% url 'usuario_unidades_disponibles' %}?" + parametros.toString());
+            const datos = await respuesta.json();
+            const edificios = datos.edificios || [];
+            if (edificios.length === 0) {
+                unidadSelect.innerHTML = '<option value="">No hay edificios disponibles</option>';
+                unidadAyuda.textContent = "Este condominio aún no tiene edificios configurados.";
+                return;
+            }
+            edificios.forEach((edificio) => {
+                const opcion = document.createElement("option");
+                opcion.value = edificio.id;
+                opcion.textContent = edificio.nombre;
+                edificioSelect.appendChild(opcion);
+            });
+            const unSoloEdificio = edificios.length === 1;
+            edificioWrap.hidden = unSoloEdificio;
+            if (unSoloEdificio) {
+                edificioSelect.value = String(edificios[0].id);
+                edificioSelect.required = false;
+            } else {
+                edificioSelect.required = true;
+                if (edificioInicial && edificios.some((item) => String(item.id) === edificioInicial)) edificioSelect.value = edificioInicial;
+            }
+
+            const cargarUnidadesEdificio = () => {
+                const seleccionado = edificios.find((item) => String(item.id) === edificioSelect.value);
+                unidadSelect.innerHTML = '<option value="">Selecciona una unidad</option>';
+                if (!seleccionado) return;
+                seleccionado.unidades.forEach((unidad) => {
+                    const opcion = document.createElement("option");
+                    opcion.value = unidad.id;
+                    opcion.textContent = unidad.numero;
+                    unidadSelect.appendChild(opcion);
+                });
+                unidadSelect.disabled = false;
+                if (unidadInicial && seleccionado.unidades.some((item) => String(item.id) === unidadInicial)) unidadSelect.value = unidadInicial;
+                unidadAyuda.textContent = seleccionado.unidades.length
+                    ? "La unidad quedará vinculada al perfil del residente."
+                    : "Este edificio no tiene unidades disponibles para asignar.";
+                if (seleccionado.unidades.length === 0) unidadSelect.innerHTML = '<option value="">No hay unidades disponibles</option>';
+            };
+            edificioSelect.onchange = cargarUnidadesEdificio;
+            cargarUnidadesEdificio();
+        } catch (error) {
+            unidadSelect.innerHTML = '<option value="">No se pudieron cargar las unidades</option>';
+        }
+    };
+
+    const actualizarFormulario = () => {
+        const esResidente = rol.value === "Residente";
+        const esAdmin = rol.value === "Administrador";
+        const creandoCondominio = crearCondominio && crearCondominio.checked;
+        if (condominioUnicoWrap) condominioUnicoWrap.hidden = esAdmin && !creandoCondominio;
+        if (condominiosAdminWrap) condominiosAdminWrap.style.display = esAdmin && !creandoCondominio ? "block" : "none";
+        if (condominiosAdmin) condominiosAdmin.required = esAdmin && !creandoCondominio;
+        if (condominio) condominio.required = !esAdmin && !creandoCondominio && !!condominio.value;
+        panel.style.display = esResidente && !creandoCondominio ? "block" : "none";
+        unidadSelect.required = esResidente && !creandoCondominio;
+        propietarioSelect.required = esResidente && !creandoCondominio;
+        if (!esResidente || creandoCondominio) edificioSelect.required = false;
+        if (esResidente && !creandoCondominio) cargarUnidades();
+    };
+
+    rol.addEventListener("change", actualizarFormulario);
+    if (condominio) condominio.addEventListener("change", cargarUnidades);
+    if (propietarioSelect) propietarioSelect.addEventListener("change", cargarUnidades);
+    if (crearCondominio) crearCondominio.addEventListener("change", actualizarFormulario);
+    actualizarFormulario();
+})();
+</script>
 {% endblock %}

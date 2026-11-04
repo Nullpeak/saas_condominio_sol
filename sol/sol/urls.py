@@ -105,6 +105,12 @@ urlpatterns = [
     ),
 
     path(
+        "usuarios/unidades-disponibles/",
+        usuario_unidades_disponibles,
+        name="usuario_unidades_disponibles"
+    ),
+
+    path(
         "usuarios/<int:usuario_id>/editar/",
         usuario_editar,
         name="usuario_editar"
@@ -217,6 +223,11 @@ urlpatterns = [
         reservaciones_lista,
         name="reservaciones_lista"
     ),
+
+    path("visitas/", include("visitas.urls")),
+    path("tickets/", include("tickets.urls")),
+    path("anuncios/", include("anuncios.urls")),
+    path("mantenimientos/", include("mantenimientos.urls")),
 
     path(
         "reservaciones/nueva/",

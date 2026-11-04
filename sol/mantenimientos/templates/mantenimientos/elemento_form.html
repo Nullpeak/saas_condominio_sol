@@ -1,0 +1,50 @@
+{% extends "core/base.html" %}
+
+{% block title %}{% if elemento %}Editar equipo{% else %}Agregar equipo{% endif %} | Mantenimientos{% endblock %}
+{% block page_title %}{% if elemento %}Editar equipo o servicio{% else %}Agregar equipo o servicio{% endif %}{% endblock %}
+
+{% block content %}
+<header class="page-intro">
+    <h1>{% if elemento %}Editar equipo o servicio{% else %}Agregar equipo o servicio{% endif %}</h1>
+    <p>Guarda aquí la información que servirá como referencia para los próximos mantenimientos.</p>
+</header>
+
+<section class="card">
+    {% if errores %}<div class="alert alert-danger">{% for error in errores %}<div>{{ error }}</div>{% endfor %}</div>{% endif %}
+    <form method="post">
+        {% csrf_token %}
+        {% if elemento %}
+            <input type="hidden" name="condominio" value="{{ elemento.condominio_id }}">
+            <p class="text-secondary">Condominio: <strong class="text-dark">{{ elemento.condominio.nombre }}</strong></p>
+        {% elif condominio_unico %}
+            {% for condominio in condominios %}<input type="hidden" name="condominio" value="{{ condominio.id }}">{% endfor %}
+            <p class="text-secondary">Condominio: <strong class="text-dark">{{ condominios.0.nombre }}</strong></p>
+        {% else %}
+            <div class="mb-3">
+                <label class="form-label" for="condominio">Condominio</label>
+                <select class="form-select" id="condominio" name="condominio" required>
+                    <option value="">Selecciona un condominio</option>
+                    {% for condominio in condominios %}<option value="{{ condominio.id }}" {% if datos.condominio == condominio.id|stringformat:"s" %}selected{% endif %}>{{ condominio.nombre }}</option>{% endfor %}
+                </select>
+            </div>
+        {% endif %}
+        <div class="row g-3">
+            <div class="col-md-4">
+                <label class="form-label" for="categoria">Categoría</label>
+                <input class="form-control" id="categoria" name="categoria" maxlength="80" value="{{ datos.categoria|default:'' }}" placeholder="Ascensor, piscina, caldera…" required>
+                <div class="form-text">Puedes escribir una categoría nueva o usar una existente.</div>
+            </div>
+            <div class="col-md-4"><label class="form-label" for="nombre">Equipo o servicio</label><input class="form-control" id="nombre" name="nombre" maxlength="150" value="{{ datos.nombre|default:'' }}" placeholder="Ascensor torre norte" required></div>
+            <div class="col-md-4"><label class="form-label" for="ubicacion">Ubicación (opcional)</label><input class="form-control" id="ubicacion" name="ubicacion" maxlength="150" value="{{ datos.ubicacion|default:'' }}" placeholder="Torre norte, sala de bombas…"></div>
+            <div class="col-md-4"><label class="form-label" for="empresa_actual">Empresa actual</label><input class="form-control" id="empresa_actual" name="empresa_actual" maxlength="150" value="{{ datos.empresa_actual|default:'' }}"></div>
+            <div class="col-md-4"><label class="form-label" for="telefono_actual">Teléfono de contacto</label><input class="form-control" id="telefono_actual" name="telefono_actual" maxlength="40" value="{{ datos.telefono_actual|default:'' }}"></div>
+            <div class="col-md-4"><label class="form-label" for="correo_actual">Correo (opcional)</label><input class="form-control" type="email" id="correo_actual" name="correo_actual" maxlength="254" value="{{ datos.correo_actual|default:'' }}"></div>
+            <div class="col-12"><label class="form-label" for="notas">Notas (opcional)</label><textarea class="form-control" id="notas" name="notas" rows="3">{{ datos.notas|default:'' }}</textarea></div>
+        </div>
+        <div class="d-flex flex-wrap gap-2 mt-4">
+            <button class="button" type="submit">{% if elemento %}Guardar cambios{% else %}Agregar al registro{% endif %}</button>
+            {% if elemento %}<a class="button button-secondary" href="{% url 'mantenimientos:detalle' elemento.id %}">Cancelar</a>{% else %}<a class="button button-secondary" href="{% url 'mantenimientos:lista' %}">Cancelar</a>{% endif %}
+        </div>
+    </form>
+</section>
+{% endblock %}

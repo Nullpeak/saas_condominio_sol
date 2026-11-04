@@ -12,25 +12,22 @@ Editar usuario
 
 <!-- ============================== ENCABEZADO ============================== -->
 
-<div class="card">
+<header class="page-intro">
 
-```
-<h2>
+<h1>
     Editar usuario
-</h2>
+</h1>
 
 <p style="color: #64748b;">
     Modifica los datos que necesites y guarda los cambios.
 </p>
-```
 
-</div>
+</header>
 
 <!-- ============================== FORMULARIO ============================== -->
 
 <div class="card">
 
-```
 <form method="post">
 
     {% csrf_token %}
@@ -253,7 +250,7 @@ Editar usuario
 
                     <option
                         value="{{ rol.id }}"
-                        {% if usuario.rol_id == rol.id %}selected{% endif %}
+                        {% if usuario.rol == rol.id %}selected{% endif %}
                     >
                         {{ rol.nombre }}
                     </option>
@@ -265,7 +262,7 @@ Editar usuario
         </div>
 
 
-        <div>
+        <div id="condominio-unico-contenedor">
 
             <label
                 for="condominio"
@@ -297,6 +294,16 @@ Editar usuario
 
             </select>
 
+        </div>
+
+        <div id="condominios-admin-contenedor" style="display:none; grid-column:1/-1;">
+            <label for="condominios_administrados" style="display:block; margin-bottom:6px; font-weight:600;">Condominios a cargo</label>
+            <select id="condominios_administrados" name="condominios_administrados" multiple size="4" style="width:100%; padding:10px; border:1px solid #d1d5db; border-radius:7px;">
+                {% for condominio in condominios %}
+                <option value="{{ condominio.id }}" {% if condominio.id in condominios_asignados_usuario or condominio.id|stringformat:"s" in condominios_seleccionados or usuario.condominio_id == condominio.id %}selected{% endif %}>{{ condominio.nombre }}</option>
+                {% endfor %}
+            </select>
+            <small style="color:#64748b;">El Administrador podrá gestionar los condominios seleccionados.</small>
         </div>
 
     </div>
@@ -367,8 +374,26 @@ Editar usuario
     </div>
 
 </form>
-```
 
 </div>
+
+{% block extra_js %}
+<script>
+(() => {
+    const rol = document.getElementById("rol");
+    const individual = document.getElementById("condominio-unico-contenedor");
+    const multiple = document.getElementById("condominios-admin-contenedor");
+    const selectMultiple = document.getElementById("condominios_administrados");
+    const actualizar = () => {
+        const esAdmin = rol && rol.value === "Administrador";
+        if (individual) individual.hidden = esAdmin;
+        if (multiple) multiple.style.display = esAdmin ? "block" : "none";
+        if (selectMultiple) selectMultiple.required = esAdmin;
+    };
+    rol?.addEventListener("change", actualizar);
+    actualizar();
+})();
+</script>
+{% endblock %}
 
 {% endblock %}

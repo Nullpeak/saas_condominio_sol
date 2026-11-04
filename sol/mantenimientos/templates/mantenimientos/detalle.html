@@ -1,0 +1,69 @@
+{% extends "core/base.html" %}
+
+{% block title %}{{ elemento.nombre }} | Mantenimientos{% endblock %}
+{% block page_title %}{{ elemento.categoria }}{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+    <div>
+        <a class="small text-secondary text-decoration-none" href="{% url 'mantenimientos:lista' %}">← Registro de mantenimientos</a>
+        <h1 class="h3 mt-2 mb-1">{{ elemento.nombre }}</h1>
+        <p class="text-secondary mb-0">{{ elemento.categoria }}{% if elemento.ubicacion %} · {{ elemento.ubicacion }}{% endif %} · {{ elemento.condominio.nombre }}</p>
+    </div>
+    <a class="button button-secondary" href="{% url 'mantenimientos:editar_elemento' elemento.id %}">Editar equipo y contacto</a>
+</div>
+
+<section class="card mb-4">
+    <h2 class="h5 mb-3">Contacto actual</h2>
+    <div class="row g-3">
+        <div class="col-md-4"><div class="text-secondary small">Empresa</div><div>{{ elemento.empresa_actual|default:"Sin empresa registrada" }}</div></div>
+        <div class="col-md-4"><div class="text-secondary small">Teléfono</div><div>{{ elemento.telefono_actual|default:"Sin teléfono registrado" }}</div></div>
+        <div class="col-md-4"><div class="text-secondary small">Correo</div><div>{{ elemento.correo_actual|default:"Sin correo registrado" }}</div></div>
+    </div>
+    {% if elemento.notas %}<p class="mt-3 mb-0">{{ elemento.notas|linebreaksbr }}</p>{% endif %}
+</section>
+
+<section class="card mb-4">
+    <h2 class="h5">Registrar mantenimiento</h2>
+    <p class="text-secondary">La empresa y el teléfono se proponen con los datos actuales; puedes cambiarlos para este servicio.</p>
+    {% if errores %}<div class="alert alert-danger">{% for error in errores %}<div>{{ error }}</div>{% endfor %}</div>{% endif %}
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="row g-3">
+            <div class="col-md-4"><label class="form-label" for="fecha">Fecha del servicio</label><input class="form-control" type="date" id="fecha" name="fecha" value="{{ datos.fecha|default:'' }}" max="{{ hoy }}" required><div class="form-text">La fecha se mostrará como día/mes/año.</div></div>
+            <div class="col-md-4"><label class="form-label" for="empresa">Empresa que realizó el servicio</label><input class="form-control" id="empresa" name="empresa" maxlength="150" value="{{ datos.empresa|default:'' }}"></div>
+            <div class="col-md-4"><label class="form-label" for="telefono_empresa">Teléfono</label><input class="form-control" id="telefono_empresa" name="telefono_empresa" maxlength="40" value="{{ datos.telefono_empresa|default:'' }}"></div>
+            <div class="col-md-4"><label class="form-label" for="proximo_mantenimiento">Próximo mantenimiento (si lo indicaron)</label><input class="form-control" type="date" id="proximo_mantenimiento" name="proximo_mantenimiento" value="{{ datos.proximo_mantenimiento|default:'' }}"><div class="form-text">Puedes dejarlo vacío.</div></div>
+            <div class="col-12"><label class="form-label" for="descripcion">Trabajo realizado</label><textarea class="form-control" id="descripcion" name="descripcion" rows="3" required>{{ datos.descripcion|default:'' }}</textarea></div>
+            <div class="col-md-4"><label class="form-label" for="tipo_documento">Tipo de documento</label><select class="form-select" id="tipo_documento" name="tipo_documento">{% for valor, etiqueta in tipos_documento %}<option value="{{ valor }}" {% if datos.tipo_documento == valor %}selected{% endif %}>{{ etiqueta }}</option>{% endfor %}</select></div>
+            <div class="col-md-8"><label class="form-label" for="nombre_documento">Nombre para los archivos (opcional)</label><input class="form-control" id="nombre_documento" name="nombre_documento" maxlength="150" value="{{ datos.nombre_documento|default:'' }}" placeholder="Ej. Certificado de inspección anual"></div>
+            <div class="col-12"><label class="form-label" for="documentos">Boleta, certificado u otro documento</label><input class="form-control" type="file" id="documentos" name="documentos" accept=".pdf,.jpg,.jpeg,.png,.webp" multiple><div class="form-text">Puedes adjuntar hasta 10 archivos PDF o imágenes, de hasta 25 MB cada uno.</div></div>
+        </div>
+        <div class="mt-4"><button class="button" type="submit">Guardar mantenimiento</button></div>
+    </form>
+</section>
+
+<section aria-labelledby="historial-heading">
+    <h2 class="section-heading" id="historial-heading">Historial</h2>
+    {% for registro in registros %}
+        <article class="card mb-3">
+            <div class="d-flex flex-wrap justify-content-between gap-2">
+                <div><h3 class="h5 mb-1">{{ registro.fecha|date:"d/m/Y" }}</h3><div class="text-secondary">{{ registro.empresa|default:"Empresa no indicada" }}{% if registro.telefono_empresa %} · {{ registro.telefono_empresa }}{% endif %}</div></div>
+                {% if registro.proximo_mantenimiento %}<div class="text-md-end"><div class="small text-secondary">Próximo mantenimiento</div><strong>{{ registro.proximo_mantenimiento|date:"d/m/Y" }}</strong></div>{% endif %}
+            </div>
+            <p class="mt-3 mb-2">{{ registro.descripcion|linebreaksbr }}</p>
+            {% if registro.documentos.all %}
+                <div class="border-top pt-3 mt-3">
+                    <div class="small fw-semibold mb-2">Documentos adjuntos</div>
+                    <ul class="list-unstyled mb-0 d-flex flex-wrap gap-3">
+                        {% for documento in registro.documentos.all %}<li><a href="{% url 'mantenimientos:documento' documento.id %}">{{ documento.get_tipo_display }}{% if documento.nombre %}: {{ documento.nombre }}{% endif %}</a></li>{% endfor %}
+                    </ul>
+                </div>
+            {% endif %}
+            <div class="small text-secondary mt-3">Registrado por {{ registro.creado_por|default:"usuario no disponible" }}</div>
+        </article>
+    {% empty %}
+        <div class="card text-secondary">Todavía no se han registrado servicios para este equipo.</div>
+    {% endfor %}
+</section>
+{% endblock %}

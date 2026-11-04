@@ -88,6 +88,7 @@ class Unidad(models.Model):
     posicion = models.PositiveSmallIntegerField()
     numero_unidad = models.CharField(max_length=10)
     cantidad_residentes = models.PositiveSmallIntegerField(null=True, blank=True, validators=[MinValueValidator(1), MaxValueValidator(20)],)
+    propietario_vive = models.BooleanField(default=True)
     dueno = models.ForeignKey("Usuario",on_delete=models.PROTECT,null=True,blank=True,related_name="unidades_propias",)
     arrendatario = models.ForeignKey("Usuario",on_delete=models.SET_NULL,null=True,blank=True,related_name="unidades_arrendadas",)
 
@@ -138,6 +139,11 @@ class Usuario(models.Model):
         RESIDENTE = "Residente", "residente"
     user = models.OneToOneField(settings.AUTH_USER_MODEL,on_delete=models.CASCADE,null=True,blank=True,)
     condominio = models.ForeignKey("Condominio",on_delete=models.SET_NULL,null=True,blank=True,related_name="staff",)
+    condominios_administrados = models.ManyToManyField(
+        "Condominio",
+        blank=True,
+        related_name="administradores_asignados",
+    )
     nombre = models.CharField(max_length=30)
     nombre2 = models.CharField(max_length=30, blank=True)
     apellido = models.CharField(max_length=30)
@@ -152,6 +158,22 @@ class Usuario(models.Model):
 
     class Meta:
         db_table = "usuario"
+
+    def condominios_asignados(self):
+        if self.rol == self.Rol.SUPER:
+            return Condominio.objects.all()
+        if self.rol == self.Rol.ADMINISTRADOR:
+            return Condominio.objects.filter(
+                Q(pk=self.condominio_id) | Q(administradores_asignados=self)
+            ).distinct()
+        if self.condominio_id:
+            return Condominio.objects.filter(pk=self.condominio_id)
+        return Condominio.objects.none()
+
+    def puede_acceder_condominio(self, condominio_id):
+        if self.rol == self.Rol.SUPER:
+            return True
+        return self.condominios_asignados().filter(pk=condominio_id).exists()
 
     def __str__(self):
         return f"{self.nombre} {self.apellido}"
@@ -405,62 +427,8 @@ class Invitado(models.Model):
     def __str__(self):
         return f"{self.nombre} - {self.unidad}"
 #
-class Ticket(models.Model):
-    class Estado(models.TextChoices):
-        ABIERTO = "abierto", "Abierto"
-        EN_REVISION = "en_revision", "En revisión"
-        RESUELTO = "resuelto", "Resuelto"
-        CERRADO = "cerrado", "Cerrado"
-
-    class Prioridad(models.TextChoices):
-        BAJA = "baja", "Baja"
-        MEDIA = "media", "Media"
-        ALTA = "alta", "Alta"
-
-    condominio = models.ForeignKey(Condominio,on_delete=models.CASCADE,related_name="tickets",)
-    usuario = models.ForeignKey(Usuario,on_delete=models.PROTECT,related_name="tickets_creados",)
-    titulo = models.CharField(max_length=150)
-    descripcion = models.TextField()
-    estado = models.CharField(max_length=15, choices=Estado.choices, default=Estado.ABIERTO)
-    prioridad = models.CharField(max_length=5, choices=Prioridad.choices, blank=True)
-    asignado = models.ForeignKey(Usuario,on_delete=models.SET_NULL,null=True,blank=True,related_name="tickets_asignados",)
-    creado = models.DateTimeField(auto_now_add=True)
-    resuelto = models.DateTimeField(null=True, blank=True)
-
-    class Meta:
-        db_table = "ticket"
-        indexes = [
-            models.Index(fields=["estado"]),
-        ]
-
-    def __str__(self):
-        return f"#{self.pk} - {self.titulo}"
-
-    def clean(self):
-        super().clean()
-        if self.asignado_id and self.asignado.rol.nombre not in ("Gestor", "Administrador"):
-            raise ValidationError(
-                "Solo se puede asignar a un usuario con rol de gestor o administrador."
-            )
-        if self.asignado_id and self.asignado.condominio_id != self.condominio_id:
-            raise ValidationError(
-                "El usuario asignado no pertenece a este condominio."
-            )
-
-
 def ticket_archivo_path(instance, filename):
     return f"tickets/{instance.ticket_id}/{filename}"
-#
-class TicketArchivo(models.Model):
-    ticket = models.ForeignKey(Ticket,on_delete=models.CASCADE,related_name="pruebas",)
-    archivo = models.FileField(upload_to=ticket_archivo_path)
-    subido = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        db_table = "ticket_archivo"
-
-    def __str__(self):
-        return f"Prueba de ticket #{self.ticket_id}"
 #
 class Anuncio(models.Model):
     condominio = models.ForeignKey(Condominio,on_delete=models.CASCADE,related_name="anuncios",)
