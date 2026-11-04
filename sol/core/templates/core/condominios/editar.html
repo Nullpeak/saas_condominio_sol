@@ -12,25 +12,22 @@ Editar condominio
 
 <!-- ============================== ENCABEZADO ============================== -->
 
-<div class="card">
+<header class="page-intro">
 
-```
-<h2>
+<h1>
     Editar condominio
-</h2>
+</h1>
 
 <p style="color: #64748b;">
     Modifica los datos que necesites y guarda los cambios.
 </p>
-```
 
-</div>
+</header>
 
 <!-- ============================== FORMULARIO ============================== -->
 
 <div class="card">
 
-```
 <form method="post" enctype="multipart/form-data">
 
     {% csrf_token %}
@@ -115,6 +112,12 @@ Editar condominio
 
             </select>
 
+        </div>
+
+        <div>
+            <label for="edificios" style="display:block; margin-bottom:6px; font-weight:600;">Cantidad de edificios</label>
+            <input type="number" id="edificios" name="edificios" min="1" value="{{ datos.edificios|default:cantidad_edificios }}" required style="width:100%; padding:10px; border:1px solid #d1d5db; border-radius:7px;">
+            <small style="display:block; margin-top:6px; color:#64748b;">Al aumentar la cantidad se crearán edificios nuevos. Para reducirla, los edificios que se quiten deben estar vacíos.</small>
         </div>
 
     </div>
@@ -238,7 +241,6 @@ Editar condominio
     </div>
 
 </form>
-```
 
 </div>
 

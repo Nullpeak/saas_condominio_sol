@@ -1,0 +1,67 @@
+{% extends "core/base.html" %}
+
+{% block title %}Mantenimientos | CondoGestión{% endblock %}
+{% block page_title %}Mantenimientos{% endblock %}
+
+{% block content %}
+<header class="page-intro d-flex flex-wrap justify-content-between align-items-start gap-3">
+    <div>
+        <h1>Registro de mantenimientos</h1>
+        <p>Equipos y servicios del condominio, con su historial y documentos.</p>
+    </div>
+    <a class="button" href="{% url 'mantenimientos:crear_elemento' %}">Agregar equipo o servicio</a>
+</header>
+
+<form method="get" class="card mb-4">
+    <div class="row g-3 align-items-end">
+        {% if usuario_actual.rol == "Super Administrador" or condominios|length > 1 %}
+        <div class="col-md-5">
+            <label class="form-label" for="condominio">Condominio</label>
+            <select class="form-select" id="condominio" name="condominio">
+                <option value="">Todos los condominios</option>
+                {% for condominio in condominios %}<option value="{{ condominio.id }}" {% if condominio_filtro == condominio.id|stringformat:"s" %}selected{% endif %}>{{ condominio.nombre }}</option>{% endfor %}
+            </select>
+        </div>
+        {% endif %}
+        <div class="col-md-5">
+            <label class="form-label" for="categoria">Categoría</label>
+            <select class="form-select" id="categoria" name="categoria">
+                <option value="">Todas las categorías</option>
+                {% for nombre_categoria in categorias %}<option value="{{ nombre_categoria }}" {% if categoria_filtro == nombre_categoria %}selected{% endif %}>{{ nombre_categoria }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2"><button class="button button-secondary w-100" type="submit">Filtrar</button></div>
+    </div>
+</form>
+
+{% if elementos %}
+    {% regroup elementos by categoria as grupos_categoria %}
+    {% for grupo in grupos_categoria %}
+        <section class="mb-4" aria-labelledby="categoria-{{ forloop.counter }}">
+            <h2 class="section-heading" id="categoria-{{ forloop.counter }}">{{ grupo.grouper }}</h2>
+            <div class="table-responsive bg-white border rounded">
+                <table class="table table-hover align-middle mb-0">
+                    <thead><tr><th>Equipo o servicio</th><th>Condominio</th><th>Empresa actual</th><th>Próximo mantenimiento</th><th></th></tr></thead>
+                    <tbody>
+                    {% for elemento in grupo.list %}
+                        <tr>
+                            <td><a class="fw-semibold text-decoration-none" href="{% url 'mantenimientos:detalle' elemento.id %}">{{ elemento.nombre }}</a>{% if elemento.ubicacion %}<div class="small text-secondary">{{ elemento.ubicacion }}</div>{% endif %}</td>
+                            <td>{{ elemento.condominio.nombre }}</td>
+                            <td>{{ elemento.empresa_actual|default:"Sin empresa registrada" }}{% if elemento.telefono_actual %}<div class="small text-secondary">{{ elemento.telefono_actual }}</div>{% endif %}</td>
+                            <td>{% if elemento.proximo_mantenimiento %}<span class="{% if elemento.vencido %}text-danger fw-semibold{% endif %}">{{ elemento.proximo_mantenimiento|date:"d/m/Y" }}</span>{% if elemento.vencido %}<div class="small text-danger">Fecha vencida</div>{% endif %}{% else %}<span class="text-secondary">Sin fecha indicada</span>{% endif %}</td>
+                            <td class="text-end"><a class="btn btn-sm btn-outline-secondary" href="{% url 'mantenimientos:detalle' elemento.id %}">Ver historial</a></td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    {% endfor %}
+{% else %}
+    <div class="card text-center py-5">
+        <h2 class="h5">Todavía no hay equipos o servicios registrados</h2>
+        <p class="text-secondary mb-3">Agrega una categoría como ascensor o piscina y registra su primer mantenimiento.</p>
+        <div><a class="button" href="{% url 'mantenimientos:crear_elemento' %}">Agregar el primero</a></div>
+    </div>
+{% endif %}
+{% endblock %}

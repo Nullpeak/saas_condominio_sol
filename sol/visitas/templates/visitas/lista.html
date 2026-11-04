@@ -1,0 +1,108 @@
+{% extends "core/base.html" %}
+
+{% block title %}Visitas | CondoGestión{% endblock %}
+{% block page_title %}Visitas{% endblock %}
+
+{% block content %}
+<section class="card-custom">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+        <div>
+            <h2 class="h4 mb-1">{% if puede_gestionar %}Control de visitas{% else %}Mis visitas{% endif %}</h2>
+            <p class="text-muted mb-0">{% if puede_gestionar %}Revisa las visitas programadas para hoy y registra las llegadas en puerta.{% else %}Registra visitas para tus unidades y consulta su historial.{% endif %}</p>
+        </div>
+        <a class="button" href="{% url 'visitas:crear' %}">+ Registrar visita</a>
+    </div>
+
+    <form method="get" class="row g-3 align-items-end mb-4 p-3 rounded" style="background: #f8fafc;">
+        <input type="hidden" name="todas" value="1">
+        <div class="col-sm-6 col-lg-2">
+            <label for="fecha" class="form-label">Día de visita</label>
+            <input type="date" id="fecha" name="fecha" value="{{ fecha_filtro }}" class="form-control">
+        </div>
+        <div class="col-sm-6 col-lg-2">
+            <label for="unidad" class="form-label">Unidad</label>
+            <select id="unidad" name="unidad" class="form-select">
+                <option value="">Todas mis unidades</option>
+                {% for unidad in unidades %}
+                    <option value="{{ unidad.id }}" {% if unidad_filtro == unidad.id|stringformat:"s" %}selected{% endif %}>
+                        {{ unidad.edificio.nombre }} · {{ unidad.numero_unidad }}{% if puede_gestionar %} · {{ unidad.edificio.condominio.nombre }}{% endif %}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-sm-6 col-lg-2">
+            <label for="nombre" class="form-label">Nombre de la visita</label>
+            <input type="search" id="nombre" name="nombre" value="{{ nombre_filtro }}" class="form-control" placeholder="Buscar nombre">
+        </div>
+        <div class="col-sm-6 col-lg-2">
+            <label for="patente" class="form-label">Patente</label>
+            <input type="search" id="patente" name="patente" value="{{ patente_filtro }}" class="form-control" placeholder="Buscar patente">
+        </div>
+        <div class="col-sm-6 col-lg-2">
+            <label for="estado" class="form-label">Estado</label>
+            <select id="estado" name="estado" class="form-select">
+                <option value="">Todos</option>
+                {% for codigo, etiqueta in estados %}
+                    <option value="{{ codigo }}" {% if estado_filtro == codigo %}selected{% endif %}>{{ etiqueta }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-lg-2 d-flex gap-2">
+            <button class="button" type="submit">Filtrar</button>
+            <a class="btn btn-outline-secondary" href="?todas=1">Limpiar</a>
+        </div>
+    </form>
+
+    {% if puede_gestionar and not ver_todas and es_fecha_hoy %}
+        <div class="alert alert-info">Agenda de hoy · {{ hoy|date:"l d/m/Y" }}</div>
+    {% endif %}
+
+    {% if visitas %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>Visita</th><th>Unidad</th><th>Fecha</th><th>Motivo</th><th>Estado</th><th>Llegada</th>
+                        {% if puede_gestionar %}<th class="text-end">Acción</th>{% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for visita in visitas %}
+                        <tr>
+                            <td>
+                                <div class="fw-semibold">{{ visita.nombre }}</div>
+                                {% if visita.patente_vehiculo %}<small class="text-muted">Patente {{ visita.patente_vehiculo }}</small>{% endif %}
+                                {% if puede_gestionar and visita.registrado_por %}<small class="d-block text-muted">Registrada por {{ visita.registrado_por.nombre }} {{ visita.registrado_por.apellido }}</small>{% endif %}
+                            </td>
+                            <td>{% if visita.unidad %}{{ visita.edificio.nombre }} · {{ visita.unidad.numero_unidad }}{% else %}Unidad no disponible{% endif %}</td>
+                            <td>{{ visita.fecha_visita|date:"d/m/Y" }}</td>
+                            <td>{{ visita.motivo|default:"—" }}</td>
+                            <td>
+                                {% if visita.estado == "presente" %}<span class="badge text-bg-success">Presente</span>
+                                {% elif visita.estado == "sin_registro" %}<span class="badge text-bg-secondary">Sin registro</span>
+                                {% elif visita.estado == "finalizada" %}<span class="badge text-bg-light">Salida registrada</span>
+                                {% else %}<span class="badge text-bg-warning">Programada</span>{% endif %}
+                            </td>
+                            <td>{% if visita.tiempo_llegada %}{{ visita.tiempo_llegada|date:"H:i" }}{% else %}—{% endif %}</td>
+                            {% if puede_gestionar %}
+                                <td class="text-end">
+                                    {% if visita.estado == "pendiente" and visita.fecha_visita == hoy %}
+                                        <form method="post" action="{% url 'visitas:marcar_presente' visita.id %}" class="d-inline">
+                                            {% csrf_token %}<button type="submit" class="btn btn-sm btn-success">Marcar presente</button>
+                                        </form>
+                                    {% else %}<span class="text-muted small">—</span>{% endif %}
+                                </td>
+                            {% endif %}
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <div class="text-center py-5">
+            <h3 class="h5 mt-3">No encontramos visitas</h3>
+            <p class="text-muted mb-0">Prueba cambiando los filtros o registra una visita nueva.</p>
+        </div>
+    {% endif %}
+</section>
+{% endblock %}

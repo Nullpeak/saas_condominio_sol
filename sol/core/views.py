@@ -5,14 +5,17 @@ from datetime import time, datetime, timedelta
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
+from django.contrib import messages
 from django.contrib.auth.models import User
 from django.contrib.auth.views import (PasswordResetView,PasswordResetDoneView,PasswordResetConfirmView,PasswordResetCompleteView,)
 from django.urls import reverse_lazy
 from django.db import transaction
+from django.db.models import Q
 from django.core.exceptions import ValidationError
 from django.http import JsonResponse
 from django.utils import timezone
 from launch.guards import setup_disponible
+from launch.ciudades import ciudades_chile
 
 from .validators import *
 from .models import *
@@ -201,26 +204,10 @@ def administracion(request):
     if not puede_gestionar_usuarios(usuario):
         return redirect("inicio")
 
-    if es_super_administrador(usuario):
-        condominios = Condominio.objects.filter(activo=True)
-
-        usuarios = Usuario.objects.select_related(
-            "user",
-            "condominio"
-        ).all()
-
-    else:
-        condominios = Condominio.objects.filter(
-            id=usuario.condominio_id,
-            activo=True
-        )
-
-        usuarios = Usuario.objects.select_related(
-            "user",
-            "condominio"
-        ).filter(
-            condominio=usuario.condominio
-        )
+    condominios = usuario.condominios_asignados().filter(activo=True)
+    usuarios = Usuario.objects.select_related("user", "condominio").filter(
+        Q(condominio__in=condominios) | Q(condominios_administrados__in=condominios)
+    ).distinct()
 
     return render(request, "core/administracion.html", {
         "usuario": usuario,
@@ -239,18 +226,12 @@ def usuarios_lista(request):
         return redirect("inicio")
 
     if es_super_administrador(usuario_actual):
-        usuarios = Usuario.objects.select_related(
-            "user",
-            "condominio"
-        ).all()
-
+        usuarios = Usuario.objects.select_related("user", "condominio").all()
     else:
-        usuarios = Usuario.objects.select_related(
-            "user",
-            "condominio"
-        ).filter(
-            condominio=usuario_actual.condominio
-        )
+        condominios = usuario_actual.condominios_asignados()
+        usuarios = Usuario.objects.select_related("user", "condominio").filter(
+            Q(condominio__in=condominios) | Q(condominios_administrados__in=condominios)
+        ).distinct()
 
     return render(request, "core/usuarios/lista.html", {
         "usuario": usuario_actual,
@@ -268,15 +249,9 @@ def usuario_crear(request):
         return redirect("inicio")
 
     roles = lista_roles()
+    ciudades_sugeridas = ciudades_chile() if es_super_administrador(usuario_actual) else []
 
-    if es_super_administrador(usuario_actual):
-        condominios = Condominio.objects.filter(activo=True)
-
-    else:
-        condominios = Condominio.objects.filter(
-            id=usuario_actual.condominio_id,
-            activo=True
-        )
+    condominios = usuario_actual.condominios_asignados().filter(activo=True)
 
     if request.method == "POST":
         username = request.POST.get("username", "").strip()
@@ -294,6 +269,16 @@ def usuario_crear(request):
         rut = request.POST.get("rut", "").strip()
         rol_id = request.POST.get("rol", "").strip()
         condominio_id = request.POST.get("condominio", "").strip()
+        condominios_administrados_ids = request.POST.getlist("condominios_administrados")
+        crear_condominio = (
+            es_super_administrador(usuario_actual)
+            and request.POST.get("crear_condominio") == "on"
+        )
+        nombre_condominio = request.POST.get("nombre_condominio", "").strip()
+        direccion_condominio = request.POST.get("direccion_condominio", "").strip()
+        ciudad_condominio = request.POST.get("ciudad_condominio", "").strip()
+        edificios_condominio = request.POST.get("edificios_condominio", "1").strip()
+        es_propietario = request.POST.get("es_propietario", "")
 
         errores = []
 
@@ -402,7 +387,8 @@ def usuario_crear(request):
         if condominio_id:
             try:
                 condominio = Condominio.objects.get(
-                    id=int(condominio_id)
+                    id=int(condominio_id),
+                    activo=True,
                 )
 
             except (Condominio.DoesNotExist, ValueError):
@@ -410,35 +396,97 @@ def usuario_crear(request):
                     "El condominio seleccionado no es válido."
                 )
 
-        if es_administrador(usuario_actual):
+        if es_administrador(usuario_actual) and rol == Usuario.Rol.SUPER:
+            errores.append("Un Administrador no puede crear un Super Administrador.")
 
-            if rol == Usuario.Rol.SUPER:
-                errores.append(
-                    "Un Administrador no puede crear un Super Administrador."
-                )
+        if condominio and not usuario_actual.puede_acceder_condominio(condominio.id):
+            errores.append("No tienes permiso para crear usuarios en ese condominio.")
 
-            if condominio_id:
+        if rol == Usuario.Rol.ADMINISTRADOR:
+            if crear_condominio:
+                condominios_administrados_ids = []
+            elif not condominios_administrados_ids and condominio:
+                condominios_administrados_ids = [str(condominio.id)]
+            if not crear_condominio:
+                asignaciones = list(condominios.filter(pk__in=condominios_administrados_ids))
+                if not asignaciones or len(asignaciones) != len(set(condominios_administrados_ids)):
+                    errores.append("Selecciona uno o más condominios para el Administrador.")
+                elif not condominio or condominio.id not in {item.id for item in asignaciones}:
+                    condominio = asignaciones[0]
+
+        if es_super_administrador(usuario_actual) and rol != Usuario.Rol.SUPER:
+            if crear_condominio:
+                if not nombre_condominio:
+                    errores.append("Ingresa el nombre del nuevo condominio.")
+                if not direccion_condominio:
+                    errores.append("Ingresa la dirección del nuevo condominio.")
+                if not ciudad_condominio:
+                    errores.append("Indica la ciudad del nuevo condominio.")
                 try:
-                    condominio_id_numero = int(condominio_id)
-
-                    if (
-                        not usuario_actual.condominio_id
-                        or condominio_id_numero != usuario_actual.condominio_id
-                    ):
-                        errores.append(
-                            "Solo puedes crear usuarios dentro de tu propio condominio."
-                        )
-
+                    edificios_condominio_numero = int(edificios_condominio)
+                    if edificios_condominio_numero < 1:
+                        raise ValueError
                 except ValueError:
-                    errores.append(
-                        "El condominio seleccionado no es válido."
-                    )
+                    edificios_condominio_numero = 1
+                    errores.append("El condominio debe tener al menos un edificio.")
+            elif not condominio and rol != Usuario.Rol.ADMINISTRADOR:
+                errores.append("Selecciona el condominio al que pertenece este usuario o crea uno nuevo.")
+        elif crear_condominio:
+            errores.append("Solo puedes asociar un condominio nuevo a una cuenta que pertenezca a un condominio.")
 
-            condominio = usuario_actual.condominio
+        unidad_residente = None
+        if rol == Usuario.Rol.RESIDENTE:
+            if crear_condominio:
+                errores.append("Primero crea las unidades del condominio y luego registra al residente.")
+            elif not condominio:
+                errores.append("Selecciona el condominio del residente.")
+            else:
+                edificios_condominio = condominio.edificios_set.order_by("numero", "id")
+                edificio_seleccionado = None
+                if edificios_condominio.count() == 1:
+                    edificio_seleccionado = edificios_condominio.first()
+                else:
+                    edificio_id = request.POST.get("edificio", "").strip()
+                    try:
+                        edificio_seleccionado = edificios_condominio.filter(pk=int(edificio_id)).first()
+                    except (TypeError, ValueError):
+                        edificio_seleccionado = None
+                    if not edificio_seleccionado:
+                        errores.append("Selecciona el edificio del residente.")
+
+                if edificio_seleccionado:
+                    if es_propietario not in ("si", "no"):
+                        errores.append("Indica si el residente es propietario de la unidad.")
+                    campo_relacion = "dueno__isnull" if es_propietario == "si" else "arrendatario__isnull"
+                    unidades_disponibles = Unidad.objects.filter(edificio=edificio_seleccionado, **{campo_relacion: True}).order_by("numero_unidad")
+                    unidad_id = request.POST.get("unidad", "").strip()
+                    try:
+                        unidad_residente = unidades_disponibles.filter(pk=int(unidad_id)).first()
+                    except (TypeError, ValueError):
+                        unidad_residente = None
+                    if not unidad_residente:
+                        if not unidades_disponibles.exists():
+                            errores.append("El edificio no tiene unidades disponibles para asignar.")
+                        else:
+                            errores.append("Selecciona una unidad disponible para el residente.")
 
         if not errores:
 
             with transaction.atomic():
+
+                if crear_condominio:
+                    ciudad = Ciudad.objects.filter(
+                        nombre__iexact=ciudad_condominio
+                    ).first()
+                    if not ciudad:
+                        ciudad = Ciudad.objects.create(nombre=ciudad_condominio)
+                    condominio = Condominio.objects.create(
+                        nombre=nombre_condominio,
+                        direccion=direccion_condominio,
+                        ciudad=ciudad,
+                        edificios=edificios_condominio_numero,
+                        activo=True,
+                    )
 
                 user = User.objects.create_user(
                     username=username,
@@ -446,7 +494,7 @@ def usuario_crear(request):
                     email=email
                 )
 
-                Usuario.objects.create(
+                nuevo_usuario = Usuario.objects.create(
                     user=user,
                     condominio=condominio,
                     nombre=nombre,
@@ -460,21 +508,73 @@ def usuario_crear(request):
                     activo=True,
                 )
 
+                if rol == Usuario.Rol.ADMINISTRADOR:
+                    if crear_condominio:
+                        asignaciones = [condominio]
+                    else:
+                        asignaciones = list(condominios.filter(pk__in=condominios_administrados_ids))
+                        if not asignaciones:
+                            asignaciones = [condominio]
+                    nuevo_usuario.condominios_administrados.set(asignaciones)
+
+                if rol == Usuario.Rol.RESIDENTE:
+                    if es_propietario == "si":
+                        unidad_residente.dueno = nuevo_usuario
+                        unidad_residente.propietario_vive = True
+                        unidad_residente.save(update_fields=["dueno", "propietario_vive"])
+                    else:
+                        unidad_residente.arrendatario = nuevo_usuario
+                        unidad_residente.save(update_fields=["arrendatario"])
+
             return redirect("usuarios_lista")
 
         return render(request, "core/usuarios/crear.html", {
             "usuario": usuario_actual,
             "roles": roles,
             "condominios": condominios,
+            "ciudades_sugeridas": ciudades_sugeridas,
             "errores": errores,
             "datos": request.POST,
+            "condominios_seleccionados": request.POST.getlist("condominios_administrados"),
         })
 
     return render(request, "core/usuarios/crear.html", {
         "usuario": usuario_actual,
         "roles": roles,
         "condominios": condominios,
+        "ciudades_sugeridas": ciudades_sugeridas,
+        "condominios_seleccionados": [],
     })
+
+
+@login_required
+def usuario_unidades_disponibles(request):
+    usuario_actual = obtener_usuario(request)
+    if not puede_gestionar_usuarios(usuario_actual):
+        return JsonResponse({"edificios": []}, status=403)
+
+    try:
+        condominio_id = int(request.GET.get("condominio", ""))
+    except (TypeError, ValueError):
+        return JsonResponse({"edificios": []})
+
+    condominio = Condominio.objects.filter(pk=condominio_id, activo=True).first()
+    if not condominio or not usuario_actual.puede_acceder_condominio(condominio.id):
+        return JsonResponse({"edificios": []})
+
+    es_propietario = request.GET.get("es_propietario", "")
+    if es_propietario not in ("si", "no"):
+        return JsonResponse({"edificios": []})
+    campo_relacion = "dueno__isnull" if es_propietario == "si" else "arrendatario__isnull"
+    edificios = []
+    for edificio in condominio.edificios_set.order_by("numero", "id"):
+        unidades = edificio.unidades.filter(**{campo_relacion: True}).order_by("numero_unidad")
+        edificios.append({
+            "id": edificio.id,
+            "nombre": edificio.nombre,
+            "unidades": [{"id": unidad.id, "numero": unidad.numero_unidad} for unidad in unidades],
+        })
+    return JsonResponse({"edificios": edificios})
 
 
 # ============================== EDITAR USUARIO ==============================
@@ -495,8 +595,9 @@ def usuario_editar(request, usuario_id):
     )
 
     if es_administrador(usuario_actual):
-
-        if usuario.condominio_id != usuario_actual.condominio_id:
+        if not usuario_actual.condominios_asignados().filter(
+            pk__in=usuario.condominios_asignados().values("id")
+        ).exists():
             return redirect("usuarios_lista")
 
         if es_super_administrador(usuario):
@@ -504,14 +605,7 @@ def usuario_editar(request, usuario_id):
 
     roles = lista_roles()
 
-    if es_super_administrador(usuario_actual):
-        condominios = Condominio.objects.filter(activo=True)
-
-    else:
-        condominios = Condominio.objects.filter(
-            id=usuario_actual.condominio_id,
-            activo=True
-        )
+    condominios = usuario_actual.condominios_asignados().filter(activo=True)
 
     if request.method == "POST":
         nombre = request.POST.get("nombre", "").strip()
@@ -523,6 +617,7 @@ def usuario_editar(request, usuario_id):
         rut = request.POST.get("rut", "").strip()
         rol_id = request.POST.get("rol", "").strip()
         condominio_id = request.POST.get("condominio", "").strip()
+        condominios_administrados_ids = request.POST.getlist("condominios_administrados")
         activo = request.POST.get("activo") == "on"
 
         errores = []
@@ -610,31 +705,23 @@ def usuario_editar(request, usuario_id):
             )
 
         condominio = None
-
-        if es_administrador(usuario_actual):
-
-            condominio = usuario_actual.condominio
-
-            if not condominio:
-                errores.append(
-                    "El Administrador no tiene un condominio asociado."
-                )
-
-        else:
-
-            if condominio_id:
-                try:
-                    condominio = Condominio.objects.get(
-                        id=int(condominio_id)
-                    )
-
-                except (Condominio.DoesNotExist, ValueError):
-                    errores.append(
-                        "El condominio seleccionado no es válido."
-                    )
-
+        asignaciones = []
+        if rol == Usuario.Rol.ADMINISTRADOR:
+            if not condominios_administrados_ids and condominio_id:
+                condominios_administrados_ids = [condominio_id]
+            asignaciones = list(condominios.filter(pk__in=condominios_administrados_ids))
+            if not asignaciones or len(asignaciones) != len(set(condominios_administrados_ids)):
+                errores.append("Selecciona uno o más condominios para el Administrador.")
             else:
-                condominio = None
+                condominio = asignaciones[0]
+        elif condominio_id:
+            try:
+                condominio = condominios.get(id=int(condominio_id))
+            except (Condominio.DoesNotExist, ValueError):
+                errores.append("El condominio seleccionado no es válido o no está asignado a tu cuenta.")
+
+        if rol and rol != Usuario.Rol.SUPER and not condominio:
+            errores.append("Selecciona un condominio para este usuario.")
 
         if es_administrador(usuario_actual):
 
@@ -665,6 +752,11 @@ def usuario_editar(request, usuario_id):
 
                 usuario.save()
 
+                if rol == Usuario.Rol.ADMINISTRADOR:
+                    usuario.condominios_administrados.set(asignaciones)
+                else:
+                    usuario.condominios_administrados.clear()
+
                 if usuario.user:
                     usuario.user.email = email
                     usuario.user.is_active = activo
@@ -685,6 +777,8 @@ def usuario_editar(request, usuario_id):
             "condominios": condominios,
             "errores": errores,
             "datos": request.POST,
+            "condominios_seleccionados": condominios_administrados_ids,
+            "condominios_asignados_usuario": list(usuario.condominios_administrados.values_list("id", flat=True)),
         })
 
     return render(request, "core/usuarios/editar.html", {
@@ -692,6 +786,7 @@ def usuario_editar(request, usuario_id):
         "usuario": usuario,
         "roles": roles,
         "condominios": condominios,
+        "condominios_asignados_usuario": list(usuario.condominios_administrados.values_list("id", flat=True)),
     })
 
 
@@ -717,7 +812,9 @@ def usuario_cambiar_estado(request, usuario_id):
 
     if es_administrador(usuario_actual):
 
-        if usuario.condominio_id != usuario_actual.condominio_id:
+        if not usuario_actual.condominios_asignados().filter(
+            pk__in=usuario.condominios_asignados().values("id")
+        ).exists():
             return redirect("usuarios_lista")
 
         if es_super_administrador(usuario):
@@ -744,18 +841,10 @@ def condominios_lista(request):
     if not puede_gestionar_condominio(usuario_actual):
         return redirect("inicio")
 
-    if es_super_administrador(usuario_actual):
-        condominios = Condominio.objects.filter(
-            activo=True
-        )
-
-    else:
-        condominios = Condominio.objects.filter(
-            id=usuario_actual.condominio_id,
-            activo=True
-        )
+    condominios = usuario_actual.condominios_asignados().filter(activo=True)
 
     return render(request, "core/condominios/lista.html", {
+        "usuario": usuario_actual,
         "usuario_actual": usuario_actual,
         "condominios": condominios,
     })
@@ -767,15 +856,15 @@ def condominios_lista(request):
 def condominio_crear(request):
     usuario_actual = obtener_usuario(request)
 
-    if not es_super_administrador(usuario_actual):
+    if not puede_gestionar_condominio(usuario_actual):
         return redirect("condominios_lista")
 
-    ciudades = Ciudad.objects.all()
+    ciudades_sugeridas = ciudades_chile()
 
     if request.method == "POST":
         nombre = request.POST.get("nombre", "").strip()
         direccion = request.POST.get("direccion", "").strip()
-        ciudad_id = request.POST.get("ciudad", "").strip()
+        ciudad_nombre = request.POST.get("ciudad", "").strip()
         edificios = request.POST.get("edificios", "1").strip()
         portada = request.FILES.get("portada")
 
@@ -791,7 +880,7 @@ def condominio_crear(request):
                 "Debes ingresar la dirección."
             )
 
-        if not ciudad_id:
+        if not ciudad_nombre:
             errores.append(
                 "Debes seleccionar una ciudad."
             )
@@ -810,42 +899,34 @@ def condominio_crear(request):
                 "La cantidad de edificios no es válida."
             )
 
-        ciudad = None
-
-        if ciudad_id:
-            try:
-                ciudad = Ciudad.objects.get(
-                    id=int(ciudad_id)
-                )
-
-            except (Ciudad.DoesNotExist, ValueError):
-                errores.append(
-                    "La ciudad seleccionada no es válida."
-                )
-
         if not errores:
-
-            Condominio.objects.create(
-                nombre=nombre,
-                direccion=direccion,
-                ciudad=ciudad,
-                edificios=edificios_numero,
-                portada=portada,
-                activo=True,
-            )
+            with transaction.atomic():
+                ciudad = Ciudad.objects.filter(nombre__iexact=ciudad_nombre).first()
+                if not ciudad:
+                    ciudad = Ciudad.objects.create(nombre=ciudad_nombre)
+                condominio = Condominio.objects.create(
+                    nombre=nombre,
+                    direccion=direccion,
+                    ciudad=ciudad,
+                    edificios=edificios_numero,
+                    portada=portada,
+                    activo=True,
+                )
+                if es_administrador(usuario_actual):
+                    usuario_actual.condominios_administrados.add(condominio)
 
             return redirect("condominios_lista")
 
         return render(request, "core/condominios/crear.html", {
             "usuario_actual": usuario_actual,
-            "ciudades": ciudades,
+            "ciudades_sugeridas": ciudades_sugeridas,
             "errores": errores,
             "datos": request.POST,
         })
 
     return render(request, "core/condominios/crear.html", {
         "usuario_actual": usuario_actual,
-        "ciudades": ciudades,
+        "ciudades_sugeridas": ciudades_sugeridas,
     })
 
 
@@ -865,7 +946,7 @@ def condominio_editar(request, condominio_id):
 
     if es_administrador(usuario_actual):
 
-        if condominio.id != usuario_actual.condominio_id:
+        if not usuario_actual.puede_acceder_condominio(condominio.id):
             return redirect("condominios_lista")
 
     ciudades = Ciudad.objects.all()
@@ -874,6 +955,7 @@ def condominio_editar(request, condominio_id):
         nombre = request.POST.get("nombre", "").strip()
         direccion = request.POST.get("direccion", "").strip()
         ciudad_id = request.POST.get("ciudad", "").strip()
+        edificios_texto = request.POST.get("edificios", "").strip()
         activo = request.POST.get("activo") == "on"
         portada = request.FILES.get("portada")
 
@@ -908,17 +990,44 @@ def condominio_editar(request, condominio_id):
                 "Debes seleccionar una ciudad."
             )
 
+        try:
+            cantidad_edificios = int(edificios_texto)
+            if cantidad_edificios < 1:
+                raise ValueError
+        except (TypeError, ValueError):
+            cantidad_edificios = condominio.edificios_set.count()
+            errores.append("El condominio debe tener al menos un edificio.")
+
+        edificios_actuales = list(condominio.edificios_set.order_by("-numero", "-id"))
+        cantidad_actual = len(edificios_actuales)
+        edificios_a_eliminar = edificios_actuales[:max(0, cantidad_actual - cantidad_edificios)]
+        if any(edificio.unidades.exists() for edificio in edificios_a_eliminar):
+            errores.append("No se puede reducir la cantidad porque los edificios que se quitarían tienen unidades. Reasigna o elimina primero esas unidades.")
+
         if not errores:
+            with transaction.atomic():
+                if cantidad_edificios < cantidad_actual:
+                    for edificio in edificios_a_eliminar:
+                        edificio.delete()
+                elif cantidad_edificios > cantidad_actual:
+                    siguiente_numero = max((edificio.numero for edificio in edificios_actuales), default=0) + 1
+                    for numero in range(siguiente_numero, siguiente_numero + cantidad_edificios - cantidad_actual):
+                        Edificio.objects.create(
+                            condominio=condominio,
+                            numero=numero,
+                            nombre=f"Edificio {numero}",
+                        )
 
-            condominio.nombre = nombre
-            condominio.direccion = direccion
-            condominio.ciudad = ciudad
-            condominio.activo = activo
+                condominio.nombre = nombre
+                condominio.direccion = direccion
+                condominio.ciudad = ciudad
+                condominio.edificios = cantidad_edificios
+                condominio.activo = activo
 
-            if portada:
-                condominio.portada = portada
+                if portada:
+                    condominio.portada = portada
 
-            condominio.save()
+                condominio.save()
 
             return redirect("condominios_lista")
 
@@ -926,6 +1035,7 @@ def condominio_editar(request, condominio_id):
             "usuario_actual": usuario_actual,
             "condominio": condominio,
             "ciudades": ciudades,
+            "cantidad_edificios": condominio.edificios_set.count(),
             "errores": errores,
             "datos": request.POST,
         })
@@ -934,6 +1044,7 @@ def condominio_editar(request, condominio_id):
         "usuario_actual": usuario_actual,
         "condominio": condominio,
         "ciudades": ciudades,
+        "cantidad_edificios": condominio.edificios_set.count(),
     })
 
 
@@ -953,7 +1064,7 @@ def edificios_lista(request, condominio_id):
 
     if es_administrador(usuario_actual):
 
-        if condominio.id != usuario_actual.condominio_id:
+        if not usuario_actual.puede_acceder_condominio(condominio.id):
             return redirect("condominios_lista")
 
     edificios = condominio.edificios_set.all().prefetch_related(
@@ -985,7 +1096,7 @@ def edificio_editar(request, edificio_id):
 
     if es_administrador(usuario_actual):
 
-        if condominio.id != usuario_actual.condominio_id:
+        if not usuario_actual.puede_acceder_condominio(condominio.id):
             return redirect("condominios_lista")
 
     if request.method == "POST":
@@ -1089,7 +1200,7 @@ def unidades_lista(request, edificio_id):
 
     if es_administrador(usuario_actual):
 
-        if edificio.condominio_id != usuario_actual.condominio_id:
+        if not usuario_actual.puede_acceder_condominio(edificio.condominio_id):
             return redirect("condominios_lista")
 
     unidades = edificio.unidades.select_related(
@@ -1134,7 +1245,7 @@ def unidad_editar(request, unidad_id):
 
     if es_administrador(usuario_actual):
 
-        if usuario_actual.condominio_id != condominio.id:
+        if not usuario_actual.puede_acceder_condominio(condominio.id):
             return redirect("condominios_lista")
 
     usuarios = Usuario.objects.filter(
@@ -1201,6 +1312,7 @@ def unidad_editar(request, unidad_id):
 
             unidad.dueno = dueno
             unidad.arrendatario = arrendatario
+            unidad.propietario_vive = bool(dueno and request.POST.get("propietario_vive") == "on")
 
             unidad.save()
 
@@ -1247,7 +1359,7 @@ def areas_comunes_lista(request, condominio_id):
 
     if es_administrador(usuario_actual):
 
-        if condominio.id != usuario_actual.condominio_id:
+        if not usuario_actual.puede_acceder_condominio(condominio.id):
             return redirect("condominios_lista")
 
     areas = AreaComun.objects.filter(
@@ -1285,7 +1397,7 @@ def area_comun_crear(request, condominio_id):
 
     if es_administrador(usuario_actual):
 
-        if condominio.id != usuario_actual.condominio_id:
+        if not usuario_actual.puede_acceder_condominio(condominio.id):
             return redirect("condominios_lista")
 
     if request.method == "POST":
@@ -1458,7 +1570,7 @@ def area_comun_editar(request, area_id):
 
     if es_administrador(usuario_actual):
 
-        if condominio.id != usuario_actual.condominio_id:
+        if not usuario_actual.puede_acceder_condominio(condominio.id):
             return redirect("condominios_lista")
 
     if request.method == "POST":
@@ -1638,7 +1750,7 @@ def area_comun_horarios(request, area_id):
 
     if es_administrador(usuario_actual):
 
-        if condominio.id != usuario_actual.condominio_id:
+        if not usuario_actual.puede_acceder_condominio(condominio.id):
             return redirect("condominios_lista")
 
     horarios = area.horarios.all()
@@ -1782,7 +1894,7 @@ def area_comun_horario_actualizar(request, horario_id):
 
     if es_administrador(usuario_actual):
 
-        if condominio.id != usuario_actual.condominio_id:
+        if not usuario_actual.puede_acceder_condominio(condominio.id):
             return JsonResponse(
                 {
                     "ok": False,
@@ -1919,7 +2031,7 @@ def area_comun_horario_eliminar(request, horario_id):
 
     if es_administrador(usuario_actual):
 
-        if condominio.id != usuario_actual.condominio_id:
+        if not usuario_actual.puede_acceder_condominio(condominio.id):
             return redirect("condominios_lista")
 
     if request.method == "POST":
@@ -1953,15 +2065,15 @@ def reservacion_crear(request):
 
     usuario_actual = obtener_usuario(request)
 
-    if not usuario_actual.condominio_id:
+    if not usuario_actual.condominios_asignados().exists():
         return redirect("inicio")
 
-    condominio = usuario_actual.condominio
+    condominios = usuario_actual.condominios_asignados()
 
     # ============================== ÁREAS DISPONIBLES ==============================
 
     areas = AreaComun.objects.filter(
-        condominio=condominio,
+        condominio__in=condominios,
         reservable=True
     ).prefetch_related(
         "horarios"
@@ -1974,11 +2086,11 @@ def reservacion_crear(request):
     if es_residente(usuario_actual):
 
         unidades = Unidad.objects.filter(
-            edificio__condominio=condominio
+            edificio__condominio__in=condominios
         ).filter(
             dueno=usuario_actual
         ) | Unidad.objects.filter(
-            edificio__condominio=condominio,
+            edificio__condominio__in=condominios,
             arrendatario=usuario_actual
         )
 
@@ -1993,7 +2105,7 @@ def reservacion_crear(request):
     else:
 
         unidades = Unidad.objects.filter(
-            edificio__condominio=condominio
+            edificio__condominio__in=condominios
         ).select_related(
             "edificio"
         ).order_by(
@@ -2046,7 +2158,7 @@ def reservacion_crear(request):
             try:
                 area = AreaComun.objects.get(
                     id=int(area_id),
-                    condominio=condominio
+                    condominio__in=condominios
                 )
 
             except (
@@ -2076,12 +2188,9 @@ def reservacion_crear(request):
         else:
 
             try:
-                unidad = Unidad.objects.select_related(
-                    "edificio"
-                ).get(
-                    id=int(unidad_id),
-                    edificio__condominio=condominio
-                )
+                unidad = unidades.select_related("edificio", "edificio__condominio").filter(pk=int(unidad_id)).first()
+                if not unidad:
+                    raise Unidad.DoesNotExist
 
             except (
                 Unidad.DoesNotExist,
@@ -2090,6 +2199,9 @@ def reservacion_crear(request):
                 errores.append(
                     "La unidad seleccionada no es válida."
                 )
+
+        if area and unidad and unidad.edificio.condominio_id != area.condominio_id:
+            errores.append("La unidad seleccionada debe pertenecer al condominio del área.")
 
         # Los residentes solamente pueden reservar
         # usando una unidad de la que sean propietario
@@ -2347,7 +2459,7 @@ def reservacion_crear(request):
             "core/reservaciones/crear.html",
             {
                 "usuario_actual": usuario_actual,
-                "condominio": condominio,
+                "condominios": condominios,
                 "areas": areas,
                 "unidades": unidades,
                 "errores": errores,
@@ -2360,7 +2472,7 @@ def reservacion_crear(request):
         "core/reservaciones/crear.html",
         {
             "usuario_actual": usuario_actual,
-            "condominio": condominio,
+            "condominios": condominios,
             "areas": areas,
             "unidades": unidades,
         }
@@ -2418,10 +2530,7 @@ def reservacion_disponibilidad(request):
     # VERIFICAR QUE EL USUARIO PERTENEZCA AL CONDOMINIO
     # =========================================================
 
-    if (
-        usuario_actual.condominio_id
-        and usuario_actual.condominio_id != area.condominio_id
-    ):
+    if not usuario_actual.puede_acceder_condominio(area.condominio_id):
         return JsonResponse(
             {
                 "error": "No tienes acceso a esta área común."
@@ -2593,21 +2702,63 @@ def reservacion_disponibilidad(request):
 
 @login_required
 def reservaciones_lista(request):
-
     usuario_actual = obtener_usuario(request)
 
-    if not usuario_actual.condominio_id:
+    es_super = es_super_administrador(usuario_actual)
+    condominios = usuario_actual.condominios_asignados()
+    if not condominios.exists():
         return redirect("inicio")
 
-    reservaciones = Reservacion.objects.filter(
-        usuario=usuario_actual
-    ).select_related(
+    # El personal consulta todas las reservas de su condominio; residentes
+    # también pueden ver la agenda compartida, sin datos personales sensibles.
+    reservaciones = Reservacion.objects.select_related(
+        "usuario",
         "area_comun",
         "unidad",
         "unidad__edificio",
-    ).order_by(
-        "-fecha_reserva"
     )
+
+    if not es_super:
+        reservaciones = reservaciones.filter(
+            unidad__edificio__condominio__in=condominios
+        )
+
+    filtro = request.GET.get("filtro", "todas")
+    ahora = timezone.now()
+    total_reservas = reservaciones.count()
+    total_proximas = reservaciones.filter(
+        fin_reserva__gte=ahora,
+        estado__in=[Reservacion.Estado.PENDIENTE, Reservacion.Estado.APROBADO],
+    ).count()
+    total_historial = reservaciones.filter(
+        Q(fin_reserva__lt=ahora)
+        | Q(estado__in=[Reservacion.Estado.CANCELADO, Reservacion.Estado.RECHAZADO])
+    ).count()
+    if filtro == "proximas":
+        reservaciones = reservaciones.filter(
+            fin_reserva__gte=ahora,
+            estado__in=[Reservacion.Estado.PENDIENTE, Reservacion.Estado.APROBADO],
+        )
+    elif filtro == "historial":
+        reservaciones = reservaciones.filter(
+            Q(fin_reserva__lt=ahora)
+            | Q(estado__in=[Reservacion.Estado.CANCELADO, Reservacion.Estado.RECHAZADO])
+        )
+    elif filtro != "todas":
+        filtro = "todas"
+
+    reservaciones = list(reservaciones.order_by("-fecha_reserva", "-id"))
+    puede_gestionar = es_super or tiene_rol(
+        usuario_actual, "Administrador", "Gestor"
+    )
+    for reservacion in reservaciones:
+        reservacion.puede_cancelar = (
+            (puede_gestionar or reservacion.usuario_id == usuario_actual.id)
+            and reservacion.estado in [Reservacion.Estado.PENDIENTE, Reservacion.Estado.APROBADO]
+            and reservacion.fin_reserva is not None
+            and reservacion.fin_reserva > ahora
+        )
+        reservacion.es_mia = reservacion.usuario_id == usuario_actual.id
 
     return render(
         request,
@@ -2615,6 +2766,12 @@ def reservaciones_lista(request):
         {
             "usuario_actual": usuario_actual,
             "reservaciones": reservaciones,
+            "filtro": filtro,
+            "ahora": ahora,
+            "total_reservas": total_reservas,
+            "total_proximas": total_proximas,
+            "total_historial": total_historial,
+            "puede_gestionar_reservas": puede_gestionar,
         },
     )
 
@@ -2640,15 +2797,15 @@ def reservacion_crear(request):
 
     usuario_actual = obtener_usuario(request)
 
-    if not usuario_actual.condominio_id:
+    if not usuario_actual.condominios_asignados().exists():
         return redirect("inicio")
 
-    condominio = usuario_actual.condominio
+    condominios = usuario_actual.condominios_asignados()
 
     # ============================== ÁREAS DISPONIBLES ==============================
 
     areas = AreaComun.objects.filter(
-        condominio=condominio,
+        condominio__in=condominios,
         reservable=True
     ).prefetch_related(
         "horarios"
@@ -2661,11 +2818,11 @@ def reservacion_crear(request):
     if es_residente(usuario_actual):
 
         unidades = Unidad.objects.filter(
-            edificio__condominio=condominio
+            edificio__condominio__in=condominios
         ).filter(
             dueno=usuario_actual
         ) | Unidad.objects.filter(
-            edificio__condominio=condominio,
+            edificio__condominio__in=condominios,
             arrendatario=usuario_actual
         )
 
@@ -2680,7 +2837,7 @@ def reservacion_crear(request):
     else:
 
         unidades = Unidad.objects.filter(
-            edificio__condominio=condominio
+            edificio__condominio__in=condominios
         ).select_related(
             "edificio"
         ).order_by(
@@ -2733,7 +2890,7 @@ def reservacion_crear(request):
             try:
                 area = AreaComun.objects.get(
                     id=int(area_id),
-                    condominio=condominio
+                    condominio__in=condominios
                 )
 
             except (
@@ -2767,7 +2924,7 @@ def reservacion_crear(request):
                     "edificio"
                 ).get(
                     id=int(unidad_id),
-                    edificio__condominio=condominio
+                    edificio__condominio__in=condominios
                 )
 
             except (
@@ -3028,7 +3185,7 @@ def reservacion_crear(request):
             "core/reservaciones/crear.html",
             {
                 "usuario_actual": usuario_actual,
-                "condominio": condominio,
+                "condominios": condominios,
                 "areas": areas,
                 "unidades": unidades,
                 "errores": errores,
@@ -3041,7 +3198,7 @@ def reservacion_crear(request):
         "core/reservaciones/crear.html",
         {
             "usuario_actual": usuario_actual,
-            "condominio": condominio,
+            "condominios": condominios,
             "areas": areas,
             "unidades": unidades,
         }
@@ -3085,7 +3242,7 @@ def reservacion_editar(request, reservacion_id):
     area = reservacion.area_comun
     condominio = area.condominio
 
-    if usuario_actual.condominio_id != condominio.id:
+    if not usuario_actual.puede_acceder_condominio(condominio.id):
         return redirect("inicio")
 
     areas = AreaComun.objects.filter(
@@ -3448,36 +3605,34 @@ def reservacion_editar(request, reservacion_id):
 
 @login_required
 def reservacion_cancelar(request, reservacion_id):
+    if request.method != "POST":
+        return redirect("reservaciones_lista")
 
     usuario_actual = obtener_usuario(request)
     reservacion = get_object_or_404(
-        Reservacion,
+        Reservacion.objects.select_related("unidad__edificio"),
         id=reservacion_id
     )
-    # El residente solo puede cancelar sus propias reservas.
-    if es_residente(usuario_actual):
-        if reservacion.usuario_id != usuario_actual.id:
-            return redirect("reservaciones_lista")
+    es_super = es_super_administrador(usuario_actual)
+    es_personal = es_super or tiene_rol(usuario_actual, "Administrador", "Gestor")
 
-    if (
-        reservacion.unidad
-        and reservacion.unidad.edificio.condominio_id
-        != usuario_actual.condominio_id
-    ):
-        return redirect("inicio")
+    if not usuario_actual.puede_acceder_condominio(reservacion.unidad.edificio.condominio_id):
+        messages.error(request, "No tienes permiso para modificar esta reserva.")
+        return redirect("reservaciones_lista")
 
-    if request.method == "POST":
+    if not es_personal and reservacion.usuario_id != usuario_actual.id:
+        messages.error(request, "Solo puedes cancelar tus propias reservas.")
+        return redirect("reservaciones_lista")
 
-        if reservacion.estado not in [
-            Reservacion.Estado.CANCELADO,
-            Reservacion.Estado.RECHAZADO,
-        ]:
-
-            reservacion.estado = Reservacion.Estado.CANCELADO
-
-            reservacion.save(
-                update_fields=["estado"]
-            )
+    if reservacion.estado not in [Reservacion.Estado.PENDIENTE, Reservacion.Estado.APROBADO]:
+        messages.info(request, "Esta reserva ya no está activa.")
+    elif reservacion.fin_reserva and reservacion.fin_reserva <= timezone.now():
+        messages.info(request, "Las reservas pasadas se conservan en el historial.")
+    else:
+        # Se conserva el registro para que siga apareciendo en el historial.
+        reservacion.estado = Reservacion.Estado.CANCELADO
+        reservacion.save(update_fields=["estado"])
+        messages.success(request, "La reserva se canceló y quedó en el historial.")
 
     return redirect(
         "reservaciones_lista"

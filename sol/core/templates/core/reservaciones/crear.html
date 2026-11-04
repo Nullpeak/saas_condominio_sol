@@ -46,9 +46,11 @@
     height:30px;
     border-right:1px solid #e9ecef;
     border-bottom:1px solid #e9ecef;
-    cursor:pointer;
+    cursor:crosshair;
     position:relative;
-    transition:background-color .12s ease
+    transition:background-color .12s ease;
+    touch-action:none;
+    user-select:none
 }
 
 .bloque-horario:hover{background:#e9f2ff}
@@ -61,8 +63,23 @@
     background:#bfdbfe!important;
     border-left:2px solid #2563eb;
     border-right:2px solid #2563eb;
-    z-index:2
+    z-index:2;
+    cursor:move
 }
+
+.resize-handle{
+    position:absolute;
+    left:0;
+    right:0;
+    height:7px;
+    z-index:8;
+    cursor:ns-resize;
+    background:#2563eb;
+    opacity:.7
+}
+.resize-handle:hover{opacity:1}
+.resize-handle.top{top:0}
+.resize-handle.bottom{bottom:0}
 
 .bloque-horario.seleccionado-inicio{
     border-top:2px solid #2563eb;
@@ -243,7 +260,7 @@
                                 data-duracion="{{ area.duracion_maxima|default:'' }}"
                                 data-anticipacion="{{ area.dias_anticipacion_maxima|default:'' }}"
                                 data-consecutivas="{{ area.permite_reservas_consecutivas|yesno:'true,false' }}">
-                                {{ area.nombre }}
+                                {{ area.condominio.nombre }} · {{ area.nombre }}
                             </option>
                         {% endfor %}
 
@@ -271,7 +288,7 @@
                         {% for unidad in unidades %}
 
                             <div class="form-control bg-light">
-                                {{ unidad.edificio.nombre }} -
+                                {{ unidad.edificio.condominio.nombre }} · {{ unidad.edificio.nombre }} -
                                 Unidad {{ unidad.numero }}
                             </div>
 
@@ -305,7 +322,7 @@
                             {% for unidad in unidades %}
 
                                 <option value="{{ unidad.id }}">
-                                    {{ unidad.edificio.nombre }} -
+                                    {{ unidad.edificio.condominio.nombre }} · {{ unidad.edificio.nombre }} -
                                     Unidad {{ unidad.numero }}
                                 </option>
 
@@ -497,7 +514,7 @@
 
                         <div id="mensaje-duracion"
                              class="form-text mt-2">
-                            Selecciona la duración de tu reserva.
+                            Arrastra sobre la agenda para elegir el horario. Puedes mover la selección o ajustar sus extremos.
                         </div>
 
                     </div>
@@ -708,6 +725,12 @@ let horarios=[];
 let reservaciones=[];
 let reglas={};
 let seleccion=null;
+let arrastreReserva=null;
+
+agenda.addEventListener("pointerdown", iniciarArrastreReserva);
+window.addEventListener("pointermove", moverArrastreReserva);
+window.addEventListener("pointerup", finalizarArrastreReserva);
+window.addEventListener("pointercancel", finalizarArrastreReserva);
 
 function obtenerLunes(fecha){
     const resultado=new Date(fecha);
@@ -917,6 +940,8 @@ function actualizarReglas(){
         reglas.permite_reservas_consecutivas
         ?"Permitidas"
         :"No permitidas";
+
+    actualizarOpcionesDuracion();
 }
 
 function renderizarAgenda(){
@@ -1108,18 +1133,6 @@ function renderizarAgenda(){
                 );
             }
 
-            bloque.addEventListener(
-                "click",
-                function(){
-
-                    seleccionarBloque(
-                        dia,
-                        minutos,
-                        bloque
-                    );
-                }
-            );
-
             cuerpo.appendChild(bloque);
         });
     }
@@ -1179,54 +1192,126 @@ function bloqueEstaOcupado(
     });
 }
 
-function seleccionarBloque(
-    dia,
-    minutos,
-    bloque
-){
+function iniciarArrastreReserva(event){
+    const bloque=event.target.closest(".bloque-horario");
+    if(!bloque)return;
 
-    if(
-        bloque.classList.contains(
-            "fuera-horario"
-        ) ||
-        bloque.classList.contains(
-            "ocupado"
-        ) ||
-        bloque.classList.contains(
-            "pasado"
-        )
-    ){
+    const dia=Number(bloque.dataset.dia);
+    const minutos=Number(bloque.dataset.minutos);
+    const manilla=event.target.closest(".resize-handle");
+    const esDisponible=
+        bloque.classList.contains("disponible") &&
+        !bloque.classList.contains("ocupado") &&
+        !bloque.classList.contains("pasado");
+
+    if(manilla && seleccion){
+        event.preventDefault();
+        arrastreReserva={
+            tipo:manilla.classList.contains("top")?"inicio":"fin",
+            diaOriginal:obtenerIndiceDia(seleccion.fecha),
+            inicioOriginal:seleccion.inicioMinutos,
+            finOriginal:seleccion.inicioMinutos+seleccion.duracion,
+            anterior:{...seleccion},
+            movido:false
+        };
+        bloque.setPointerCapture(event.pointerId);
         return;
     }
 
-    const fecha=
-        crearFechaHora(
-            dia,
-            minutos
-        );
-
-    if(!fechaCumpleAnticipacion(fecha)){
-
-        mensajeFormulario.innerHTML=
-            '<div class="alert alert-warning">'+
-            'Este horario supera la anticipación máxima permitida para esta área.'+
-            '</div>';
-
+    if(seleccion && bloque.classList.contains("seleccionado")){
+        event.preventDefault();
+        arrastreReserva={
+            tipo:"mover",
+            diaOriginal:obtenerIndiceDia(seleccion.fecha),
+            inicioOriginal:seleccion.inicioMinutos,
+            finOriginal:seleccion.inicioMinutos+seleccion.duracion,
+            desfase:minutos-seleccion.inicioMinutos,
+            anterior:{...seleccion},
+            movido:false
+        };
+        bloque.setPointerCapture(event.pointerId);
         return;
     }
 
-    /*
-     * Al hacer clic en otro horario se reemplaza
-     * completamente la selección anterior.
-     */
+    if(!esDisponible)return;
 
-    seleccion={
-        fecha:fecha,
+    event.preventDefault();
+    arrastreReserva={
+        tipo:"crear",
+        diaOriginal:dia,
+        minutosOrigen:minutos,
+        anterior:seleccion?{...seleccion}:null,
+        movido:false
+    };
+    bloque.setPointerCapture(event.pointerId);
+    aplicarSeleccion({
+        fecha:agregarDias(semanaActual,dia),
         inicioMinutos:minutos,
         duracion:30
-    };
+    });
+}
 
-    actualizarSeleccion();
+function moverArrastreReserva(event){
+    if(!arrastreReserva)return;
+    const elemento=document.elementFromPoint(event.clientX,event.clientY);
+    const bloque=elemento&&elemento.closest(".bloque-horario");
+    if(!bloque)return;
+
+    const dia=Number(bloque.dataset.dia);
+    const minutos=Number(bloque.dataset.minutos);
+    let candidata=null;
+
+    if(arrastreReserva.tipo==="crear"){
+        if(dia!==arrastreReserva.diaOriginal)return;
+        const inicio=Math.min(arrastreReserva.minutosOrigen,minutos);
+        const fin=Math.max(arrastreReserva.minutosOrigen,minutos)+30;
+        candidata={
+            fecha:agregarDias(semanaActual,dia),
+            inicioMinutos:inicio,
+            duracion:fin-inicio
+        };
+    }else if(arrastreReserva.tipo==="mover"){
+        const inicio=minutos-arrastreReserva.desfase;
+        const duracion=arrastreReserva.finOriginal-arrastreReserva.inicioOriginal;
+        candidata={
+            fecha:agregarDias(semanaActual,dia),
+            inicioMinutos:inicio,
+            duracion:duracion
+        };
+    }else{
+        if(dia!==arrastreReserva.diaOriginal)return;
+        let inicio=arrastreReserva.inicioOriginal;
+        let fin=arrastreReserva.finOriginal;
+        if(arrastreReserva.tipo==="inicio")inicio=minutos;
+        else fin=minutos+30;
+        candidata={
+            fecha:agregarDias(semanaActual,dia),
+            inicioMinutos:inicio,
+            duracion:fin-inicio
+        };
+    }
+
+    if(candidata.duracion<=0)return;
+    arrastreReserva.movido=true;
+    aplicarSeleccion(candidata);
+}
+
+function finalizarArrastreReserva(){
+    if(!arrastreReserva)return;
+    arrastreReserva=null;
+    actualizarBotonConfirmar();
+}
+
+function aplicarSeleccion(candidata){
+    const anterior=seleccion?{...seleccion}:null;
+    seleccion=candidata;
+    if(!actualizarSeleccion()){
+        seleccion=anterior;
+        actualizarBotonDuracion();
+        actualizarBotonConfirmar();
+        return false;
+    }
+    return true;
 }
 
 function limpiarSeleccionVisual(){
@@ -1258,6 +1343,10 @@ function limpiarSeleccionVisual(){
         if(etiqueta){
             etiqueta.remove();
         }
+
+        elemento.querySelectorAll(".resize-handle").forEach(function(manilla){
+            manilla.remove();
+        });
     });
 
     fechaReserva.value="";
@@ -1266,14 +1355,7 @@ function limpiarSeleccionVisual(){
 
 function actualizarSeleccion(){
 
-    if(!seleccion)return;
-
-    /*
-     * Primero limpiamos absolutamente toda
-     * la selección anterior.
-     */
-
-    limpiarSeleccionVisual();
+    if(!seleccion)return false;
 
     const inicio=
         seleccion.inicioMinutos;
@@ -1286,6 +1368,24 @@ function actualizarSeleccion(){
         obtenerIndiceDia(
             seleccion.fecha
         );
+
+    if(seleccion.duracion>maximoDuracionMinutos()){
+        mensajeDuracion.textContent=
+            "La duración supera el máximo permitido para esta área.";
+        mensajeDuracion.className="form-text mt-2 text-danger";
+        return false;
+    }
+
+    const fechaInicioValidacion=crearFechaHora(
+        seleccion.fecha,
+        seleccion.inicioMinutos
+    );
+    if(!fechaCumpleAnticipacion(fechaInicioValidacion)){
+        mensajeDuracion.textContent=
+            "Este horario supera la anticipación máxima permitida.";
+        mensajeDuracion.className="form-text mt-2 text-danger";
+        return false;
+    }
 
     let puedeSeleccionarse=true;
 
@@ -1327,8 +1427,10 @@ function actualizarSeleccion(){
         mensajeDuracion.className=
             "form-text mt-2 text-danger";
 
-        return;
+        return false;
     }
+
+    limpiarSeleccionVisual();
 
     let primerBloque=null;
     let ultimoBloque=null;
@@ -1363,6 +1465,11 @@ function actualizarSeleccion(){
         primerBloque.classList.add(
             "seleccionado-inicio"
         );
+
+        const manillaInicio=document.createElement("span");
+        manillaInicio.className="resize-handle top";
+        manillaInicio.title="Arrastra para cambiar la hora de inicio";
+        primerBloque.appendChild(manillaInicio);
     }
 
     const fechaInicio=
@@ -1407,6 +1514,11 @@ function actualizarSeleccion(){
         ultimoBloque.appendChild(
             etiqueta
         );
+
+        const manillaFin=document.createElement("span");
+        manillaFin.className="resize-handle bottom";
+        manillaFin.title="Arrastra para cambiar la hora de término";
+        ultimoBloque.appendChild(manillaFin);
     }
 
     fechaReserva.value=
@@ -1449,6 +1561,8 @@ function actualizarSeleccion(){
     actualizarBotonDuracion();
 
     actualizarBotonConfirmar();
+
+    return true;
 }
 
 function obtenerBloque(
@@ -1487,26 +1601,11 @@ opcionesDuracion.forEach(function(boton){
                     this.dataset.minutos
                 );
 
-            if(
-                reglas.duracion_maxima &&
-                minutos>
-                Number(
-                    reglas.duracion_maxima
-                )*60
-            ){
-
-                mensajeDuracion.textContent=
-                    "La duración supera el máximo permitido para esta área.";
-
-                mensajeDuracion.className=
-                    "form-text mt-2 text-danger";
-
-                return;
-            }
-
-            seleccion.duracion=minutos;
-
-            actualizarSeleccion();
+            aplicarSeleccion({
+                fecha:seleccion.fecha,
+                inicioMinutos:seleccion.inicioMinutos,
+                duracion:minutos
+            });
         }
     );
 });
@@ -1526,6 +1625,20 @@ function actualizarBotonDuracion(){
             minutos===
             seleccion.duracion
         );
+    });
+}
+
+function maximoDuracionMinutos(){
+    const maximo=Number(reglas.duracion_maxima);
+    return maximo>0?maximo*60:Infinity;
+}
+
+function actualizarOpcionesDuracion(){
+    const maximo=maximoDuracionMinutos();
+    opcionesDuracion.forEach(function(boton){
+        const superaMaximo=Number(boton.dataset.minutos)>maximo;
+        boton.hidden=superaMaximo;
+        boton.disabled=superaMaximo;
     });
 }
 

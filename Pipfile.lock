@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "1610162f8fae47b9e2797bfc7b721cc71b3db10504b888d54cd6312286432c2f"
+            "sha256": "3a7823f1b2c3b462c2a73257198e54b3e3efa5d4912e9215401d573019095eb8"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -74,6 +74,15 @@
             "markers": "python_version >= '3.10'",
             "version": "==4.2.0"
         },
+        "geonamescache": {
+            "hashes": [
+                "sha256:1cc7007a7a14637f665c7bd7934dc5a04a973daf4d962d789651047aa1a00cb1",
+                "sha256:b830e8942f2d58c7e68782dcf4dff2ffe8c4104a35ee881ed1ad4023cefcdba4"
+            ],
+            "index": "pypi",
+            "markers": "python_version >= '3.10'",
+            "version": "==3.0.2"
+        },
         "isort": {
             "hashes": [
                 "sha256:182918b730772292d33564a6ac5b201ca2bb79a8ad2ac77e7681ecc0f19a8f84",
@@ -132,6 +141,15 @@
             ],
             "markers": "python_version >= '3.8'",
             "version": "==1.1.0"
+        },
+        "phonenumbers": {
+            "hashes": [
+                "sha256:ccf2ea44f8aa35c487f26146a31520ecedf8e1af1f57c803678ecb5ef5c01668",
+                "sha256:dfa6f74eeac67c044b75313fe0af10774d7d1e1242241437279d4c2fb8027c01"
+            ],
+            "index": "pypi",
+            "markers": "python_version >= '2.5'",
+            "version": "==9.0.41"
         },
         "pillow": {
             "hashes": [
@@ -283,6 +301,14 @@
             ],
             "markers": "python_version >= '3.9'",
             "version": "==0.15.1"
+        },
+        "typing-extensions": {
+            "hashes": [
+                "sha256:481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8",
+                "sha256:dc983d19a509c94dba722ee6abd33940f7c05a89e243c47e907eb4db6f1a43e5"
+            ],
+            "markers": "python_version >= '3.9'",
+            "version": "==4.16.0"
         },
         "tzdata": {
             "hashes": [

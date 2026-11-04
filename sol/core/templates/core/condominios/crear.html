@@ -12,25 +12,22 @@ Nuevo condominio
 
 <!-- ============================== ENCABEZADO ============================== -->
 
-<div class="card">
+<header class="page-intro">
 
-```
-<h2>
+<h1>
     Crear condominio
-</h2>
+</h1>
 
 <p style="color: #64748b;">
     Completa los datos para registrar un nuevo condominio en el sistema.
 </p>
-```
 
-</div>
+</header>
 
 <!-- ============================== FORMULARIO ============================== -->
 
 <div class="card">
 
-```
 <form method="post" enctype="multipart/form-data">
 
     {% csrf_token %}
@@ -97,29 +94,19 @@ Nuevo condominio
                 Ciudad
             </label>
 
-            <select
+            <input
                 id="ciudad"
                 name="ciudad"
+                type="text"
+                list="ciudades-disponibles"
+                value="{{ datos.ciudad|default:'' }}"
                 required
                 style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 7px;"
             >
-
-                <option value="">
-                    Seleccionar ciudad
-                </option>
-
-                {% for ciudad in ciudades %}
-
-                    <option
-                        value="{{ ciudad.id }}"
-                        {% if datos.ciudad == ciudad.id|stringformat:"s" %}selected{% endif %}
-                    >
-                        {{ ciudad.nombre }}
-                    </option>
-
-                {% endfor %}
-
-            </select>
+            <datalist id="ciudades-disponibles">
+                {% for ciudad in ciudades_sugeridas %}<option value="{{ ciudad }}">{% endfor %}
+            </datalist>
+            <small style="display: block; margin-top: 6px; color: #64748b;">Escribe una ciudad o elige una sugerencia.</small>
 
         </div>
 
@@ -226,7 +213,6 @@ Nuevo condominio
     </div>
 
 </form>
-```
 
 </div>
 
