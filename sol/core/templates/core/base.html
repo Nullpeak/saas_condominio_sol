@@ -572,6 +572,21 @@
             {% endif %}
 
 
+            <!-- ============================== SOPORTE ============================== -->
+
+            {% if perfil %}
+
+                <div class="menu-title">
+                    Soporte
+                </div>
+
+                <a href="{% url 'tickets:lista' %}">
+                    🎫 {% if perfil.rol == "Residente" %}Mis tickets{% else %}Tickets{% endif %}
+                </a>
+
+            {% endif %}
+
+
             <!-- ============================== MÓDULOS ============================== -->
 
             <div class="menu-title">

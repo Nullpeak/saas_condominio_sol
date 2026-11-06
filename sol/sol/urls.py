@@ -246,5 +246,6 @@ urlpatterns = [
     ),
     path("launch/", include("launch.urls")),
     path("", include("invitaciones.urls")),
-    path("notificaciones/", include("notis.urls"))
+    path("notificaciones/", include("notis.urls")),
+    path("tickets/", include("tickets.urls")),
 ]

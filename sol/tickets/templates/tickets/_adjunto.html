@@ -1,0 +1,10 @@
+{% url 'tickets:archivo' a.pk as url_adj %}
+{% if a.es_imagen %}
+    <a class="tk-adj" href="{{ url_adj }}" target="_blank" rel="noopener" title="{{ a.nombre }}">
+        <img src="{{ url_adj }}" alt="{{ a.nombre }}" loading="lazy">
+    </a>
+{% else %}
+    <a class="tk-adj" href="{{ url_adj }}" title="{{ a.nombre }}">
+        <div class="doc">📄</div><span>{{ a.nombre|default:"Documento" }}</span>
+    </a>
+{% endif %}

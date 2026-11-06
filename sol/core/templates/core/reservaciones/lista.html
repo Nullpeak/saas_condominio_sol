@@ -43,7 +43,7 @@
                 <thead>
 
                     <tr>
-                        <th>Área común</th>
+                        <th>Reserva</th>
                         <th>Fecha</th>
                         <th>Inicio</th>
                         <th>Término</th>
@@ -59,7 +59,11 @@
                         <tr>
 
                             <td>
-                                {{ reservacion.area_comun.nombre }}
+                                {% if reservacion.tipo_reserva == "invitado" %}
+                                    👤 Visita: {{ reservacion.nombre_invitado }}
+                                {% else %}
+                                    {{ reservacion.area_comun.nombre }}
+                                {% endif %}
                             </td>
 
                             <td>

@@ -1,0 +1,130 @@
+{% extends "core/base.html" %}
+
+{% block title %}Nuevo ticket · CondoGestión{% endblock %}
+{% block page_title %}🎫 Nuevo ticket{% endblock %}
+
+{% block extra_css %}
+{% include "tickets/_estilos.html" %}
+<style>
+    .tk-visitas { margin-top: 22px; padding: 16px; border: 1px solid #bfdbfe; background: #f8fbff; border-radius: 10px; }
+    .tk-visitas h3 { font-size: 15px; font-weight: 700; margin: 0 0 4px; }
+    .tk-visita { position: relative; border-top: 1px dashed #cbd5e1; padding-top: 6px; margin-top: 14px; }
+    .tk-visita:first-of-type { border-top: none; margin-top: 4px; }
+    .tk-visita-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+    .tk-visita-grid .ancho { grid-column: 1 / -1; }
+    .tk-visita-num { font-size: 12px; font-weight: 700; color: #2563eb; text-transform: uppercase; margin-top: 8px; }
+    .tk-quitar { position: absolute; right: 0; top: 8px; background: none; border: none; color: #b91c1c; font-size: 13px; cursor: pointer; }
+    .tk-form input[type=datetime-local] { width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font: inherit; }
+    @media (max-width: 600px) { .tk-visita-grid { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="card-custom tk-form" style="max-width: 680px;">
+
+    <p class="text-secondary">
+        Cuéntanos qué pasó. Mientras más detalle (y fotos), más rápido lo podemos resolver.
+    </p>
+
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+
+        {% for e in form.non_field_errors %}<div class="alert alert-danger">{{ e }}</div>{% endfor %}
+
+        {% for campo in form %}
+            <label for="{{ campo.id_for_label }}">{{ campo.label }}</label>
+            {{ campo }}
+            {% if campo.help_text %}<div class="help">{{ campo.help_text }}</div>{% endif %}
+            {% for e in campo.errors %}<div class="error">{{ e }}</div>{% endfor %}
+        {% endfor %}
+
+        <!-- ============================== VISITAS ============================== -->
+        <div class="tk-visitas" id="bloque-visitas">
+            <h3>👥 Visitas a registrar</h3>
+            <div class="help">Quedan registradas cuando la administración apruebe la solicitud.</div>
+
+            {{ visitas.management_form }}
+            {% for e in visitas.non_form_errors %}<div class="error">{{ e }}</div>{% endfor %}
+
+            <div id="lista-visitas">
+                {% for vf in visitas %}
+                    {% include "tickets/_visita_form.html" with vf=vf numero=forloop.counter %}
+                {% endfor %}
+            </div>
+
+            <template id="plantilla-visita">
+                {% include "tickets/_visita_form.html" with vf=visitas.empty_form numero="__num__" %}
+            </template>
+
+            <button type="button" class="button button-secondary mt-3" id="agregar-visita">➕ Agregar otra persona</button>
+        </div>
+
+        <div class="d-flex gap-2 mt-4">
+            <button class="button" type="submit">Enviar ticket</button>
+            <a class="button button-secondary" href="{% url 'tickets:lista' %}">Cancelar</a>
+        </div>
+    </form>
+
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    var cat = document.getElementById("id_categoria");
+    var bloque = document.getElementById("bloque-visitas");
+    var lista = document.getElementById("lista-visitas");
+    var plantilla = document.getElementById("plantilla-visita");
+    var total = document.getElementById("id_visitas-TOTAL_FORMS");
+    var maximo = parseInt(document.getElementById("id_visitas-MAX_NUM_FORMS").value, 10);
+    var boton = document.getElementById("agregar-visita");
+    var unidad = document.getElementById("id_unidad");
+    if (!cat || !bloque) return;
+
+    function esVisitas() { return cat.value === "visitas"; }
+
+    // Los campos de visitas se deshabilitan cuando no aplican: así el navegador
+    // no exige completarlos y tampoco se envían.
+    function mostrar() {
+        bloque.style.display = esVisitas() ? "" : "none";
+        lista.querySelectorAll("input").forEach(function (i) { i.disabled = !esVisitas(); });
+        if (unidad) unidad.required = esVisitas();
+    }
+
+    // Renumera prefijos (visitas-N-campo) y títulos después de agregar o quitar
+    function renumerar() {
+        Array.prototype.forEach.call(lista.children, function (fila, i) {
+            fila.querySelectorAll("[name],[id],[for]").forEach(function (el) {
+                ["name", "id", "for"].forEach(function (a) {
+                    var v = el.getAttribute(a);
+                    if (v) el.setAttribute(a, v.replace(/visitas-(\d+|__prefix__)-/, "visitas-" + i + "-"));
+                });
+            });
+            fila.querySelector(".tk-visita-num").textContent = "Persona " + (i + 1);
+            fila.querySelector(".tk-quitar").hidden = lista.children.length === 1;
+        });
+        total.value = lista.children.length;
+        boton.hidden = lista.children.length >= maximo;
+    }
+
+    boton.addEventListener("click", function () {
+        if (lista.children.length >= maximo) return;
+        lista.appendChild(plantilla.content.firstElementChild.cloneNode(true));
+        renumerar();
+        mostrar();
+    });
+
+    lista.addEventListener("click", function (ev) {
+        if (!ev.target.classList.contains("tk-quitar") || lista.children.length === 1) return;
+        ev.target.closest(".tk-visita").remove();
+        renumerar();
+    });
+
+    cat.addEventListener("change", mostrar);
+    renumerar();
+    mostrar();
+})();
+</script>
+{% endblock %}

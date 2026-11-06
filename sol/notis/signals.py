@@ -8,7 +8,8 @@ from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 
 # Ajusta "core" al nombre real de la app donde está tu models.py
-from core.models import Anuncio, Invitado, Pago, Reservacion, Ticket, Usuario
+from core.models import Anuncio, Invitado, Pago, Reservacion, Usuario
+from tickets.models import Ticket, TicketComentario, TicketVisita
 # Ajusta "invitaciones" al nombre real de esa app
 from invitaciones.models import Invitacion
 
@@ -89,6 +90,7 @@ def residentes_del_condominio(condominio_id):
 @receiver(pre_save, sender=Ticket)
 @receiver(pre_save, sender=Pago)
 @receiver(pre_save, sender=Invitado)
+@receiver(pre_save, sender=TicketVisita)
 @seguro
 def guardar_anterior(sender, instance, **kwargs):
     instance._anterior = (
@@ -127,6 +129,8 @@ def notificar_cambio_perfil(sender, instance, created, **kwargs):
 @receiver(post_save, sender=Reservacion)
 @seguro
 def notificar_reservacion(sender, instance, created, **kwargs):
+    if created and getattr(instance, "_desde_ticket", False):
+        return  # la aprobó el staff desde un ticket de visitas: el aviso lo da TicketVisita
     if created:
         notificar(
             staff_del_condominio(instance.unidad.edificio.condominio_id),
@@ -145,14 +149,29 @@ def notificar_reservacion(sender, instance, created, **kwargs):
 
 
 # ----------------------------------------------------------------- Ticket
+# tickets/services.py deja en `instance._actor` quién hizo el cambio: así nadie se notifica a sí mismo.
+def _url_ticket(ticket):
+    from django.urls import reverse
+    return reverse("tickets:detalle", args=[ticket.pk])
+
+
+def _equipo_del_ticket(ticket):
+    """El responsable si hay uno; si no, todo el staff del condominio."""
+    return [ticket.asignado] if ticket.asignado_id else staff_del_condominio(ticket.condominio_id)
+
+
 @receiver(post_save, sender=Ticket)
 @seguro
 def notificar_ticket(sender, instance, created, **kwargs):
+    actor = getattr(instance, "_actor", None)
+    url = _url_ticket(instance)
+
     if created:
         notificar(
             staff_del_condominio(instance.condominio_id),
             f"Nuevo ticket #{instance.pk}: {instance.titulo} (por {instance.usuario}).",
             remitente=instance.usuario,
+            url=url,
         )
         return
 
@@ -161,17 +180,69 @@ def notificar_ticket(sender, instance, created, **kwargs):
         return
 
     if anterior.estado != instance.estado:
-        notificar(
-            [instance.usuario],
-            f"Tu ticket #{instance.pk} cambió a estado: {instance.get_estado_display()}.",
-        )
+        if actor is not None and actor.pk == instance.usuario_id:
+            # El residente confirmó, reabrió o canceló: se avisa al equipo
+            notificar(
+                _equipo_del_ticket(instance),
+                f"{actor} dejó el ticket #{instance.pk} en estado: {instance.get_estado_display()}.",
+                remitente=actor,
+                url=url,
+            )
+        else:
+            notificar(
+                [instance.usuario],
+                f"Tu ticket #{instance.pk} cambió a estado: {instance.get_estado_display()}.",
+                remitente=actor,
+                url=url,
+            )
 
     if instance.asignado_id and anterior.asignado_id != instance.asignado_id:
         notificar(
             [instance.asignado],
             f"Se te asignó el ticket #{instance.pk}: {instance.titulo}.",
-            remitente=instance.usuario,
+            remitente=actor,
+            url=url,
         )
+
+
+@receiver(post_save, sender=TicketComentario)
+@seguro
+def notificar_comentario_ticket(sender, instance, created, **kwargs):
+    if not created:
+        return
+    ticket = instance.ticket
+    autor = instance.autor
+    url = _url_ticket(ticket) + "#responder"
+    if autor.pk == ticket.usuario_id:
+        destinatarios = _equipo_del_ticket(ticket)
+        mensaje = f"{autor} respondió en el ticket #{ticket.pk}: {ticket.titulo}."
+    elif instance.interno:
+        # Nota interna: solo al responsable (nunca al residente)
+        destinatarios = [ticket.asignado]
+        mensaje = f"Nota interna de {autor} en el ticket #{ticket.pk}."
+    else:
+        destinatarios = [ticket.usuario, ticket.asignado]
+        mensaje = f"Nueva respuesta de {autor} en el ticket #{ticket.pk}: {ticket.titulo}."
+    notificar(destinatarios, mensaje, remitente=autor, url=url)
+
+
+@receiver(post_save, sender=TicketVisita)
+@seguro
+def notificar_visita_ticket(sender, instance, created, **kwargs):
+    anterior = getattr(instance, "_anterior", None)
+    if created or not anterior or anterior.estado == instance.estado:
+        return
+    ticket = instance.ticket
+    if instance.estado == TicketVisita.Estado.APROBADA:
+        mensaje = (f"Tu visita {instance.nombre} fue aprobada y quedó registrada para el "
+                   f"{instance.llegada:%d-%m-%Y %H:%M}.")
+    elif instance.estado == TicketVisita.Estado.RECHAZADA:
+        mensaje = f"Tu visita {instance.nombre} fue rechazada."
+        if instance.motivo_rechazo:
+            mensaje += f" Motivo: {instance.motivo_rechazo}"
+    else:
+        return
+    notificar([ticket.usuario], mensaje, remitente=instance.revisada_por, url=_url_ticket(ticket))
 
 
 # ------------------------------------------------------------------- Pago

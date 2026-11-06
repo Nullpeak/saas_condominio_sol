@@ -2194,7 +2194,7 @@ def reservacion_crear(request):
         ):
 
             dias_anticipacion = (
-                fecha_reserva.date() - ahora.date()
+                fecha_reserva.date() - timezone.localdate(ahora)
             ).days
 
             if dias_anticipacion > area.dias_anticipacion_maxima:
@@ -2878,7 +2878,7 @@ def reservacion_crear(request):
         ):
 
             dias_anticipacion = (
-                fecha_reserva.date() - ahora.date()
+                fecha_reserva.date() - timezone.localdate(ahora)
             ).days
 
             if dias_anticipacion > area.dias_anticipacion_maxima:
@@ -3281,7 +3281,7 @@ def reservacion_editar(request, reservacion_id):
         ):
 
             dias_anticipacion = (
-                fecha_reserva.date() - ahora.date()
+                fecha_reserva.date() - timezone.localdate(ahora)
             ).days
 
             if dias_anticipacion > area_nueva.dias_anticipacion_maxima:
