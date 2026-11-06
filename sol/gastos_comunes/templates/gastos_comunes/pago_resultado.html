@@ -1,0 +1,26 @@
+{% extends "core/base.html" %}
+{% block title %}Estado del pago | Gastos comunes{% endblock %}
+{% block page_title %}Estado del pago{% endblock %}
+{% block content %}
+<header class="page-intro">
+    <h1>Pago de gastos comunes</h1>
+    <p>{{ pago.liquidacion.unidad.edificio.nombre }} · Unidad {{ pago.liquidacion.unidad.numero_unidad }} · {{ pago.liquidacion.periodo.mes|stringformat:"02d" }}/{{ pago.liquidacion.periodo.anio }}</p>
+</header>
+<section class="card">
+    {% if pago.estado == "aprobado" %}
+        <h2 class="h5">Pago aprobado</h2>
+        <p>Registramos el pago de <strong>${{ pago.monto|floatformat:0 }}</strong> en el historial de la unidad.</p>
+    {% elif pago.estado == "rechazado" %}
+        <h2 class="h5">Pago rechazado</h2>
+        <p>Mercado Pago no aprobó esta operación. El saldo sigue pendiente y puedes intentarlo nuevamente.</p>
+    {% elif pago.estado == "cancelado" %}
+        <h2 class="h5">Pago cancelado</h2>
+        <p>El saldo sigue pendiente. Puedes volver a iniciar el pago desde el detalle de gastos comunes.</p>
+    {% else %}
+        <h2 class="h5">Estamos verificando el pago</h2>
+        <p>El proveedor todavía no confirmó el resultado. No vuelvas a pagar por ahora; actualiza esta página en unos momentos.</p>
+    {% endif %}
+    <p class="text-muted small mb-0">Estado: {{ pago.get_estado_display }}{% if pago.pagado %} · Fecha de confirmación: {{ pago.pagado|date:"d/m/Y H:i" }}{% endif %}</p>
+</section>
+<div class="quick-links mt-0"><a class="button button-secondary" href="{% url 'gastos_comunes:detalle' pago.liquidacion.periodo_id %}">Volver al detalle</a></div>
+{% endblock %}

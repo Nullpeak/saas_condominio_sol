@@ -1,0 +1,164 @@
+{% extends "core/base.html" %}
+{% block title %}{{ periodo }} | Gastos comunes{% endblock %}
+{% block page_title %}{{ periodo }}{% endblock %}
+{% block content %}
+<header class="page-intro">
+    <h1>{{ periodo.condominio.nombre }} · {{ periodo.mes|stringformat:"02d" }}/{{ periodo.anio }}</h1>
+    <p>Vence el {{ periodo.vencimiento|date:"d/m/Y" }} · Estado: <strong>{{ periodo.get_estado_display }}</strong></p>
+</header>
+<div class="quick-links mt-0"><a class="button button-secondary" href="{% url 'gastos_comunes:lista' %}">Volver a períodos</a></div>
+
+{% if periodo.estado == "borrador" %}
+<div class="card">
+    <h2 class="h5">Alícuotas y gastos compartidos</h2>
+    <p class="text-muted">La alícuota de cada unidad se usa para distribuir los gastos del condominio. Aquí configuras los porcentajes y agregas los montos totales de las boletas.</p>
+
+    <section class="border-bottom pb-4 mb-4">
+        <h3 class="h6">Alícuotas de las unidades</h3>
+        <p>Faltan <strong>{{ unidades_sin_alicuota }}</strong> unidades por configurar. La suma de todas debe ser 100%.</p>
+        <div class="d-flex flex-wrap align-items-center gap-2">
+            <a class="button button-secondary" href="{% url 'gastos_comunes:plantilla' periodo.id 'alicuotas' %}">Descargar Excel</a>
+            <form method="post" enctype="multipart/form-data" class="d-flex flex-wrap gap-2 align-items-center">{% csrf_token %}
+                <input type="hidden" name="accion" value="coeficientes">
+                <input class="form-control" style="max-width:360px" type="file" name="archivo" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" aria-label="Archivo de alícuotas" required>
+                <button class="button" type="submit">Importar alícuotas</button>
+            </form>
+        </div>
+    </section>
+
+    <section>
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+            <h3 class="h6 mb-0">Gastos compartidos del mes</h3>
+            <button class="button button-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#ayuda-reparto" aria-expanded="false" aria-controls="ayuda-reparto">Cómo funciona el reparto</button>
+        </div>
+        <p class="mt-2">Agrega una línea por boleta o gasto e ingresa su monto total. El sistema calcula automáticamente cuánto corresponde a cada unidad.</p>
+        <div class="collapse mb-3" id="ayuda-reparto">
+            <div class="border rounded p-3 bg-light">
+                <p><strong>Todo el condominio:</strong> reparte el total según alícuota. Ejemplo: $100.000 × 0,58% = $580 para una unidad con alícuota de 0,58%.</p>
+                <p><strong>Edificio:</strong> reparte el total entre las unidades de ese edificio según sus alícuotas relativas.</p>
+                <p><strong>Unidad:</strong> carga el total directamente a una sola unidad, sin aplicar alícuota.</p>
+                <p class="mb-0">Ordinario es un gasto habitual; extraordinario es una obra o gasto no habitual aprobado. No ingreses aquí una factura de agua o gas que ya cargaste como lectura individual, para evitar cobrarla dos veces. El fondo de reserva de este período es {{ periodo.recargo_reserva }}% y se calcula aparte sobre gastos ordinarios compartidos.</p>
+            </div>
+        </div>
+        <form method="post" enctype="multipart/form-data" id="form-gasto">{% csrf_token %}<input type="hidden" name="accion" value="agregar_gasto">
+            {{ item_form.non_field_errors }}
+            <div class="row g-3">
+            {% for field in item_form %}
+                <div class="col-12 {% if field.name == 'concepto' or field.name == 'respaldo' %}col-lg-6{% elif field.name == 'monto' %}col-lg-6{% endif %}" {% if field.name == "edificio" %}id="campo-edificio"{% elif field.name == "unidad" %}id="campo-unidad"{% endif %}>
+                    <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+                    {% if field.errors %}<div class="text-danger small">{{ field.errors }}</div>{% endif %}
+                </div>
+            {% endfor %}
+            </div>
+            <button class="button mt-3" type="submit">Agregar gasto</button>
+        </form>
+    </section>
+</div>
+
+<div class="card">
+    <h2 class="h5">Lecturas de agua y gas</h2>
+    <p>El importe se calcula con lectura actual menos anterior, multiplicado por la tarifa, y se carga directamente a la unidad.</p>
+    <div class="d-flex flex-wrap align-items-center gap-2">
+        <a class="button button-secondary" href="{% url 'gastos_comunes:plantilla' periodo.id 'lecturas' %}">Descargar plantilla Excel</a>
+        <form method="post" enctype="multipart/form-data" class="d-flex flex-wrap gap-2 align-items-center">{% csrf_token %}
+            <input type="hidden" name="accion" value="lecturas">
+            <input class="form-control" style="max-width:360px" type="file" name="archivo" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" aria-label="Archivo de lecturas" required>
+            <button class="button" type="submit">Importar lecturas</button>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+{% if periodo.estado == "borrador" and not gastos and not lecturas %}
+<div class="alert alert-warning">Aún no hay gastos ni lecturas. La alícuota solo define el reparto; no genera un monto por sí sola.</div>
+{% endif %}
+
+<div class="card">
+    <h2 class="h5">Gastos ingresados <span class="text-muted">({{ gastos|length }})</span></h2>
+    <div class="table-responsive"><table class="table align-middle mb-0"><thead><tr><th>Concepto</th><th>Tipo</th><th>Alcance</th><th>Total ingresado</th><th>Comprobante</th></tr></thead><tbody>
+    {% for gasto in gastos %}<tr><td>{{ gasto.concepto }}</td><td>{{ gasto.get_tipo_display }}</td><td>{{ gasto.get_alcance_display }}{% if gasto.edificio %}: {{ gasto.edificio.nombre }}{% endif %}{% if gasto.unidad %}: {{ gasto.unidad.numero_unidad }}{% endif %}</td><td>${{ gasto.monto|floatformat:0 }}</td><td>{% if gasto.respaldo %}<a href="{{ gasto.respaldo.url }}">Abrir</a>{% else %}<span class="text-muted">—</span>{% endif %}</td></tr>{% empty %}<tr><td colspan="5" class="text-muted">No se han agregado boletas compartidas.</td></tr>{% endfor %}
+    </tbody></table></div>
+</div>
+
+{% if lecturas %}
+<div class="card">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div><h2 class="h5 mb-1">Lecturas importadas</h2><p class="text-muted mb-0">{{ lecturas|length }} medidores guardados para este período.</p></div>
+        <div class="d-flex flex-wrap gap-2">
+            <a class="button button-secondary" href="{% url 'gastos_comunes:descargar_lecturas' periodo.id %}" aria-label="Descargar lecturas importadas en Excel">↓ Descargar Excel</a>
+            <button class="button button-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#detalle-lecturas" aria-expanded="false" aria-controls="detalle-lecturas">Ver filas</button>
+        </div>
+    </div>
+    <div class="collapse mt-3" id="detalle-lecturas"><div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead><tr><th>Unidad</th><th>Medidor</th><th>Lectura anterior</th><th>Lectura actual</th><th>Consumo</th><th>Tarifa</th><th>Cargo</th></tr></thead><tbody>
+        {% for lectura in lecturas %}<tr><td>{{ lectura.unidad.edificio.nombre }} · {{ lectura.unidad.numero_unidad }}</td><td>{{ lectura.get_tipo_display }}</td><td>{{ lectura.lectura_anterior }}</td><td>{{ lectura.lectura_actual }}</td><td>{{ lectura.consumo }}</td><td>${{ lectura.tarifa }}</td><td>${{ lectura.monto|floatformat:0 }}</td></tr>{% endfor %}
+    </tbody></table></div></div>
+</div>
+{% endif %}
+
+{% if grupos_liquidacion %}
+<div class="card">
+    <div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-3">
+        <div><h2 class="h5 mb-1">Vista previa por unidad</h2><p class="text-muted mb-0">Revisa los importes antes de publicar.</p></div>
+        <div class="text-lg-end"><span class="text-muted">{{ liquidaciones|length }} unidades · Total</span><div class="fs-5 fw-semibold">${{ total_liquidaciones|floatformat:0 }}</div></div>
+    </div>
+    <div class="accordion" id="liquidaciones-por-edificio">
+        {% for grupo in grupos_liquidacion %}
+        <div class="accordion-item">
+            <h3 class="accordion-header" id="encabezado-edificio-{{ grupo.id }}">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#contenido-edificio-{{ grupo.id }}" aria-expanded="false" aria-controls="contenido-edificio-{{ grupo.id }}">
+                    <span class="me-2">{{ grupo.nombre }}</span><span class="text-muted small">{{ grupo.unidades|length }} unidades · ${{ grupo.total|floatformat:0 }}</span>
+                </button>
+            </h3>
+            <div id="contenido-edificio-{{ grupo.id }}" class="accordion-collapse collapse" aria-labelledby="encabezado-edificio-{{ grupo.id }}" data-bs-parent="#liquidaciones-por-edificio">
+                <div class="accordion-body p-2 p-lg-3"><div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead><tr><th>Unidad</th><th>Alícuota</th><th>Ordinario</th><th>Reserva</th><th>Extraordinario</th><th>Consumos</th><th>Saldo anterior</th><th>Total</th>{% if periodo.estado == "publicado" %}<th>Pagado</th><th>Saldo actual</th>{% endif %}</tr></thead><tbody>
+                {% for l in grupo.unidades %}<tr><td>{{ l.unidad.numero_unidad }}</td><td>{{ l.alicuota_usada }}%</td><td>${{ l.total_ordinario|floatformat:0 }}</td><td>${{ l.fondo_reserva|floatformat:0 }}</td><td>${{ l.total_extraordinario|floatformat:0 }}</td><td>${{ l.consumos|floatformat:0 }}</td><td>${{ l.saldo_anterior|floatformat:0 }}</td><td><strong>${{ l.total|floatformat:0 }}</strong></td>{% if periodo.estado == "publicado" %}<td>${{ l.pagado_calculado|floatformat:0 }}</td><td>${{ l.saldo_actual|floatformat:0 }}</td>{% endif %}</tr>{% endfor %}
+                </tbody></table></div></div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+{% if periodo.estado == "borrador" %}
+<div class="card">
+    <h2 class="h5">Revisar y publicar</h2>
+    <p class="text-muted">Puedes recalcular después de corregir los gastos o las lecturas. La publicación deja las liquidaciones visibles para los residentes y cierra este período a cambios.</p>
+    <form method="post" class="d-inline">{% csrf_token %}<input type="hidden" name="accion" value="calcular"><button class="button button-secondary" type="submit">Calcular o actualizar borrador</button></form>
+    {% if liquidaciones %}<form method="post" class="d-inline ms-2" onsubmit="return confirm('¿Publicar las liquidaciones para residentes? El período quedará cerrado a edición.');">{% csrf_token %}<input type="hidden" name="accion" value="publicar"><button class="button" type="submit">Publicar liquidaciones</button></form>{% endif %}
+    <form method="post" action="{% url 'gastos_comunes:periodo_eliminar' periodo.id %}" class="d-inline ms-2" onsubmit="return confirm('¿Eliminar este borrador y sus datos de cálculo?');">{% csrf_token %}<button class="button button-secondary" type="submit">Eliminar borrador</button></form>
+</div>
+{% endif %}
+
+{% if periodo.estado == "publicado" %}
+<div class="card">
+    <h2 class="h5">Registrar pagos recibidos</h2>
+    <p class="text-muted">Registro de pagos recibidos fuera de la plataforma.</p>
+    {{ pago_form.non_field_errors }}
+    {% if puede_registrar_pagos %}{% for l in liquidaciones %}{% if l.saldo_actual > 0 %}<form method="post" class="border-top py-3 d-flex flex-wrap align-items-end gap-2">{% csrf_token %}<input type="hidden" name="accion" value="pago"><input type="hidden" name="liquidacion_id" value="{{ l.id }}"><strong class="me-auto">{{ l.unidad.edificio.nombre }} · {{ l.unidad.numero_unidad }} — saldo ${{ l.saldo_actual|floatformat:0 }}</strong><div><label class="form-label">Monto</label><input class="form-control" type="number" name="monto" min="1" max="{{ l.saldo_actual }}" step="1" required></div><div><label class="form-label">Fecha</label><input class="form-control" type="date" name="fecha" value="{{ today|date:'Y-m-d' }}" required></div><div><label class="form-label">Método</label><input class="form-control" name="metodo" placeholder="Transferencia"></div><div><label class="form-label">Referencia</label><input class="form-control" name="referencia"></div><button class="button" type="submit">Registrar</button></form>{% endif %}{% endfor %}{% else %}<p>Para mantener la cuenta cuadrada, los pagos se registran desde el período publicado más reciente.</p>{% endif %}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(() => {
+    const alcance = document.getElementById("id_alcance");
+    const edificio = document.getElementById("id_edificio");
+    const unidad = document.getElementById("id_unidad");
+    const campoEdificio = document.getElementById("campo-edificio");
+    const campoUnidad = document.getElementById("campo-unidad");
+    if (!alcance || !campoEdificio || !campoUnidad) return;
+    const actualizarAlcance = () => {
+        campoEdificio.hidden = alcance.value !== "edificio";
+        campoUnidad.hidden = alcance.value !== "unidad";
+        if (alcance.value !== "edificio") edificio.value = "";
+        if (alcance.value !== "unidad") unidad.value = "";
+    };
+    alcance.addEventListener("change", actualizarAlcance);
+    actualizarAlcance();
+})();
+</script>
+{% endblock %}

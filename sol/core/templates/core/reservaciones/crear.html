@@ -56,7 +56,7 @@
 .bloque-horario:hover{background:#e9f2ff}
 .bloque-horario.disponible{background:#fff}
 .bloque-horario.fuera-horario{background:#f1f3f5;cursor:not-allowed}
-.bloque-horario.ocupado{background:#dc3545;cursor:not-allowed;opacity:.75}
+.bloque-horario.ocupado{background:#0d6efd;cursor:not-allowed;opacity:.75}
 .bloque-horario.pasado{background:#e9ecef;cursor:not-allowed}
 
 .bloque-horario.seleccionado{
@@ -96,7 +96,7 @@
 .bloque-reserva{
     position:absolute;
     inset:2px;
-    background:#dc3545;
+    background:#0d6efd;
     border-radius:4px
 }
 
@@ -171,7 +171,7 @@
 
 .leyenda-disponible{background:#fff}
 .leyenda-fuera{background:#f1f3f5}
-.leyenda-ocupado{background:#dc3545}
+.leyenda-ocupado{background:#0d6efd}
 
 .leyenda-seleccionado{
     background:#bfdbfe;
@@ -551,6 +551,13 @@
                             </div>
                         </div>
 
+                        <div class="col-md-3">
+                            <div class="regla-card">
+                                <strong>Reservas por unidad al día</strong>
+                                <span id="regla-max-reservas-dia">-</span>
+                            </div>
+                        </div>
+
                     </div>
 
                 </div>
@@ -716,6 +723,7 @@ const reglaDuracion=document.getElementById("regla-duracion");
 const reglaAnticipacion=document.getElementById("regla-anticipacion");
 const reglaCapacidad=document.getElementById("regla-capacidad");
 const reglaConsecutivas=document.getElementById("regla-consecutivas");
+const reglaMaxReservasDia=document.getElementById("regla-max-reservas-dia");
 const mensajeDuracion=document.getElementById("mensaje-duracion");
 const mensajeFormulario=document.getElementById("mensaje-formulario");
 const opcionesDuracion=document.querySelectorAll(".duracion-opcion");
@@ -940,6 +948,11 @@ function actualizarReglas(){
         reglas.permite_reservas_consecutivas
         ?"Permitidas"
         :"No permitidas";
+
+    reglaMaxReservasDia.textContent=
+        reglas.permite_multiples_reservas_por_unidad_dia
+        ?"Permitidas"
+        :"1 por unidad";
 
     actualizarOpcionesDuracion();
 }
@@ -1860,6 +1873,28 @@ document.getElementById(
                 '<div class="alert alert-danger">'+
                 'El horario seleccionado no es válido.'+
                 '</div>';
+            return;
+        }
+
+        if(reglas.permite_multiples_reservas_por_unidad_dia===false){
+            const fechaInicio=inicio.getFullYear()+"-"+
+                String(inicio.getMonth()+1).padStart(2,"0")+"-"+
+                String(inicio.getDate()).padStart(2,"0");
+            const reservasDeUnidadEseDia=reservaciones.filter(function(reserva){
+                const fechaExistente=new Date(reserva.inicio);
+                const fechaExistenteLocal=fechaExistente.getFullYear()+"-"+
+                    String(fechaExistente.getMonth()+1).padStart(2,"0")+"-"+
+                    String(fechaExistente.getDate()).padStart(2,"0");
+                return String(reserva.unidad_id)===String(unidadForm.value) &&
+                    fechaExistenteLocal===fechaInicio;
+            }).length;
+            if(reservasDeUnidadEseDia>=1){
+                event.preventDefault();
+                mensajeFormulario.innerHTML=
+                    '<div class="alert alert-warning">'+
+                    'Esta unidad ya tiene una reserva para esta área en ese día. Solo se permite una por día.'+
+                    '</div>';
+            }
         }
     }
 );

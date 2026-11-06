@@ -1,0 +1,123 @@
+{% extends "core/base.html" %}
+
+{% block title %}Reportes | Comunidad al Día{% endblock %}
+{% block page_title %}Reportes{% endblock %}
+
+{% block content %}
+<section class="card-custom">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+        <div>
+            <h2 class="h4 mb-1">{{ tipo_nombre }}</h2>
+            <p class="text-muted mb-0">Consulta los registros de reservas o mantenimiento según el período y los criterios seleccionados.</p>
+        </div>
+        <a class="button button-secondary" href="{{ export_url }}">Descargar CSV</a>
+    </div>
+
+    {% if errores %}
+        <div class="alert alert-danger" role="alert">{% for error in errores %}<div>{{ error }}</div>{% endfor %}</div>
+    {% endif %}
+
+    <form method="get" class="row g-3 align-items-end mb-4">
+        <div class="col-sm-6 col-lg-2">
+            <label class="form-label" for="tipo">Reporte</label>
+            <select class="form-select" id="tipo" name="tipo" onchange="this.form.submit()">
+                <option value="reservas" {% if tipo == "reservas" %}selected{% endif %}>Reservas</option>
+                <option value="mantenimiento" {% if tipo == "mantenimiento" %}selected{% endif %}>Mantenimiento</option>
+            </select>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <label class="form-label" for="condominio">Condominio</label>
+            <select class="form-select" id="condominio" name="condominio">
+                <option value="">Todos los disponibles</option>
+                {% for condominio in condominios %}
+                    <option value="{{ condominio.id }}" {% if condominio_filtro == condominio.id|stringformat:"s" %}selected{% endif %}>{{ condominio.nombre }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% if tipo == "reservas" %}
+            <div class="col-sm-6 col-lg-3">
+                <label class="form-label" for="area">Área común</label>
+                <select class="form-select" id="area" name="area">
+                    <option value="">Todas las áreas</option>
+                    {% for area in areas %}
+                        <option value="{{ area.id }}" {% if area_filtro == area.id|stringformat:"s" %}selected{% endif %}>{{ area.condominio.nombre }} · {{ area.nombre }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        {% else %}
+            <div class="col-sm-6 col-lg-3">
+                <label class="form-label" for="categoria">Categoría</label>
+                <select class="form-select" id="categoria" name="categoria">
+                    <option value="">Todas las categorías</option>
+                    {% for categoria in categorias %}
+                        <option value="{{ categoria }}" {% if categoria_filtro == categoria %}selected{% endif %}>{{ categoria }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        {% endif %}
+        <div class="col-sm-6 col-lg-2">
+            <label class="form-label" for="desde">Desde</label>
+            <input class="form-control" id="desde" name="desde" type="date" value="{{ desde }}">
+        </div>
+        <div class="col-sm-6 col-lg-2">
+            <label class="form-label" for="hasta">Hasta</label>
+            <input class="form-control" id="hasta" name="hasta" type="date" value="{{ hasta }}">
+        </div>
+        <div class="col-12"><button class="button" type="submit">Aplicar filtros</button></div>
+    </form>
+
+    <div class="stat mb-4"><strong>{{ total }}</strong> registro{{ total|pluralize:"s" }} con estos filtros</div>
+
+    <h3 class="section-heading">Resumen por {% if tipo == "reservas" %}área común{% else %}categoría{% endif %}</h3>
+    {% if resumen %}
+        <div class="table-responsive mb-4">
+            <table class="table table-hover align-middle">
+                <thead><tr>
+                    <th>{% if tipo == "reservas" %}Área común{% else %}Categoría{% endif %}</th>
+                    <th>Registros</th>
+                    {% if tipo == "reservas" %}<th>Pendientes</th><th>Aprobadas</th><th>Completadas</th><th>Canceladas</th>
+                    {% else %}<th>Elementos</th><th>Próximas fechas</th><th>Fechas vencidas</th>{% endif %}
+                </tr></thead>
+                <tbody>
+                    {% for fila in resumen %}
+                        <tr>
+                            <td>{% if tipo == "reservas" %}{{ fila.area_comun__nombre|default:"Sin área" }}{% else %}{{ fila.elemento__categoria }}{% endif %}</td>
+                            <td>{{ fila.total }}</td>
+                            {% if tipo == "reservas" %}<td>{{ fila.pendientes }}</td><td>{{ fila.aprobadas }}</td><td>{{ fila.completadas }}</td><td>{{ fila.canceladas }}</td>
+                            {% else %}<td>{{ fila.elementos }}</td><td>{{ fila.proximos }}</td><td>{{ fila.vencidos }}</td>{% endif %}
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p class="text-muted">No hay datos para los filtros seleccionados.</p>
+    {% endif %}
+
+    <h3 class="section-heading">Detalle</h3>
+    {% if registros %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead><tr>
+                    {% if tipo == "reservas" %}<th>Condominio</th><th>Área</th><th>Unidad</th><th>Inicio</th><th>Estado</th>
+                    {% else %}<th>Condominio</th><th>Elemento</th><th>Fecha</th><th>Próximo mantenimiento</th><th>Descripción</th>{% endif %}
+                </tr></thead>
+                <tbody>
+                    {% for registro in registros %}
+                        <tr>
+                            {% if tipo == "reservas" %}
+                                <td>{{ registro.unidad.edificio.condominio.nombre }}</td><td>{{ registro.area_comun.nombre|default:"—" }}</td><td>{{ registro.unidad }}</td><td>{{ registro.fecha_reserva|date:"d/m/Y H:i" }}</td><td>{{ registro.get_estado_display }}</td>
+                            {% else %}
+                                <td>{{ registro.elemento.condominio.nombre }}</td><td>{{ registro.elemento.nombre }}</td><td>{{ registro.fecha|date:"d/m/Y" }}</td><td>{{ registro.proximo_mantenimiento|date:"d/m/Y"|default:"—" }}</td><td>{{ registro.descripcion|truncatechars:120 }}</td>
+                            {% endif %}
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if total > 100 %}<p class="text-muted small">La vista muestra los 100 registros más recientes. El CSV incluye todos los resultados.</p>{% endif %}
+    {% else %}
+        <p class="text-muted">No hay registros para mostrar.</p>
+    {% endif %}
+</section>
+{% endblock %}

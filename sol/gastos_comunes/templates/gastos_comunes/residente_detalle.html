@@ -1,0 +1,33 @@
+{% extends "core/base.html" %}
+{% block title %}Liquidación {{ periodo }} | Gastos comunes{% endblock %}
+{% block page_title %}Detalle de gastos comunes{% endblock %}
+{% block content %}
+<header class="page-intro"><h1>{{ periodo.condominio.nombre }} · {{ periodo.mes|stringformat:"02d" }}/{{ periodo.anio }}</h1><p>Liquidación publicada · Vence el {{ periodo.vencimiento|date:"d/m/Y" }}</p></header>
+<div class="quick-links mt-0"><a class="button button-secondary" href="{% url 'gastos_comunes:lista' %}">Volver al historial</a></div>
+{% for l in liquidaciones %}<div class="card"><h2 class="h5">{{ l.unidad.edificio.nombre }} · Unidad {{ l.unidad.numero_unidad }}</h2><p>Alícuota aplicada: {{ l.alicuota_usada }}%</p>
+    <div class="table-responsive"><table class="table"><thead><tr><th>Concepto</th><th>Categoría</th><th>Monto</th></tr></thead><tbody>{% for d in l.detalles.all %}<tr><td>{{ d.concepto }}</td><td>{{ d.categoria|title }}</td><td>${{ d.monto|floatformat:0 }}</td></tr>{% endfor %}
+    <tr><td>Saldo pendiente de períodos anteriores</td><td>Saldo anterior</td><td>${{ l.saldo_anterior|floatformat:0 }}</td></tr>
+    {% if l.intereses %}<tr><td>Intereses</td><td>Mora</td><td>${{ l.intereses|floatformat:0 }}</td></tr>{% endif %}
+    <tr class="table-light"><th colspan="2">Total liquidado</th><th>${{ l.total|floatformat:0 }}</th></tr>
+    {% for pago in l.pagos.all %}<tr><td>Pago registrado · {{ pago.fecha|date:"d/m/Y" }}{% if pago.metodo %} · {{ pago.metodo }}{% endif %}</td><td>Pago</td><td>− ${{ pago.monto|floatformat:0 }}</td></tr>{% endfor %}
+    <tr><th colspan="2">Saldo pendiente{% if l.en_mora %} · En mora{% endif %}</th><th>${{ l.saldo_actual|floatformat:0 }}</th></tr></tbody></table></div>
+    {% if l.saldo_actual > 0 and periodo.estado == "publicado" %}
+        {% if puede_pagar_en_linea %}
+        <form method="post" action="{% url 'gastos_comunes:pago_iniciar' l.id %}" class="mt-3">{% csrf_token %}
+            <button class="button" type="submit">Pagar saldo pendiente · ${{ l.saldo_actual|floatformat:0 }}</button>
+            <span class="text-muted small ms-2">Prueba con Mercado Pago; no se realizará un cobro real.</span>
+        </form>
+        {% elif es_ultimo_periodo and not pagos_online_configurados %}
+        <p class="text-muted small mt-3 mb-0">El pago en línea de prueba aún no está configurado.</p>
+        {% endif %}
+    {% endif %}
+</div>{% empty %}<div class="card">No hay liquidaciones publicadas para esta unidad.</div>{% endfor %}
+{% if pagos_online %}
+<section class="card">
+    <h2 class="h5">Intentos de pago en línea</h2>
+    <div class="table-responsive"><table class="table align-middle mb-0"><thead><tr><th>Fecha</th><th>Unidad</th><th>Monto</th><th>Estado</th><th></th></tr></thead><tbody>
+    {% for pago in pagos_online %}<tr><td>{{ pago.creado|date:"d/m/Y H:i" }}</td><td>{{ pago.liquidacion.unidad.edificio.nombre }} · {{ pago.liquidacion.unidad.numero_unidad }}</td><td>${{ pago.monto|floatformat:0 }}</td><td>{{ pago.get_estado_display }}</td><td><a href="{% url 'gastos_comunes:pago_resultado' pago.referencia_externa %}">Ver estado</a></td></tr>{% endfor %}
+    </tbody></table></div>
+</section>
+{% endif %}
+{% endblock %}

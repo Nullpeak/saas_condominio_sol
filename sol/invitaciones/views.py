@@ -25,10 +25,10 @@ def _enviar(request, inv, token):
     if inv.unidad_id:
         unidad = f"Unidad asignada: {inv.unidad} ({inv.get_relacion_display().lower()}).\n\n"
     send_mail(
-        subject="Te invitaron a CondoGestión",
+        subject="Te invitaron a Comunidad al Día",
         message=(
             f"Hola,\n\n"
-            f"{inv.invitado_por} te invitó a CondoGestión como {inv.get_rol_display()} "
+            f"{inv.invitado_por} te invitó a Comunidad al Día como {inv.get_rol_display()} "
             f"del condominio {inv.condominio}.\n\n"
             f"{unidad}"
             f"Crea tu cuenta aquí (el link sirve una sola vez y vence en {VIGENCIA.days} días):\n{link}\n\n"

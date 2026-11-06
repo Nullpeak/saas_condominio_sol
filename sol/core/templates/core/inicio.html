@@ -1,6 +1,6 @@
 {% extends "core/base.html" %}
 
-{% block title %}Inicio | CondoGestión{% endblock %}
+{% block title %}Inicio | Comunidad al Día{% endblock %}
 {% block page_title %}Inicio{% endblock %}
 
 {% block content %}
@@ -8,6 +8,16 @@
     <h1>Hola, {{ usuario.nombre }}</h1>
     <p>{{ usuario.get_rol_display }}{% if usuario.condominio %} · {{ usuario.condominio.nombre }}{% endif %}</p>
 </header>
+
+<section class="card mb-4" aria-labelledby="seguimiento-heading">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+        <div><h2 class="h5 mb-1" id="seguimiento-heading">Seguimiento</h2><p class="text-secondary mb-0">Actividad pendiente de reservas y solicitudes.</p></div>
+    </div>
+    <div class="row g-3">
+        <div class="col-md-6"><a class="d-flex justify-content-between align-items-center p-3 rounded border text-decoration-none" href="{% url 'reservaciones_lista' %}"><span>Reservas próximas</span><strong class="fs-4">{{ reservas_proximas }}</strong></a></div>
+        <div class="col-md-6"><a class="d-flex justify-content-between align-items-center p-3 rounded border text-decoration-none" href="{% url 'tickets:lista' %}"><span>Tickets pendientes</span><strong class="fs-4">{{ tickets_pendientes }}</strong></a></div>
+    </div>
+</section>
 
 {% if usuario.rol == "Super Administrador" or usuario.rol == "Administrador" %}
     <section class="mb-5">

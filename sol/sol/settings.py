@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     'launch',
     'invitaciones',
     'mantenimientos',
+    'gastos_comunes',
 ]
 
 MIDDLEWARE = [
@@ -128,6 +129,11 @@ STATIC_URL = 'static/'
 MEDIA_URL = '/media/'
 
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# Mercado Pago remains restricted to the test environment until a separate
+# production rollout is explicitly implemented and reviewed.
+MERCADOPAGO_TEST_ACCESS_TOKEN = os.environ.get("MERCADOPAGO_TEST_ACCESS_TOKEN", "").strip()
+MERCADOPAGO_TEST_WEBHOOK_SECRET = os.environ.get("MERCADOPAGO_TEST_WEBHOOK_SECRET", "").strip()
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 

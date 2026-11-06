@@ -1,13 +1,13 @@
 {% extends "core/base.html" %}
 
-{% block title %}Reservas | CondoGestión{% endblock %}
+{% block title %}Reservas | Comunidad al Día{% endblock %}
 {% block page_title %}Reservas{% endblock %}
 
 {% block content %}
 <section class="card-custom">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
         <div>
-            <h2 class="h4 mb-1">Reservas del condominio</h2>
+            <h2 class="h4 mb-1">{% if usuario_actual.rol == "Residente" %}Mis reservas{% else %}Reservas del condominio{% endif %}</h2>
             <p class="text-muted mb-0">Consulta próximas reservas y revisa el historial, incluidas las ya realizadas o canceladas.</p>
         </div>
         {% if usuario_actual.condominio_id %}
@@ -16,7 +16,6 @@
     </div>
 
     <div class="d-flex flex-wrap gap-2 mb-4" role="group" aria-label="Filtrar reservas">
-        <a class="btn btn-sm {% if filtro == 'todas' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="?filtro=todas">Todas <span class="badge text-bg-light">{{ total_reservas }}</span></a>
         <a class="btn btn-sm {% if filtro == 'proximas' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="?filtro=proximas">Próximas <span class="badge text-bg-light">{{ total_proximas }}</span></a>
         <a class="btn btn-sm {% if filtro == 'historial' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="?filtro=historial">Historial <span class="badge text-bg-light">{{ total_historial }}</span></a>
     </div>

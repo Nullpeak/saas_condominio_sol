@@ -119,6 +119,15 @@
 
 
                 <div class="form-check mb-3">
+                    <input type="checkbox" id="permite_multiples_reservas_por_unidad_dia" name="permite_multiples_reservas_por_unidad_dia" class="form-check-input" {% if datos.permite_multiples_reservas_por_unidad_dia or not datos %}checked{% endif %}>
+                    <label for="permite_multiples_reservas_por_unidad_dia" class="form-check-label">
+                        <strong>Permitir más de una reserva por unidad al día</strong>
+                    </label>
+                    <div class="form-text">Si lo desmarcas, cada unidad podrá reservar esta área solo una vez al día.</div>
+                </div>
+
+
+                <div class="form-check mb-3">
 
                     <input
                         type="checkbox"

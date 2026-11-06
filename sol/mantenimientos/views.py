@@ -212,6 +212,8 @@ def detalle(request, elemento_id):
         fecha_texto = request.POST.get("fecha", "").strip()
         proxima_texto = request.POST.get("proximo_mantenimiento", "").strip()
         descripcion = request.POST.get("descripcion", "").strip()
+        estado = request.POST.get("estado", RegistroMantenimiento.Estado.PROGRAMADO)
+        detalle_cierre = request.POST.get("detalle_cierre", "").strip()
         empresa = request.POST.get("empresa", "").strip()
         telefono = request.POST.get("telefono_empresa", "").strip()
         archivos = request.FILES.getlist("documentos")
@@ -220,8 +222,6 @@ def detalle(request, elemento_id):
 
         try:
             fecha = date.fromisoformat(fecha_texto)
-            if fecha > timezone.localdate():
-                errores.append("La fecha del mantenimiento no puede estar en el futuro.")
         except ValueError:
             fecha = None
             errores.append("Indica una fecha válida para el mantenimiento.")
@@ -232,8 +232,12 @@ def detalle(request, elemento_id):
             errores.append("La próxima fecha de mantenimiento no es válida.")
         if fecha and proxima and proxima < fecha:
             errores.append("La próxima fecha debe ser igual o posterior a la fecha de este servicio.")
+        if estado not in RegistroMantenimiento.Estado.values:
+            errores.append("Selecciona un estado válido.")
         if not descripcion:
-            errores.append("Describe brevemente el trabajo realizado.")
+            errores.append("Describe el mantenimiento programado o el trabajo realizado.")
+        if estado == RegistroMantenimiento.Estado.COMPLETADO and not detalle_cierre:
+            errores.append("Al completar el mantenimiento, indica qué trabajo se realizó.")
         if tipo_documento not in DocumentoMantenimiento.Tipo.values:
             errores.append("Selecciona un tipo de documento válido.")
         if len(nombre_documento) > 150:
@@ -251,6 +255,8 @@ def detalle(request, elemento_id):
                 elemento=elemento,
                 fecha=fecha,
                 descripcion=descripcion,
+                estado=estado,
+                detalle_cierre=detalle_cierre,
                 empresa=empresa,
                 telefono_empresa=telefono,
                 proximo_mantenimiento=proxima,
@@ -290,7 +296,67 @@ def detalle(request, elemento_id):
             "telefono_empresa": elemento.telefono_actual,
         },
         "tipos_documento": TIPOS_DOCUMENTO,
+        "estados_mantenimiento": RegistroMantenimiento.Estado.choices,
         "hoy": timezone.localdate().isoformat(),
+    })
+
+
+@login_required
+def editar_registro(request, registro_id):
+    usuario = perfil_actual(request)
+    if not puede_usar_modulo(usuario):
+        return redirect("inicio")
+    registro = get_object_or_404(
+        RegistroMantenimiento.objects.select_related("elemento"),
+        pk=registro_id, elemento__in=elementos_visibles(usuario),
+    )
+    if registro.estado == RegistroMantenimiento.Estado.COMPLETADO:
+        messages.error(request, "Los registros completados se conservan como historial y no se pueden editar.")
+        return redirect("mantenimientos:detalle", elemento_id=registro.elemento_id)
+    errores = []
+    datos = request.POST if request.method == "POST" else {
+        "fecha": registro.fecha.isoformat(), "estado": registro.estado,
+        "proximo_mantenimiento": registro.proximo_mantenimiento.isoformat() if registro.proximo_mantenimiento else "",
+        "empresa": registro.empresa, "telefono_empresa": registro.telefono_empresa,
+        "descripcion": registro.descripcion, "detalle_cierre": registro.detalle_cierre,
+    }
+    if request.method == "POST":
+        try:
+            fecha = date.fromisoformat(request.POST.get("fecha", ""))
+        except ValueError:
+            fecha = None
+            errores.append("Indica una fecha válida.")
+        try:
+            proxima = date.fromisoformat(request.POST.get("proximo_mantenimiento", "")) if request.POST.get("proximo_mantenimiento", "").strip() else None
+        except ValueError:
+            proxima = None
+            errores.append("La próxima fecha no es válida.")
+        estado = request.POST.get("estado", "")
+        descripcion = request.POST.get("descripcion", "").strip()
+        detalle_cierre = request.POST.get("detalle_cierre", "").strip()
+        if estado not in RegistroMantenimiento.Estado.values:
+            errores.append("Selecciona un estado válido.")
+        if not descripcion:
+            errores.append("Describe el mantenimiento.")
+        if estado == RegistroMantenimiento.Estado.COMPLETADO and not detalle_cierre:
+            errores.append("Para completar el mantenimiento, indica el trabajo realizado.")
+        if fecha and proxima and proxima < fecha:
+            errores.append("La próxima fecha debe ser igual o posterior a la fecha del mantenimiento.")
+        if not errores:
+            registro.fecha = fecha
+            registro.proximo_mantenimiento = proxima
+            registro.estado = estado
+            registro.descripcion = descripcion
+            registro.detalle_cierre = detalle_cierre
+            registro.empresa = request.POST.get("empresa", "").strip()
+            registro.telefono_empresa = request.POST.get("telefono_empresa", "").strip()
+            registro.full_clean()
+            registro.save()
+            messages.success(request, "Se actualizaron los datos del mantenimiento.")
+            return redirect("mantenimientos:detalle", elemento_id=registro.elemento_id)
+    return render(request, "mantenimientos/registro_form.html", {
+        "registro": registro, "datos": datos, "errores": errores,
+        "estados": RegistroMantenimiento.Estado.choices,
     })
 
 

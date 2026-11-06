@@ -1,18 +1,18 @@
 {% extends "core/base.html" %}
 {% load anuncios_extras %}
 
-{% block title %}Nuevo anuncio | CondoGestión{% endblock %}
-{% block page_title %}Nuevo anuncio{% endblock %}
+{% block title %}{% if editar_anuncio %}Editar borrador{% else %}Nuevo anuncio{% endif %} | Comunidad al Día{% endblock %}
+{% block page_title %}{% if editar_anuncio %}Editar borrador{% else %}Nuevo anuncio{% endif %}{% endblock %}
 
 {% block content %}
 <section class="card-custom">
-    <div class="mb-4"><h2 class="h4 mb-1">{% if es_residente %}Publicar anuncio de residente{% else %}Crear anuncio oficial{% endif %}</h2><p class="text-muted mb-0">{% if es_residente %}Un Gestor o Administrador deberá aprobarlo antes de publicarlo.{% else %}El anuncio se publicará inmediatamente para el público que selecciones.{% endif %}</p></div>
+    <div class="mb-4"><h2 class="h4 mb-1">{% if es_residente %}Publicar anuncio de residente{% elif editar_anuncio %}Editar borrador{% else %}Crear anuncio oficial{% endif %}</h2><p class="text-muted mb-0">{% if es_residente %}Un Gestor o Administrador deberá aprobarlo antes de publicarlo.{% else %}El anuncio se publicará para el público que selecciones.{% endif %}</p></div>
     {% if errores %}<div class="alert alert-danger">{% for error in errores %}<div>{{ error }}</div>{% endfor %}</div>{% endif %}
     <form method="post" enctype="multipart/form-data" class="row g-3">
         {% csrf_token %}<input type="hidden" name="tipo" value="{{ tipo }}">
         {% if not es_residente and condominios|length > 1 or perfil.rol == 'Super Administrador' and not es_residente %}<div class="col-md-6"><label class="form-label" for="condominio">Condominio</label><select class="form-select" id="condominio" name="condominio" required><option value="">Selecciona</option>{% for condominio in condominios %}<option value="{{ condominio.id }}" {% if datos.condominio == condominio.id|stringformat:'s' %}selected{% endif %}>{{ condominio.nombre }}</option>{% endfor %}</select></div>{% endif %}
         {% if es_residente %}
-            <div class="col-md-6"><label class="form-label" for="unidad">Unidad</label><select class="form-select" id="unidad" name="unidad" required><option value="">Selecciona</option>{% for unidad in unidades %}<option value="{{ unidad.id }}" {% if datos.unidad == unidad.id|stringformat:'s' or unidad_unica %}selected{% endif %}>{{ unidad.edificio.condominio.nombre }} · {{ unidad.edificio.nombre }} · {{ unidad.numero_unidad }}</option>{% endfor %}</select><div class="form-text">La unidad se muestra solo a Gestores y Administradores.</div></div>
+            <div class="col-md-6"><label class="form-label">Unidad asociada</label>{% if unidad_anuncio %}<div class="form-control bg-light" aria-readonly="true">{{ unidad_anuncio.edificio.condominio.nombre }} · {{ unidad_anuncio.edificio.nombre }} · {{ unidad_anuncio.numero_unidad }}</div><div class="form-text">La unidad de tu cuenta se asociará automáticamente; solo el personal del condominio podrá verla.</div>{% else %}<div class="form-control bg-light text-muted">Sin unidad asignada</div>{% endif %}</div>
             <div class="col-md-6"><label class="form-label" for="alcance">Quién podrá verlo</label><select class="form-select" id="alcance" name="alcance" required><option value="edificio" {% if datos.alcance == 'edificio' or not datos.alcance %}selected{% endif %}>Residentes de mi edificio</option><option value="condominio" {% if datos.alcance == 'condominio' %}selected{% endif %}>Todos los residentes del condominio</option></select></div>
         {% else %}
             <div class="col-md-6"><label class="form-label" for="alcance">Público</label><select class="form-select" id="alcance" name="alcance" required><option value="todos" {% if datos.alcance == 'todos' %}selected{% endif %}>Todos los residentes</option><option value="edificios" {% if datos.alcance == 'edificios' %}selected{% endif %}>Edificios seleccionados</option><option value="unidades" {% if datos.alcance == 'unidades' %}selected{% endif %}>Unidades seleccionadas</option></select></div>
@@ -22,7 +22,7 @@
         <div class="col-12"><label class="form-label" for="titulo">Título</label><input class="form-control" type="text" id="titulo" name="titulo" maxlength="150" value="{{ datos.titulo|default:'' }}" required></div>
         <div class="col-12"><label class="form-label" for="descripcion">Descripción</label><textarea class="form-control" id="descripcion" name="descripcion" rows="5" required>{{ datos.descripcion|default:'' }}</textarea></div>
         <div class="col-12"><label class="form-label" for="imagen">Foto (opcional)</label><input class="form-control" type="file" id="imagen" name="imagen" accept="image/jpeg,image/png,image/gif,image/webp,image/bmp"><div class="form-text">Solo imágenes; máximo 10 MB.</div></div>
-        <div class="col-12 d-flex gap-2"><button class="button" type="submit">{% if es_residente %}Enviar a revisión{% else %}Publicar anuncio{% endif %}</button><a class="button button-secondary" href="{% url 'anuncios:lista' %}?tipo={{ tipo }}">Cancelar</a></div>
+        <div class="col-12 d-flex gap-2">{% if es_residente %}<button class="button" type="submit">Enviar a revisión</button>{% else %}<button class="button button-secondary" name="accion" value="borrador" type="submit">Guardar borrador</button><button class="button" name="accion" value="publicar" type="submit">Publicar anuncio</button>{% endif %}<a class="button button-secondary" href="{% url 'anuncios:lista' %}?tipo={{ tipo }}">Cancelar</a></div>
     </form>
 </section>
 {% endblock %}

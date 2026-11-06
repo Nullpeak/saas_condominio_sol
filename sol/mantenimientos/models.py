@@ -55,11 +55,17 @@ class ElementoMantenimiento(models.Model):
 
 
 class RegistroMantenimiento(models.Model):
+    class Estado(models.TextChoices):
+        PROGRAMADO = "programado", "Programado"
+        EN_CURSO = "en_curso", "En curso"
+        COMPLETADO = "completado", "Completado"
     elemento = models.ForeignKey(
         ElementoMantenimiento, on_delete=models.CASCADE, related_name="registros"
     )
     fecha = models.DateField()
     descripcion = models.TextField()
+    estado = models.CharField(max_length=12, choices=Estado.choices, default=Estado.COMPLETADO)
+    detalle_cierre = models.TextField(blank=True)
     empresa = models.CharField(max_length=150, blank=True)
     telefono_empresa = models.CharField(max_length=40, blank=True)
     proximo_mantenimiento = models.DateField(null=True, blank=True)

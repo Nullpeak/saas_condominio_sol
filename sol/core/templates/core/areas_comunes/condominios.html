@@ -1,0 +1,33 @@
+{% extends "core/base.html" %}
+
+{% block title %}Seleccionar condominio | Áreas comunes{% endblock %}
+{% block page_title %}Áreas comunes{% endblock %}
+
+{% block content %}
+<header class="page-intro">
+    <h1>Selecciona un condominio</h1>
+    <p>Elige dónde quieres consultar o crear áreas comunes.</p>
+</header>
+
+{% if condominios %}
+    <div class="row g-4">
+        {% for condominio in condominios %}
+            <div class="col-md-6 col-xl-4">
+                <article class="card-custom h-100 d-flex flex-column">
+                    <div class="mb-3">
+                        <h2 class="h5 mb-2">{{ condominio.nombre }}</h2>
+                        <p class="text-muted mb-1">{{ condominio.direccion }}</p>
+                        <p class="text-muted mb-0">{{ condominio.ciudad.nombre }}</p>
+                    </div>
+                    <p class="mb-4"><strong>{{ condominio.total_areas_comunes }}</strong> área{{ condominio.total_areas_comunes|pluralize:"s" }} registrada{{ condominio.total_areas_comunes|pluralize:"s" }}</p>
+                    <a class="button mt-auto" href="{% url 'areas_comunes_lista' condominio.id %}">Ver áreas comunes</a>
+                </article>
+            </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="card-custom">
+        <p class="mb-0">No tienes condominios activos asignados.</p>
+    </div>
+{% endif %}
+{% endblock %}

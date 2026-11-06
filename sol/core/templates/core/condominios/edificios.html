@@ -13,7 +13,7 @@
     {% if edificios %}
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
-                <thead><tr><th>Edificio</th><th>Pisos</th><th>Unidades</th><th>Subterráneo</th><th class="text-end">Acciones</th></tr></thead>
+                <thead><tr><th>Edificio</th><th>Pisos</th><th>Unidades</th><th>Subterráneo</th><th>Estado</th><th class="text-end">Acciones</th></tr></thead>
                 <tbody>
                     {% for edificio in edificios %}
                         <tr>
@@ -21,9 +21,11 @@
                             <td>{{ edificio.numero_pisos|default:"Sin configurar" }}</td>
                             <td>{{ edificio.unidades.count }}</td>
                             <td>{% if edificio.subterraneo %}Sí{% else %}No{% endif %}</td>
+                            <td>{% if edificio.activo %}<span class="text-success">Activo</span>{% else %}<span class="text-secondary">Inactivo</span>{% endif %}</td>
                             <td class="text-end text-nowrap">
                                 <a class="btn btn-sm btn-outline-secondary" href="{% url 'unidades_lista' edificio.id %}">Unidades</a>
                                 <a class="btn btn-sm btn-outline-primary" href="{% url 'edificio_editar' edificio.id %}">Configurar</a>
+                                <form method="post" action="{% url 'edificio_cambiar_estado' edificio.id %}" class="d-inline">{% csrf_token %}<button class="btn btn-sm {% if edificio.activo %}btn-outline-danger{% else %}btn-outline-success{% endif %}" type="submit">{% if edificio.activo %}Desactivar{% else %}Reactivar{% endif %}</button></form>
                             </td>
                         </tr>
                     {% endfor %}

@@ -40,7 +40,7 @@ def _oficiales_visibles(perfil):
     if perfil.rol != "Residente":
         return qs.none()
     mis_unidades = Unidad.objects.filter(Q(dueno=perfil) | Q(arrendatario=perfil)).distinct()
-    return qs.filter(condominio_id__in=mis_unidades.values("edificio__condominio_id")).filter(
+    return qs.filter(estado=AnuncioOficial.Estado.PUBLICADO, condominio_id__in=mis_unidades.values("edificio__condominio_id")).filter(
         Q(alcance=AnuncioOficial.Alcance.TODOS)
         | Q(alcance=AnuncioOficial.Alcance.EDIFICIOS, edificios__unidades__in=mis_unidades)
         | Q(alcance=AnuncioOficial.Alcance.UNIDADES, unidades__in=mis_unidades)
@@ -64,7 +64,7 @@ def _anuncios_residentes_visibles(perfil):
           condominio_id__in=mis_unidades.values("edificio__condominio_id"))
         | Q(estado=AnuncioResidente.Estado.PUBLICADO, alcance=AnuncioResidente.Alcance.EDIFICIO,
             unidad__edificio_id__in=mis_unidades.values("edificio_id"))
-        | Q(autor=perfil)
+        | Q(autor=perfil, estado__in=(AnuncioResidente.Estado.PENDIENTE, AnuncioResidente.Estado.RECHAZADO))
     ).distinct()
 
 
@@ -127,8 +127,24 @@ def lista(request):
         except ValueError:
             hasta = ""
     estado_filtro = request.GET.get("estado", "")
-    if tipo == "residentes" and _staff(perfil) and estado_filtro in AnuncioResidente.Estado.values:
-        anuncios = anuncios.filter(estado=estado_filtro)
+    ver_archivados = tipo in ("oficial", "residentes") and _staff(perfil) and estado_filtro == "archivado"
+    archivados_count = 0
+    if tipo == "oficial" and _staff(perfil):
+        archivados_count = _oficiales_visibles(perfil).filter(estado=AnuncioOficial.Estado.ARCHIVADO).count()
+        if ver_archivados:
+            anuncios = anuncios.filter(estado=AnuncioOficial.Estado.ARCHIVADO)
+        elif estado_filtro in (AnuncioOficial.Estado.BORRADOR, AnuncioOficial.Estado.PUBLICADO):
+            anuncios = anuncios.filter(estado=estado_filtro)
+        else:
+            anuncios = anuncios.exclude(estado=AnuncioOficial.Estado.ARCHIVADO)
+    if tipo == "residentes" and _staff(perfil):
+        archivados_count = _anuncios_residentes_visibles(perfil).filter(estado=AnuncioResidente.Estado.ARCHIVADO).count()
+        if ver_archivados:
+            anuncios = anuncios.filter(estado=AnuncioResidente.Estado.ARCHIVADO)
+        elif estado_filtro in (AnuncioResidente.Estado.PENDIENTE, AnuncioResidente.Estado.PUBLICADO, AnuncioResidente.Estado.RECHAZADO):
+            anuncios = anuncios.filter(estado=estado_filtro)
+        else:
+            anuncios = anuncios.exclude(estado=AnuncioResidente.Estado.ARCHIVADO)
     grupos = _agrupar_por_dia(list(anuncios.order_by("-creado", "-id")))
     return render(request, "anuncios/lista.html", {
         "perfil": perfil,
@@ -138,7 +154,9 @@ def lista(request):
         "desde": desde,
         "hasta": hasta,
         "estado_filtro": estado_filtro,
-        "estados": AnuncioResidente.Estado.choices,
+        "ver_archivados": ver_archivados,
+        "archivados_count": archivados_count,
+        "estados": AnuncioOficial.Estado.choices if tipo == "oficial" else [choice for choice in AnuncioResidente.Estado.choices if choice[0] != AnuncioResidente.Estado.ARCHIVADO],
         "pendientes_revision": nuevos_residentes,
         "puede_publicar_oficial": perfil.rol in ROLES_STAFF,
         "puede_crear_residente": perfil.rol == "Residente",
@@ -159,7 +177,8 @@ def crear(request):
 
     mis_unidades = Unidad.objects.select_related("edificio", "edificio__condominio").filter(
         Q(dueno=perfil) | Q(arrendatario=perfil)
-    ).distinct() if residente else Unidad.objects.none()
+    ).distinct().order_by("edificio__condominio__nombre", "edificio__nombre", "numero_unidad") if residente else Unidad.objects.none()
+    unidad_anuncio = mis_unidades.first() if residente else None
     condominios = perfil.condominios_asignados().filter(activo=True).order_by("nombre")
     errores = []
     if request.method == "POST":
@@ -194,13 +213,10 @@ def crear(request):
         edificios = []
         unidades = []
         if residente:
-            try:
-                unidad_id = int(request.POST.get("unidad", ""))
-            except (TypeError, ValueError):
-                unidad_id = None
-            unidad = mis_unidades.filter(pk=unidad_id).first() if unidad_id else None
+            # La unidad se obtiene desde el perfil, nunca desde un campo editable del formulario.
+            unidad = unidad_anuncio
             if not unidad:
-                errores.append("Selecciona una de tus unidades.")
+                errores.append("Tu cuenta no tiene una unidad asignada para publicar anuncios.")
             if alcance not in AnuncioResidente.Alcance.values:
                 errores.append("Selecciona quién podrá ver el anuncio.")
         else:
@@ -222,6 +238,9 @@ def crear(request):
             except ValidationError as error:
                 errores.extend(error.messages)
 
+        accion = request.POST.get("accion", "publicar")
+        if accion not in ("borrador", "publicar"):
+            accion = "publicar"
         if not errores:
             if residente:
                 anuncio = AnuncioResidente(
@@ -245,12 +264,13 @@ def crear(request):
                     descripcion=descripcion,
                     imagen=imagen or "",
                     alcance=alcance,
+                    estado=AnuncioOficial.Estado.BORRADOR if accion == "borrador" else AnuncioOficial.Estado.PUBLICADO,
                 )
                 anuncio.full_clean()
                 anuncio.save()
                 anuncio.edificios.set(edificios)
                 anuncio.unidades.set(unidades)
-                messages.success(request, "El anuncio oficial se publicó correctamente.")
+                messages.success(request, "El borrador se guardó." if accion == "borrador" else "El anuncio oficial se publicó correctamente.")
             return redirect("anuncios:lista")
 
     edificios_disponibles = Edificio.objects.filter(condominio__in=condominios).order_by("nombre")
@@ -260,28 +280,119 @@ def crear(request):
         "tipo": tipo,
         "es_residente": residente,
         "unidades": mis_unidades,
+        "unidad_anuncio": unidad_anuncio,
         "condominios": condominios,
         "edificios": edificios_disponibles,
         "unidades_disponibles": unidades_disponibles,
         "errores": errores,
         "datos": request.POST if request.method == "POST" else {},
-        "unidad_unica": mis_unidades.count() == 1,
     })
 
 
 @login_required
 def moderar(request, anuncio_id, accion):
     perfil = _perfil(request)
-    if request.method != "POST" or perfil.rol not in ROLES_STAFF or accion not in ("publicar", "rechazar"):
+    if request.method != "POST" or perfil.rol not in ROLES_STAFF or accion not in ("publicar", "rechazar", "archivar", "desarchivar"):
         return redirect("anuncios:lista")
     anuncios = AnuncioResidente.objects.all() if perfil.rol == "Super Administrador" else AnuncioResidente.objects.filter(condominio__in=perfil.condominios_asignados())
-    anuncio = get_object_or_404(anuncios, pk=anuncio_id)
-    anuncio.estado = AnuncioResidente.Estado.PUBLICADO if accion == "publicar" else AnuncioResidente.Estado.RECHAZADO
+    estado_origen = {
+        "publicar": AnuncioResidente.Estado.PENDIENTE,
+        "rechazar": AnuncioResidente.Estado.PENDIENTE,
+        "archivar": AnuncioResidente.Estado.PUBLICADO,
+        "desarchivar": AnuncioResidente.Estado.ARCHIVADO,
+    }[accion]
+    anuncio = get_object_or_404(anuncios, pk=anuncio_id, estado=estado_origen)
+    if accion in ("publicar", "desarchivar"):
+        anuncio.estado = AnuncioResidente.Estado.PUBLICADO
+    elif accion == "archivar":
+        anuncio.estado = AnuncioResidente.Estado.ARCHIVADO
+    else:
+        anuncio.estado = AnuncioResidente.Estado.RECHAZADO
     anuncio.moderado_por = perfil
     anuncio.moderado = timezone.now()
     anuncio.save(update_fields=["estado", "moderado_por", "moderado"])
-    messages.success(request, "El anuncio se publicó." if accion == "publicar" else "El anuncio fue rechazado.")
-    return redirect(f"{reverse('anuncios:lista')}?tipo=residentes")
+    mensajes = {"publicar": "El anuncio se publicó.", "rechazar": "El anuncio fue rechazado.", "archivar": "La publicación del residente se archivó.", "desarchivar": "La publicación del residente volvió a estar visible."}
+    messages.success(request, mensajes[accion])
+    destino = "?tipo=residentes&estado=archivado" if accion == "desarchivar" else "?tipo=residentes"
+    return redirect(f"{reverse('anuncios:lista')}{destino}")
+
+
+@login_required
+def editar_oficial(request, anuncio_id):
+    perfil = _perfil(request)
+    if not _staff(perfil):
+        return redirect("anuncios:lista")
+    qs = AnuncioOficial.objects.all() if perfil.rol == "Super Administrador" else AnuncioOficial.objects.filter(condominio__in=perfil.condominios_asignados())
+    anuncio = get_object_or_404(qs, pk=anuncio_id, estado=AnuncioOficial.Estado.BORRADOR)
+    errores = []
+    if request.method == "POST":
+        titulo = request.POST.get("titulo", "").strip()
+        descripcion = request.POST.get("descripcion", "").strip()
+        alcance = request.POST.get("alcance", "")
+        edificios = list(Edificio.objects.filter(condominio=anuncio.condominio, pk__in=request.POST.getlist("edificios")))
+        unidades = list(Unidad.objects.filter(edificio__condominio=anuncio.condominio, pk__in=request.POST.getlist("unidades")))
+        imagen = request.FILES.get("imagen")
+        if not titulo or len(titulo) > 150:
+            errores.append("Indica un título de hasta 150 caracteres.")
+        if not descripcion:
+            errores.append("Escribe una descripción.")
+        if alcance not in AnuncioOficial.Alcance.values:
+            errores.append("Selecciona un alcance válido.")
+        if alcance == AnuncioOficial.Alcance.EDIFICIOS and not edificios:
+            errores.append("Selecciona al menos un edificio.")
+        if alcance == AnuncioOficial.Alcance.UNIDADES and not unidades:
+            errores.append("Selecciona al menos una unidad.")
+        if imagen:
+            try:
+                for validator in AnuncioOficial._meta.get_field("imagen").validators:
+                    validator(imagen)
+            except ValidationError as error:
+                errores.extend(error.messages)
+        if not errores:
+            anuncio.titulo, anuncio.descripcion, anuncio.alcance = titulo, descripcion, alcance
+            if imagen:
+                anuncio.imagen = imagen
+            accion = request.POST.get("accion", "borrador")
+            anuncio.estado = AnuncioOficial.Estado.PUBLICADO if accion == "publicar" else AnuncioOficial.Estado.BORRADOR
+            anuncio.full_clean()
+            anuncio.save()
+            anuncio.edificios.set(edificios if alcance == AnuncioOficial.Alcance.EDIFICIOS else [])
+            anuncio.unidades.set(unidades if alcance == AnuncioOficial.Alcance.UNIDADES else [])
+            messages.success(request, "Anuncio publicado." if anuncio.estado == AnuncioOficial.Estado.PUBLICADO else "Borrador actualizado.")
+            return redirect("anuncios:lista")
+    condominios = Condominio.objects.filter(pk=anuncio.condominio_id)
+    datos = request.POST if request.method == "POST" else {
+        "titulo": anuncio.titulo, "descripcion": anuncio.descripcion, "alcance": anuncio.alcance,
+        "condominio": str(anuncio.condominio_id),
+        "edificios": list(anuncio.edificios.values_list("id", flat=True)),
+        "unidades": list(anuncio.unidades.values_list("id", flat=True)),
+    }
+    return render(request, "anuncios/crear.html", {
+        "perfil": perfil, "tipo": "oficial", "es_residente": False, "unidad_anuncio": None,
+        "condominios": condominios, "edificios": Edificio.objects.filter(condominio=anuncio.condominio),
+        "unidades_disponibles": Unidad.objects.filter(edificio__condominio=anuncio.condominio).select_related("edificio"),
+        "errores": errores, "datos": datos, "editar_anuncio": anuncio,
+    })
+
+
+@login_required
+def estado_oficial(request, anuncio_id, accion):
+    perfil = _perfil(request)
+    if request.method != "POST" or not _staff(perfil) or accion not in ("publicar", "archivar", "desarchivar"):
+        return redirect("anuncios:lista")
+    qs = AnuncioOficial.objects.all() if perfil.rol == "Super Administrador" else AnuncioOficial.objects.filter(condominio__in=perfil.condominios_asignados())
+    estado_origen = {
+        "publicar": AnuncioOficial.Estado.BORRADOR,
+        "archivar": AnuncioOficial.Estado.PUBLICADO,
+        "desarchivar": AnuncioOficial.Estado.ARCHIVADO,
+    }[accion]
+    anuncio = get_object_or_404(qs, pk=anuncio_id, estado=estado_origen)
+    anuncio.estado = AnuncioOficial.Estado.ARCHIVADO if accion == "archivar" else AnuncioOficial.Estado.PUBLICADO
+    anuncio.save(update_fields=["estado"])
+    mensajes = {"publicar": "El anuncio se publicó.", "archivar": "El anuncio se archivó.", "desarchivar": "El anuncio volvió a los anuncios publicados."}
+    messages.success(request, mensajes[accion])
+    destino = "?tipo=oficial&estado=archivado" if accion == "desarchivar" else "?tipo=oficial"
+    return redirect(f"{reverse('anuncios:lista')}{destino}")
 
 
 @login_required

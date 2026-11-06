@@ -1,6 +1,6 @@
 {% extends "core/base.html" %}
 
-{% block title %}Administración | CondoGestión{% endblock %}
+{% block title %}Administración | Comunidad al Día{% endblock %}
 {% block page_title %}Administración{% endblock %}
 
 {% block content %}
@@ -20,6 +20,41 @@
     <a class="button button-secondary" href="{% url 'condominios_lista' %}">Gestionar condominios</a>
     {% if usuario.rol == "Super Administrador" or usuario.rol == "Administrador" %}<a class="button button-secondary" href="{% url 'condominio_crear' %}">Crear condominio</a>{% endif %}
 </nav>
+
+{% if usuario.rol == "Super Administrador" %}
+<section class="mt-5" aria-labelledby="admins-heading">
+    <h2 class="section-heading" id="admins-heading">Administradores y sus condominios</h2>
+    {% if administradores %}
+        <div class="table-responsive bg-white border rounded">
+            <table class="table table-hover align-middle mb-0">
+                <thead><tr><th>Administrador</th><th>Correo</th><th>Condominios asignados</th></tr></thead>
+                <tbody>
+                    {% for administrador in administradores %}
+                        <tr>
+                            <td class="fw-semibold">{{ administrador.nombre }} {{ administrador.apellido }}</td>
+                            <td>{{ administrador.email }}</td>
+                            <td>
+                                <details>
+                                    <summary class="text-primary" role="button">Ver condominios</summary>
+                                    <ul class="mt-2 mb-0">
+                                        {% for condominio in administrador.condominios_administrados.all %}
+                                            <li><a href="{% url 'areas_comunes_lista' condominio.id %}">{{ condominio.nombre }}</a></li>
+                                        {% empty %}
+                                            {% if administrador.condominio %}<li><a href="{% url 'areas_comunes_lista' administrador.condominio.id %}">{{ administrador.condominio.nombre }}</a></li>{% else %}<li class="text-secondary">Sin condominios asignados</li>{% endif %}
+                                        {% endfor %}
+                                    </ul>
+                                </details>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p class="text-secondary">Todavía no hay administradores registrados.</p>
+    {% endif %}
+</section>
+{% endif %}
 
 <section aria-labelledby="condominios-heading">
     <h2 class="section-heading" id="condominios-heading">Condominios</h2>

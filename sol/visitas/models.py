@@ -8,6 +8,7 @@ class Visita(models.Model):
         PRESENTE = "presente", "Presente"
         SIN_REGISTRO = "sin_registro", "Sin registro"
         FINALIZADA = "finalizada", "Salida registrada"
+        CANCELADA = "cancelada", "Cancelada"
 
     condominio = models.ForeignKey(
         "core.Condominio",

@@ -1,0 +1,20 @@
+{% extends "core/base.html" %}
+{% block title %}Editar mantenimiento | Mantenimientos{% endblock %}
+{% block page_title %}Editar mantenimiento{% endblock %}
+{% block content %}
+<section class="card-custom">
+    <h2 class="h4">{{ registro.elemento.nombre }}</h2>
+    <p class="text-secondary">Puedes corregir el registro mientras no esté completado.</p>
+    {% if errores %}<div class="alert alert-danger">{% for error in errores %}<div>{{ error }}</div>{% endfor %}</div>{% endif %}
+    <form method="post" class="row g-3">{% csrf_token %}
+        <div class="col-md-4"><label class="form-label" for="fecha">Fecha</label><input class="form-control" id="fecha" name="fecha" type="date" value="{{ datos.fecha|default:'' }}" required></div>
+        <div class="col-md-4"><label class="form-label" for="estado">Estado</label><select class="form-select" id="estado" name="estado">{% for valor, etiqueta in estados %}<option value="{{ valor }}" {% if datos.estado == valor %}selected{% endif %}>{{ etiqueta }}</option>{% endfor %}</select></div>
+        <div class="col-md-4"><label class="form-label" for="proximo_mantenimiento">Próximo mantenimiento</label><input class="form-control" id="proximo_mantenimiento" name="proximo_mantenimiento" type="date" value="{{ datos.proximo_mantenimiento|default:'' }}"></div>
+        <div class="col-md-6"><label class="form-label" for="empresa">Empresa</label><input class="form-control" id="empresa" name="empresa" maxlength="150" value="{{ datos.empresa|default:'' }}"></div>
+        <div class="col-md-6"><label class="form-label" for="telefono_empresa">Teléfono</label><input class="form-control" id="telefono_empresa" name="telefono_empresa" maxlength="40" value="{{ datos.telefono_empresa|default:'' }}"></div>
+        <div class="col-12"><label class="form-label" for="descripcion">Mantenimiento previsto o trabajo realizado</label><textarea class="form-control" id="descripcion" name="descripcion" required>{{ datos.descripcion|default:'' }}</textarea></div>
+        <div class="col-12"><label class="form-label" for="detalle_cierre">Detalle del trabajo al completar</label><textarea class="form-control" id="detalle_cierre" name="detalle_cierre">{{ datos.detalle_cierre|default:'' }}</textarea></div>
+        <div class="col-12 d-flex gap-2"><button class="button" type="submit">Guardar cambios</button><a class="button button-secondary" href="{% url 'mantenimientos:detalle' registro.elemento_id %}">Cancelar</a></div>
+    </form>
+</section>
+{% endblock %}

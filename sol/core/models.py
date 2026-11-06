@@ -43,6 +43,7 @@ class Edificio(models.Model):
     condominio = models.ForeignKey(Condominio,on_delete=models.CASCADE,related_name="edificios_set",)
     numero = models.PositiveSmallIntegerField()  # la "X" del numero de unidad
     nombre = models.CharField(max_length=50)
+    activo = models.BooleanField(default=True)
     numero_pisos = models.PositiveSmallIntegerField(null=True,blank=True,validators=[MinValueValidator(2), MaxValueValidator(20)],)
     viviendas_por_piso = models.PositiveSmallIntegerField(null=True,blank=True,validators=[MinValueValidator(1)],)
     subterraneo = models.BooleanField(default=False)
@@ -87,10 +88,14 @@ class Unidad(models.Model):
     piso = models.PositiveSmallIntegerField()
     posicion = models.PositiveSmallIntegerField()
     numero_unidad = models.CharField(max_length=10)
+    activo = models.BooleanField(default=True)
     cantidad_residentes = models.PositiveSmallIntegerField(null=True, blank=True, validators=[MinValueValidator(1), MaxValueValidator(20)],)
     propietario_vive = models.BooleanField(default=True)
     dueno = models.ForeignKey("Usuario",on_delete=models.PROTECT,null=True,blank=True,related_name="unidades_propias",)
     arrendatario = models.ForeignKey("Usuario",on_delete=models.SET_NULL,null=True,blank=True,related_name="unidades_arrendadas",)
+    # Porcentaje de participación oficial (ej. 0.580000 representa 0,58 %).
+    alicuota = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True,
+        validators=[MinValueValidator(0), MaxValueValidator(100)])
 
     def __str__(self):
         return f"Unidad {self.numero_unidad} - {self.edificio}"
@@ -230,6 +235,7 @@ class AreaComun(models.Model):
     capacidad = models.PositiveSmallIntegerField(null=True, blank=True)
     reservable = models.BooleanField(default=False)
     duracion_maxima = models.PositiveSmallIntegerField(null=True,blank=True,validators=[MinValueValidator(1)],)
+    permite_multiples_reservas_por_unidad_dia = models.BooleanField(default=True)
     requiere_reserva = models.BooleanField(default=True,)
     permite_reservas_consecutivas = models.BooleanField(default=False,)
     dias_anticipacion_maxima = models.PositiveSmallIntegerField(null=True,blank=True,validators=[MinValueValidator(1)],)
@@ -349,6 +355,7 @@ class Reservacion(models.Model):
     class Estado(models.TextChoices):
         PENDIENTE = "pendiente", "Pendiente"
         APROBADO = "aprobado", "Aprobado"
+        COMPLETADO = "completada", "Completada"
         RECHAZADO = "rechazado", "Rechazado"
         CANCELADO = "cancelado", "Cancelado"
 

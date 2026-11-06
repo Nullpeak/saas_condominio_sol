@@ -15,6 +15,7 @@ from django.contrib import admin
 from django.urls import path, include
 
 from core.views import *
+from core.reportes import reportes
 
 
 urlpatterns = [
@@ -89,6 +90,8 @@ urlpatterns = [
         name="administracion"
     ),
 
+    path("reportes/", reportes, name="reportes"),
+
 
     #============== USUARIOS ==============
 
@@ -142,6 +145,7 @@ urlpatterns = [
         condominio_editar,
         name="condominio_editar"
     ),
+    path("condominios/<int:condominio_id>/eliminar/", condominio_eliminar, name="condominio_eliminar"),
 
 
     #============== EDIFICIOS ==============
@@ -157,6 +161,7 @@ urlpatterns = [
         edificio_editar,
         name="edificio_editar"
     ),
+    path("edificios/<int:edificio_id>/cambiar-estado/", edificio_cambiar_estado, name="edificio_cambiar_estado"),
 
 
     #============== UNIDADES ==============
@@ -172,9 +177,16 @@ urlpatterns = [
         unidad_editar,
         name="unidad_editar"
     ),
+    path("unidades/<int:unidad_id>/cambiar-estado/", unidad_cambiar_estado, name="unidad_cambiar_estado"),
 
 
     #============== ÁREAS COMUNES ==============
+
+    path(
+        "areas-comunes/",
+        areas_comunes_selector,
+        name="areas_comunes_selector"
+    ),
 
     path(
         "condominios/<int:condominio_id>/areas-comunes/",
@@ -228,6 +240,7 @@ urlpatterns = [
     path("tickets/", include("tickets.urls")),
     path("anuncios/", include("anuncios.urls")),
     path("mantenimientos/", include("mantenimientos.urls")),
+    path("gastos-comunes/", include("gastos_comunes.urls")),
 
     path(
         "reservaciones/nueva/",

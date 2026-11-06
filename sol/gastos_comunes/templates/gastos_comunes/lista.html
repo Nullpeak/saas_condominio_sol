@@ -1,0 +1,41 @@
+{% extends "core/base.html" %}
+{% block title %}Gastos comunes | Comunidad al Día{% endblock %}
+{% block page_title %}Gastos comunes{% endblock %}
+{% block content %}
+<header class="page-intro">
+    <h1>Gastos comunes</h1>
+    <p>{% if es_gestion %}Períodos, liquidaciones y pagos de tus condominios.{% else %}Liquidaciones e historial de tu unidad.{% endif %}</p>
+</header>
+{% if es_gestion %}
+    <div class="quick-links mt-0"><a class="button" href="{% url 'gastos_comunes:periodo_nuevo' %}">Crear período mensual</a></div>
+    <div class="card">
+        <div class="table-responsive"><table class="table align-middle mb-0">
+            <thead><tr><th>Período</th><th>Condominio</th><th>Vencimiento</th><th>Estado</th><th></th></tr></thead>
+            <tbody>
+            {% for periodo in periodos %}<tr>
+                <td>{{ periodo.mes|stringformat:"02d" }}/{{ periodo.anio }}</td><td>{{ periodo.condominio.nombre }}</td>
+                <td>{{ periodo.vencimiento|date:"d/m/Y" }}</td><td>{{ periodo.get_estado_display }}</td>
+                <td><a class="button button-secondary" href="{% url 'gastos_comunes:detalle' periodo.id %}">Abrir</a></td>
+            </tr>{% empty %}<tr><td colspan="5" class="text-center text-muted py-4">Todavía no hay períodos registrados.</td></tr>{% endfor %}
+            </tbody>
+        </table></div>
+    </div>
+{% else %}
+    <div class="card">
+        <div class="table-responsive"><table class="table align-middle mb-0">
+            <thead><tr><th>Período</th><th>Unidad</th><th>Total</th><th>Pagado</th><th>Saldo</th><th></th></tr></thead>
+            <tbody>{% for liquidacion in liquidaciones %}
+                {% with pagado=liquidacion.pagos.all %}
+                <tr>
+                    <td>{{ liquidacion.periodo.mes|stringformat:"02d" }}/{{ liquidacion.periodo.anio }}</td>
+                    <td>{{ liquidacion.unidad.edificio.nombre }} · {{ liquidacion.unidad.numero_unidad }}</td>
+                    <td>${{ liquidacion.total|floatformat:0 }}</td>
+                    <td>{% for pago in pagado %}${{ pago.monto|floatformat:0 }}{% if not forloop.last %}, {% endif %}{% empty %}$0{% endfor %}</td>
+                    <td>${{ liquidacion.saldo_actual|default:liquidacion.total|floatformat:0 }}</td>
+                    <td><a class="button button-secondary" href="{% url 'gastos_comunes:detalle' liquidacion.periodo.id %}">Ver desglose</a></td>
+                </tr>{% endwith %}
+            {% empty %}<tr><td colspan="6" class="text-center text-muted py-4">Aún no hay liquidaciones publicadas para tus unidades.</td></tr>{% endfor %}</tbody>
+        </table></div>
+    </div>
+{% endif %}
+{% endblock %}

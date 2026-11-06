@@ -12,7 +12,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from core.models import Unidad, Usuario
-from .models import Ticket, TicketArchivo
+from .models import Ticket, TicketArchivo, TicketHistorial
 from .validators import EXTENSIONES_IMAGEN, EXTENSIONES_VIDEO, validar_adjunto
 
 
@@ -89,9 +89,9 @@ def lista(request):
     if vista not in ("activos", "historial"):
         vista = "activos"
     if vista == "historial":
-        tickets = tickets.filter(estado__in=(Ticket.Estado.RESUELTO, Ticket.Estado.CERRADO))
+        tickets = tickets.filter(estado__in=(Ticket.Estado.RESUELTO, Ticket.Estado.CERRADO, Ticket.Estado.CANCELADO))
     else:
-        tickets = tickets.exclude(estado__in=(Ticket.Estado.RESUELTO, Ticket.Estado.CERRADO))
+        tickets = tickets.exclude(estado__in=(Ticket.Estado.RESUELTO, Ticket.Estado.CERRADO, Ticket.Estado.CANCELADO))
     busqueda = request.GET.get("q", "").strip()
     if busqueda:
         tickets = tickets.filter(Q(titulo__icontains=busqueda) | Q(descripcion__icontains=busqueda))
@@ -100,6 +100,11 @@ def lista(request):
         tickets = tickets.filter(estado=estado)
     else:
         estado = ""
+    categoria = request.GET.get("categoria", "").strip()
+    if categoria in Ticket.Categoria.values:
+        tickets = tickets.filter(categoria=categoria)
+    else:
+        categoria = ""
     unidad_id = request.GET.get("unidad", "").strip()
     unidad = filtrar_unidad(unidades, unidad_id)
     if unidad:
@@ -120,12 +125,23 @@ def lista(request):
         except ValueError:
             fecha_hasta = ""
 
-    tickets = list(tickets.order_by("-creado", "-id"))
+    tickets = list(tickets.select_related("usuario", "unidad", "unidad__edificio").prefetch_related(
+        "archivos", "historial__usuario"
+    ).order_by("-creado", "-id"))
     for ticket in tickets:
         for archivo in ticket.archivos.all():
             extension = os.path.splitext(archivo.archivo.name)[1].lower()
             archivo.es_imagen = extension in EXTENSIONES_IMAGEN
             archivo.es_video = extension in EXTENSIONES_VIDEO
+        ticket.puede_editar = (
+            usuario.rol == "Residente"
+            and ticket.usuario_id == usuario.id
+            and ticket.estado == Ticket.Estado.ABIERTO
+        )
+        ticket.puede_cancelar = ticket.puede_editar
+        ticket.puede_responder = (
+            ticket.usuario_id == usuario.id or usuario.rol in ROLES_GESTION
+        )
 
     gestores = Usuario.objects.filter(rol="Gestor", activo=True)
     if not es_super(usuario):
@@ -137,9 +153,11 @@ def lista(request):
         "unidades": unidades,
         "gestores": gestores.order_by("nombre", "apellido"),
         "estados": Ticket.Estado.choices,
+        "categorias": Ticket.Categoria.choices,
         "prioridades": Ticket.Prioridad.choices,
         "busqueda": busqueda,
         "estado_filtro": estado,
+        "categoria_filtro": categoria,
         "unidad_filtro": unidad_id,
         "fecha_desde": fecha_desde,
         "fecha_hasta": fecha_hasta,
@@ -158,13 +176,14 @@ def crear(request):
         messages.error(request, "Tu usuario todavía no tiene un condominio asignado.")
         return redirect("inicio")
 
-    unidades = unidades_visibles(usuario)
+    unidades = unidades_visibles(usuario).filter(activo=True, edificio__activo=True)
     errores = []
     if request.method == "POST":
         titulo = request.POST.get("titulo", "").strip()
         descripcion = request.POST.get("descripcion", "").strip()
         unidad_id = request.POST.get("unidad", "").strip()
         prioridad = request.POST.get("prioridad", "").strip() if usuario.rol in ("Super Administrador", "Administrador") else ""
+        categoria = request.POST.get("categoria", Ticket.Categoria.OTRO).strip()
         archivos = request.FILES.getlist("adjuntos")
 
         unidad = filtrar_unidad(unidades, unidad_id)
@@ -176,6 +195,8 @@ def crear(request):
             errores.append("El nombre no puede superar 150 caracteres.")
         if not descripcion:
             errores.append("Describe el problema o solicitud.")
+        if categoria not in Ticket.Categoria.values:
+            errores.append("Selecciona una categoría válida.")
         if prioridad and prioridad not in [value for value, _label in Ticket.Prioridad.choices]:
             errores.append("La prioridad seleccionada no es válida.")
         if len(archivos) > 5:
@@ -194,9 +215,17 @@ def crear(request):
                 titulo=titulo,
                 descripcion=descripcion,
                 prioridad=prioridad,
+                categoria=categoria,
             )
             ticket.full_clean()
             ticket.save()
+            TicketHistorial.objects.create(
+                ticket=ticket,
+                usuario=usuario,
+                tipo=TicketHistorial.Tipo.CREADO,
+                detalle="Se creó el ticket.",
+                estado_nuevo=ticket.estado,
+            )
             for archivo in archivos:
                 TicketArchivo.objects.create(ticket=ticket, archivo=archivo)
             messages.success(request, "El ticket se creó correctamente.")
@@ -206,6 +235,7 @@ def crear(request):
         "usuario_actual": usuario,
         "unidades": unidades,
         "prioridades": Ticket.Prioridad.choices,
+        "categorias": Ticket.Categoria.choices,
         "puede_definir_prioridad": usuario.rol in ("Super Administrador", "Administrador"),
         "errores": errores,
         "datos": request.POST if request.method == "POST" else {},
@@ -220,6 +250,7 @@ def asignar(request, ticket_id):
     if request.method != "POST" or usuario.rol not in ("Super Administrador", "Administrador"):
         return redirect("tickets:lista")
     ticket = get_object_or_404(tickets_visibles(usuario), pk=ticket_id)
+    asignado_anterior = ticket.asignado
     gestor_id = request.POST.get("gestor", "").strip()
     if not gestor_id:
         ticket.asignado = None
@@ -237,6 +268,9 @@ def asignar(request, ticket_id):
             return redirect("tickets:lista")
         ticket.asignado = gestor
     ticket.save(update_fields=["asignado"])
+    if getattr(asignado_anterior, "id", None) != getattr(ticket.asignado, "id", None):
+        nombre_asignado = f"{ticket.asignado.nombre} {ticket.asignado.apellido}" if ticket.asignado else "Sin asignar"
+        TicketHistorial.objects.create(ticket=ticket, usuario=usuario, tipo=TicketHistorial.Tipo.ASIGNACION, detalle=f"Asignación actualizada: {nombre_asignado}.")
     messages.success(request, "Se actualizó la asignación del ticket.")
     return redirect("tickets:lista")
 
@@ -253,11 +287,18 @@ def cambiar_estado(request, ticket_id):
         messages.error(request, "Selecciona un estado válido.")
         return redirect("tickets:lista")
 
+    estado_anterior = ticket.estado
     ticket.estado = nuevo_estado
     if nuevo_estado in (Ticket.Estado.RESUELTO, Ticket.Estado.CERRADO):
         ticket.resuelto = timezone.now()
         ticket.resuelto_por = usuario
     ticket.save(update_fields=["estado", "resuelto", "resuelto_por"])
+    if estado_anterior != nuevo_estado:
+        TicketHistorial.objects.create(
+            ticket=ticket, usuario=usuario, tipo=TicketHistorial.Tipo.ESTADO,
+            detalle=f"Estado actualizado a {ticket.get_estado_display()}.",
+            estado_anterior=estado_anterior, estado_nuevo=nuevo_estado,
+        )
     messages.success(request, "Se actualizó el estado del ticket.")
     return redirect("tickets:lista")
 
@@ -285,3 +326,88 @@ def archivo(request, archivo_id):
         as_attachment=False,
         filename=os.path.basename(adjunto.archivo.name),
     )
+
+
+@login_required
+def editar(request, ticket_id):
+    usuario = perfil_actual(request)
+    ticket = get_object_or_404(tickets_visibles(usuario).select_related("unidad__edificio"), pk=ticket_id)
+    if usuario.rol != "Residente" or ticket.usuario_id != usuario.id or ticket.estado != Ticket.Estado.ABIERTO:
+        messages.error(request, "Solo puedes editar tus propios tickets pendientes de atención.")
+        return redirect("tickets:lista")
+    errores = []
+    datos = {"titulo": ticket.titulo, "descripcion": ticket.descripcion, "categoria": ticket.categoria}
+    if request.method == "POST":
+        titulo = request.POST.get("titulo", "").strip()
+        descripcion = request.POST.get("descripcion", "").strip()
+        categoria = request.POST.get("categoria", "").strip()
+        if not titulo:
+            errores.append("Escribe un nombre para el ticket.")
+        elif len(titulo) > 150:
+            errores.append("El nombre no puede superar 150 caracteres.")
+        if not descripcion:
+            errores.append("Describe el problema o solicitud.")
+        if categoria not in Ticket.Categoria.values:
+            errores.append("Selecciona una categoría válida.")
+        datos = request.POST
+        if not errores:
+            cambiado = ticket.titulo != titulo or ticket.descripcion != descripcion or ticket.categoria != categoria
+            ticket.titulo, ticket.descripcion, ticket.categoria = titulo, descripcion, categoria
+            ticket.save(update_fields=["titulo", "descripcion", "categoria"])
+            if cambiado:
+                TicketHistorial.objects.create(ticket=ticket, usuario=usuario, tipo=TicketHistorial.Tipo.EDICION, detalle="El residente actualizó los datos del ticket.")
+            messages.success(request, "Se actualizaron los datos del ticket.")
+            return redirect("tickets:lista")
+    return render(request, "tickets/crear.html", {
+        "usuario_actual": usuario,
+        "unidades": [ticket.unidad] if ticket.unidad else [],
+        "prioridades": Ticket.Prioridad.choices,
+        "categorias": Ticket.Categoria.choices,
+        "puede_definir_prioridad": False,
+        "errores": errores,
+        "datos": datos,
+        "es_residente": True,
+        "unidad_unica": True,
+        "editar_ticket": ticket,
+    })
+
+
+@login_required
+def cancelar(request, ticket_id):
+    usuario = perfil_actual(request)
+    if request.method != "POST":
+        return redirect("tickets:lista")
+    ticket = get_object_or_404(tickets_visibles(usuario), pk=ticket_id)
+    if usuario.rol != "Residente" or ticket.usuario_id != usuario.id or ticket.estado != Ticket.Estado.ABIERTO:
+        messages.error(request, "Solo puedes cancelar tus propios tickets pendientes de atención.")
+        return redirect("tickets:lista")
+    ticket.estado = Ticket.Estado.CANCELADO
+    ticket.save(update_fields=["estado"])
+    TicketHistorial.objects.create(
+        ticket=ticket, usuario=usuario, tipo=TicketHistorial.Tipo.CANCELACION,
+        detalle="El residente canceló el ticket.", estado_anterior=Ticket.Estado.ABIERTO,
+        estado_nuevo=Ticket.Estado.CANCELADO,
+    )
+    messages.success(request, "El ticket fue cancelado y quedó en el historial.")
+    return redirect("tickets:lista")
+
+
+@login_required
+def responder(request, ticket_id):
+    usuario = perfil_actual(request)
+    if request.method != "POST":
+        return redirect("tickets:lista")
+    ticket = get_object_or_404(tickets_visibles(usuario), pk=ticket_id)
+    if ticket.usuario_id != usuario.id and usuario.rol not in ROLES_GESTION:
+        messages.error(request, "No tienes permiso para responder este ticket.")
+        return redirect("tickets:lista")
+    detalle = request.POST.get("respuesta", "").strip()
+    if not detalle:
+        messages.error(request, "Escribe una respuesta antes de enviarla.")
+    else:
+        TicketHistorial.objects.create(
+            ticket=ticket, usuario=usuario, tipo=TicketHistorial.Tipo.RESPUESTA,
+            detalle=detalle,
+        )
+        messages.success(request, "La respuesta quedó agregada al ticket.")
+    return redirect("tickets:lista")

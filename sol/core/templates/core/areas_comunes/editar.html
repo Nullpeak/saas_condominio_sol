@@ -1,7 +1,7 @@
 {% extends "core/base.html" %}
 
 {% block title %}
-Editar área común - CondoGestión
+Editar área común - Comunidad al Día
 {% endblock %}
 
 {% block page_title %}
@@ -238,6 +238,20 @@ Editar área común
                 Puede dejarse vacío si no existe un límite.
             </small>
 
+        </div>
+
+
+        <div style="margin-bottom: 18px;">
+            <label>
+                <input
+                    type="checkbox"
+                    name="permite_multiples_reservas_por_unidad_dia"
+                    {% if datos.permite_multiples_reservas_por_unidad_dia or area.permite_multiples_reservas_por_unidad_dia and not datos %}checked{% endif %}
+                >
+                <strong>Permitir más de una reserva por unidad al día</strong>
+            </label>
+            <br>
+            <small style="color:#64748b;">Si lo desmarcas, cada unidad podrá reservar esta área solo una vez al día.</small>
         </div>
 
 

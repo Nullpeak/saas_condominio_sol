@@ -1,7 +1,7 @@
 {% extends "core/base.html" %}
 {% load l10n %}
 
-{% block title %}Tickets | CondoGestión{% endblock %}
+{% block title %}Tickets | Comunidad al Día{% endblock %}
 {% block page_title %}Tickets{% endblock %}
 
 {% block content %}
@@ -30,6 +30,10 @@
                 <option value="">Todos</option>
                 {% for codigo, etiqueta in estados %}<option value="{{ codigo }}" {% if estado_filtro == codigo %}selected{% endif %}>{{ etiqueta }}</option>{% endfor %}
             </select>
+        </div>
+        <div class="col-md-2">
+            <label for="categoria" class="form-label">Categoría</label>
+            <select class="form-select" id="categoria" name="categoria"><option value="">Todas</option>{% for codigo, etiqueta in categorias %}<option value="{{ codigo }}" {% if categoria_filtro == codigo %}selected{% endif %}>{{ etiqueta }}</option>{% endfor %}</select>
         </div>
         {% if puede_gestionar %}
             <div class="col-md-2">
@@ -73,6 +77,7 @@
                                     <span class="badge text-bg-warning">{{ ticket.get_estado_display }}</span>
                                 {% endif %}
                                 {% if ticket.prioridad %}<span class="badge text-bg-light">{{ ticket.get_prioridad_display }}</span>{% endif %}
+                                <span class="badge text-bg-light">{{ ticket.get_categoria_display }}</span>
                             </div>
                             <div class="small text-muted">
                                 Creado por {{ ticket.usuario.nombre }} {{ ticket.usuario.apellido }} · {% localize off %}{{ ticket.creado|date:"d/m/Y H:i" }}{% endlocalize %}
@@ -104,6 +109,20 @@
                             Última resolución registrada el {% localize off %}{{ ticket.resuelto|date:"d/m/Y H:i" }}{% endlocalize %}{% if ticket.resuelto_por %} por {{ ticket.resuelto_por.nombre }} {{ ticket.resuelto_por.apellido }} ({{ ticket.resuelto_por.rol }}){% endif %}.
                         </div>
                     {% endif %}
+
+                    {% if ticket.historial.all %}
+                        <details class="mb-3">
+                            <summary class="small fw-semibold">Respuestas e historial</summary>
+                            <ol class="small text-muted mt-2 mb-0">
+                                {% for evento in ticket.historial.all %}<li class="mb-1"><strong>{{ evento.get_tipo_display }}</strong>{% if evento.usuario %} · {{ evento.usuario.nombre }} {{ evento.usuario.apellido }}{% endif %} · {{ evento.creado|date:"d/m/Y H:i" }} — {{ evento.detalle }}</li>{% endfor %}
+                            </ol>
+                        </details>
+                    {% endif %}
+
+                    {% if ticket.puede_responder %}
+                        <form method="post" action="{% url 'tickets:responder' ticket.id %}" class="d-flex gap-2 mb-3">{% csrf_token %}<label class="visually-hidden" for="respuesta-{{ ticket.id }}">Escribir respuesta</label><input class="form-control" id="respuesta-{{ ticket.id }}" name="respuesta" maxlength="2000" placeholder="Escribe una respuesta" required><button class="btn btn-sm btn-outline-primary" type="submit">Responder</button></form>
+                    {% endif %}
+                    {% if ticket.puede_editar %}<div class="d-flex gap-2 mb-3"><a class="btn btn-sm btn-outline-secondary" href="{% url 'tickets:editar' ticket.id %}">Editar ticket</a><form method="post" action="{% url 'tickets:cancelar' ticket.id %}" onsubmit="return confirm('¿Cancelar este ticket?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger" type="submit">Cancelar ticket</button></form></div>{% endif %}
 
                     {% if puede_gestionar %}
                         <div class="d-flex flex-wrap gap-3 pt-3 border-top">

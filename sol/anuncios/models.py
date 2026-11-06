@@ -29,6 +29,11 @@ def ruta_imagen(instance, filename):
 
 
 class AnuncioOficial(models.Model):
+    class Estado(models.TextChoices):
+        BORRADOR = "borrador", "Borrador"
+        PUBLICADO = "publicado", "Publicado"
+        ARCHIVADO = "archivado", "Archivado"
+
     class Alcance(models.TextChoices):
         TODOS = "todos", "Todo el condominio"
         EDIFICIOS = "edificios", "Edificios seleccionados"
@@ -40,6 +45,7 @@ class AnuncioOficial(models.Model):
     descripcion = models.TextField()
     imagen = models.ImageField(upload_to=ruta_imagen, blank=True, validators=[validar_imagen])
     alcance = models.CharField(max_length=12, choices=Alcance.choices, default=Alcance.TODOS)
+    estado = models.CharField(max_length=12, choices=Estado.choices, default=Estado.PUBLICADO)
     edificios = models.ManyToManyField("core.Edificio", blank=True, related_name="anuncios_oficiales")
     unidades = models.ManyToManyField("core.Unidad", blank=True, related_name="anuncios_oficiales")
     creado = models.DateTimeField(auto_now_add=True)
@@ -60,6 +66,7 @@ class AnuncioResidente(models.Model):
         PENDIENTE = "pendiente", "Pendiente de revisión"
         PUBLICADO = "publicado", "Publicado"
         RECHAZADO = "rechazado", "No aprobado"
+        ARCHIVADO = "archivado", "Archivado"
 
     condominio = models.ForeignKey("core.Condominio", on_delete=models.CASCADE, related_name="anuncios_residentes")
     autor = models.ForeignKey("core.Usuario", on_delete=models.PROTECT, related_name="anuncios_residentes_creados")

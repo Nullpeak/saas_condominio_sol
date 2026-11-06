@@ -14,6 +14,14 @@ class Ticket(models.Model):
         EN_REVISION = "en_revision", "En revisión"
         RESUELTO = "resuelto", "Resuelto"
         CERRADO = "cerrado", "Cerrado"
+        CANCELADO = "cancelado", "Cancelado"
+
+    class Categoria(models.TextChoices):
+        AGUA = "agua", "Agua o filtración"
+        ELECTRICIDAD = "electricidad", "Electricidad"
+        INFRAESTRUCTURA = "infraestructura", "Infraestructura"
+        RUIDO = "ruido", "Ruido o convivencia"
+        OTRO = "otro", "Otro"
 
     class Prioridad(models.TextChoices):
         BAJA = "baja", "Baja"
@@ -25,6 +33,7 @@ class Ticket(models.Model):
     usuario = models.ForeignKey("core.Usuario", on_delete=models.PROTECT, related_name="tickets_creados")
     titulo = models.CharField(max_length=150)
     descripcion = models.TextField()
+    categoria = models.CharField(max_length=20, choices=Categoria.choices, default=Categoria.OTRO)
     estado = models.CharField(max_length=15, choices=Estado.choices, default=Estado.ABIERTO)
     prioridad = models.CharField(max_length=5, choices=Prioridad.choices, blank=True)
     asignado = models.ForeignKey("core.Usuario", on_delete=models.SET_NULL, null=True, blank=True, related_name="tickets_asignados")
@@ -61,3 +70,28 @@ class TicketArchivo(models.Model):
 
     def __str__(self):
         return f"Adjunto de ticket #{self.ticket_id}"
+
+
+class TicketHistorial(models.Model):
+    class Tipo(models.TextChoices):
+        CREADO = "creado", "Ticket creado"
+        EDICION = "edicion", "Ticket actualizado"
+        ESTADO = "estado", "Cambio de estado"
+        ASIGNACION = "asignacion", "Cambio de asignación"
+        RESPUESTA = "respuesta", "Respuesta"
+        CANCELACION = "cancelacion", "Ticket cancelado"
+
+    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="historial")
+    usuario = models.ForeignKey("core.Usuario", null=True, blank=True, on_delete=models.SET_NULL, related_name="historial_tickets")
+    tipo = models.CharField(max_length=15, choices=Tipo.choices)
+    detalle = models.TextField(blank=True)
+    estado_anterior = models.CharField(max_length=15, blank=True)
+    estado_nuevo = models.CharField(max_length=15, blank=True)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "ticket_historial"
+        ordering = ["creado", "id"]
+
+    def __str__(self):
+        return f"{self.get_tipo_display()} · Ticket #{self.ticket_id}"

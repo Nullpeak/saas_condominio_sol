@@ -1,7 +1,7 @@
 {% extends "core/base.html" %}
 
 {% block title %}
-Unidades - {{ edificio.nombre }} - CondoGestión
+Unidades - {{ edificio.nombre }} - Comunidad al Día
 {% endblock %}
 
 {% block page_title %}
@@ -143,6 +143,7 @@ Unidades
                             <strong>
                                 {{ unidad.numero_unidad }}
                             </strong>
+                            <div style="margin-top:4px; font-size:12px; color:{% if unidad.activo %}#15803d{% else %}#64748b{% endif %};">{% if unidad.activo %}Activa{% else %}Inactiva{% endif %}</div>
                         </td>
 
 
@@ -226,6 +227,7 @@ Unidades
                             >
                                 Editar
                             </a>
+                            <form method="post" action="{% url 'unidad_cambiar_estado' unidad.id %}" style="display:inline-block; margin-left:6px;">{% csrf_token %}<button class="button" type="submit">{% if unidad.activo %}Desactivar{% else %}Reactivar{% endif %}</button></form>
 
                         </td>
 

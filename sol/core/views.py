@@ -10,12 +10,13 @@ from django.contrib.auth.models import User
 from django.contrib.auth.views import (PasswordResetView,PasswordResetDoneView,PasswordResetConfirmView,PasswordResetCompleteView,)
 from django.urls import reverse_lazy
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.core.exceptions import ValidationError
 from django.http import JsonResponse
 from django.utils import timezone
 from launch.guards import setup_disponible
 from launch.ciudades import ciudades_chile
+from tickets.models import Ticket
 
 from .validators import *
 from .models import *
@@ -53,6 +54,10 @@ def puede_gestionar_usuarios(usuario):
 
 def puede_gestionar_condominio(usuario):
     return tiene_rol(usuario, "Super Administrador", "Administrador")
+
+
+def puede_gestionar_areas(usuario):
+    return tiene_rol(usuario, "Super Administrador", "Administrador", "Gestor")
 
 
 def puede_gestionar_roles(usuario):
@@ -189,9 +194,34 @@ def password_reset_complete(request):
 @login_required
 def inicio(request):
     usuario = obtener_usuario(request)
+    condominios = usuario.condominios_asignados().filter(activo=True)
+    reservas = Reservacion.objects.none()
+    tickets = Ticket.objects.none()
+    if usuario.rol == Usuario.Rol.RESIDENTE:
+        reservas = Reservacion.objects.filter(
+            usuario=usuario,
+            estado__in=(Reservacion.Estado.PENDIENTE, Reservacion.Estado.APROBADO),
+            fecha_reserva__gte=timezone.now(),
+        )
+        tickets = Ticket.objects.filter(
+            usuario=usuario,
+            estado__in=(Ticket.Estado.ABIERTO, Ticket.Estado.EN_REVISION),
+        )
+    elif usuario.rol in (Usuario.Rol.SUPER, Usuario.Rol.ADMINISTRADOR, Usuario.Rol.GESTOR):
+        reservas = Reservacion.objects.filter(
+            unidad__edificio__condominio__in=condominios,
+            estado__in=(Reservacion.Estado.PENDIENTE, Reservacion.Estado.APROBADO),
+            fecha_reserva__gte=timezone.now(),
+        )
+        tickets = Ticket.objects.filter(
+            condominio__in=condominios,
+            estado__in=(Ticket.Estado.ABIERTO, Ticket.Estado.EN_REVISION),
+        )
 
     return render(request, "core/inicio.html", {
         "usuario": usuario,
+        "reservas_proximas": reservas.count(),
+        "tickets_pendientes": tickets.count(),
     })
 
 
@@ -208,11 +238,20 @@ def administracion(request):
     usuarios = Usuario.objects.select_related("user", "condominio").filter(
         Q(condominio__in=condominios) | Q(condominios_administrados__in=condominios)
     ).distinct()
+    administradores = Usuario.objects.filter(
+        rol=Usuario.Rol.ADMINISTRADOR,
+        activo=True,
+    ).prefetch_related("condominios_administrados", "condominio").order_by("apellido", "nombre")
+    if not es_super_administrador(usuario):
+        administradores = administradores.filter(
+            Q(condominio__in=condominios) | Q(condominios_administrados__in=condominios)
+        ).distinct()
 
     return render(request, "core/administracion.html", {
         "usuario": usuario,
         "condominios": condominios,
         "usuarios": usuarios,
+        "administradores": administradores,
     })
 
 
@@ -233,9 +272,20 @@ def usuarios_lista(request):
             Q(condominio__in=condominios) | Q(condominios_administrados__in=condominios)
         ).distinct()
 
+    busqueda = request.GET.get("q", "").strip()
+    if busqueda:
+        usuarios = usuarios.filter(
+            Q(nombre__icontains=busqueda)
+            | Q(apellido__icontains=busqueda)
+            | Q(email__icontains=busqueda)
+            | Q(user__username__icontains=busqueda)
+            | Q(rut__icontains=busqueda)
+        )
+
     return render(request, "core/usuarios/lista.html", {
         "usuario": usuario_actual,
         "usuarios": usuarios,
+        "busqueda": busqueda,
     })
 
 
@@ -841,12 +891,29 @@ def condominios_lista(request):
     if not puede_gestionar_condominio(usuario_actual):
         return redirect("inicio")
 
-    condominios = usuario_actual.condominios_asignados().filter(activo=True)
+    condominios = usuario_actual.condominios_asignados()
+    estado = request.GET.get("estado", "activos")
+    if estado == "activos":
+        condominios = condominios.filter(activo=True)
+    elif estado == "inactivos":
+        condominios = condominios.filter(activo=False)
+    else:
+        estado = "todos"
+    busqueda = request.GET.get("q", "").strip()
+    if busqueda:
+        condominios = condominios.filter(
+            Q(nombre__icontains=busqueda)
+            | Q(direccion__icontains=busqueda)
+            | Q(ciudad__nombre__icontains=busqueda)
+        )
+    condominios = condominios.select_related("ciudad").order_by("nombre")
 
     return render(request, "core/condominios/lista.html", {
         "usuario": usuario_actual,
         "usuario_actual": usuario_actual,
         "condominios": condominios,
+        "busqueda": busqueda,
+        "estado_filtro": estado,
     })
 
 
@@ -1346,10 +1413,31 @@ def unidad_editar(request, unidad_id):
 # ============================== ÁREAS COMUNES ==============================
 
 @login_required
+def areas_comunes_selector(request):
+    usuario_actual = obtener_usuario(request)
+
+    if not puede_gestionar_areas(usuario_actual):
+        return redirect("inicio")
+
+    condominios = usuario_actual.condominios_asignados().filter(activo=True).annotate(
+        total_areas_comunes=Count("areas_comunes")
+    ).order_by("nombre")
+
+    return render(
+        request,
+        "core/areas_comunes/condominios.html",
+        {
+            "usuario_actual": usuario_actual,
+            "condominios": condominios,
+        },
+    )
+
+
+@login_required
 def areas_comunes_lista(request, condominio_id):
     usuario_actual = obtener_usuario(request)
 
-    if not puede_gestionar_condominio(usuario_actual):
+    if not puede_gestionar_areas(usuario_actual):
         return redirect("inicio")
 
     condominio = get_object_or_404(
@@ -1357,10 +1445,8 @@ def areas_comunes_lista(request, condominio_id):
         id=condominio_id
     )
 
-    if es_administrador(usuario_actual):
-
-        if not usuario_actual.puede_acceder_condominio(condominio.id):
-            return redirect("condominios_lista")
+    if not usuario_actual.puede_acceder_condominio(condominio.id):
+        return redirect("condominios_lista")
 
     areas = AreaComun.objects.filter(
         condominio=condominio
@@ -1369,6 +1455,9 @@ def areas_comunes_lista(request, condominio_id):
     ).order_by(
         "nombre"
     )
+    busqueda = request.GET.get("q", "").strip()
+    if busqueda:
+        areas = areas.filter(Q(nombre__icontains=busqueda) | Q(descripcion__icontains=busqueda))
 
     return render(
         request,
@@ -1377,6 +1466,7 @@ def areas_comunes_lista(request, condominio_id):
             "usuario_actual": usuario_actual,
             "condominio": condominio,
             "areas": areas,
+            "busqueda": busqueda,
         }
     )
 
@@ -1387,7 +1477,7 @@ def areas_comunes_lista(request, condominio_id):
 def area_comun_crear(request, condominio_id):
     usuario_actual = obtener_usuario(request)
 
-    if not puede_gestionar_condominio(usuario_actual):
+    if not puede_gestionar_areas(usuario_actual):
         return redirect("inicio")
 
     condominio = get_object_or_404(
@@ -1395,10 +1485,8 @@ def area_comun_crear(request, condominio_id):
         id=condominio_id
     )
 
-    if es_administrador(usuario_actual):
-
-        if not usuario_actual.puede_acceder_condominio(condominio.id):
-            return redirect("condominios_lista")
+    if not usuario_actual.puede_acceder_condominio(condominio.id):
+        return redirect("condominios_lista")
 
     if request.method == "POST":
 
@@ -1433,6 +1521,10 @@ def area_comun_crear(request, condominio_id):
             "duracion_maxima",
             ""
         ).strip()
+
+        permite_multiples_reservas_por_unidad_dia = request.POST.get(
+            "permite_multiples_reservas_por_unidad_dia"
+        ) == "on"
 
         dias_anticipacion_maxima = request.POST.get(
             "dias_anticipacion_maxima",
@@ -1521,6 +1613,7 @@ def area_comun_crear(request, condominio_id):
                 requiere_reserva=requiere_reserva,
                 permite_reservas_consecutivas=permite_reservas_consecutivas,
                 duracion_maxima=duracion_maxima_numero,
+                permite_multiples_reservas_por_unidad_dia=permite_multiples_reservas_por_unidad_dia,
                 dias_anticipacion_maxima=dias_anticipacion_numero,
             )
 
@@ -1556,7 +1649,7 @@ def area_comun_crear(request, condominio_id):
 def area_comun_editar(request, area_id):
     usuario_actual = obtener_usuario(request)
 
-    if not puede_gestionar_condominio(usuario_actual):
+    if not puede_gestionar_areas(usuario_actual):
         return redirect("inicio")
 
     area = get_object_or_404(
@@ -1568,10 +1661,8 @@ def area_comun_editar(request, area_id):
 
     condominio = area.condominio
 
-    if es_administrador(usuario_actual):
-
-        if not usuario_actual.puede_acceder_condominio(condominio.id):
-            return redirect("condominios_lista")
+    if not usuario_actual.puede_acceder_condominio(condominio.id):
+        return redirect("condominios_lista")
 
     if request.method == "POST":
 
@@ -1606,6 +1697,10 @@ def area_comun_editar(request, area_id):
             "duracion_maxima",
             ""
         ).strip()
+
+        permite_multiples_reservas_por_unidad_dia = request.POST.get(
+            "permite_multiples_reservas_por_unidad_dia"
+        ) == "on"
 
         dias_anticipacion_maxima = request.POST.get(
             "dias_anticipacion_maxima",
@@ -1696,6 +1791,7 @@ def area_comun_editar(request, area_id):
                 permite_reservas_consecutivas
             )
             area.duracion_maxima = duracion_maxima_numero
+            area.permite_multiples_reservas_por_unidad_dia = permite_multiples_reservas_por_unidad_dia
             area.dias_anticipacion_maxima = (
                 dias_anticipacion_numero
             )
@@ -1736,7 +1832,7 @@ def area_comun_editar(request, area_id):
 def area_comun_horarios(request, area_id):
     usuario_actual = obtener_usuario(request)
 
-    if not puede_gestionar_condominio(usuario_actual):
+    if not puede_gestionar_areas(usuario_actual):
         return redirect("inicio")
 
     area = get_object_or_404(
@@ -1748,10 +1844,8 @@ def area_comun_horarios(request, area_id):
 
     condominio = area.condominio
 
-    if es_administrador(usuario_actual):
-
-        if not usuario_actual.puede_acceder_condominio(condominio.id):
-            return redirect("condominios_lista")
+    if not usuario_actual.puede_acceder_condominio(condominio.id):
+        return redirect("condominios_lista")
 
     horarios = area.horarios.all()
 
@@ -1873,7 +1967,7 @@ def area_comun_horarios(request, area_id):
 def area_comun_horario_actualizar(request, horario_id):
     usuario_actual = obtener_usuario(request)
 
-    if not puede_gestionar_condominio(usuario_actual):
+    if not puede_gestionar_areas(usuario_actual):
         return JsonResponse(
             {
                 "ok": False,
@@ -1892,16 +1986,14 @@ def area_comun_horario_actualizar(request, horario_id):
     area = horario.area_comun
     condominio = area.condominio
 
-    if es_administrador(usuario_actual):
-
-        if not usuario_actual.puede_acceder_condominio(condominio.id):
-            return JsonResponse(
-                {
-                    "ok": False,
-                    "error": "No puedes modificar horarios de este condominio."
-                },
-                status=403
-            )
+    if not usuario_actual.puede_acceder_condominio(condominio.id):
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": "No puedes modificar horarios de este condominio."
+            },
+            status=403
+        )
 
     if request.method != "POST":
         return JsonResponse(
@@ -2016,7 +2108,7 @@ def area_comun_horario_actualizar(request, horario_id):
 def area_comun_horario_eliminar(request, horario_id):
     usuario_actual = obtener_usuario(request)
 
-    if not puede_gestionar_condominio(usuario_actual):
+    if not puede_gestionar_areas(usuario_actual):
         return redirect("inicio")
 
     horario = get_object_or_404(
@@ -2029,10 +2121,8 @@ def area_comun_horario_eliminar(request, horario_id):
     area = horario.area_comun
     condominio = area.condominio
 
-    if es_administrador(usuario_actual):
-
-        if not usuario_actual.puede_acceder_condominio(condominio.id):
-            return redirect("condominios_lista")
+    if not usuario_actual.puede_acceder_condominio(condominio.id):
+        return redirect("condominios_lista")
 
     if request.method == "POST":
 
@@ -2113,6 +2203,8 @@ def reservacion_crear(request):
             "piso",
             "posicion"
         )
+
+    unidades = unidades.filter(activo=True, edificio__activo=True)
 
     if request.method == "POST":
 
@@ -2619,6 +2711,12 @@ def reservacion_disponibilidad(request):
         )
     )
 
+    ahora = timezone.localtime()
+    Reservacion.objects.filter(
+        estado__in=[Reservacion.Estado.PENDIENTE, Reservacion.Estado.APROBADO],
+        fin_reserva__lt=ahora,
+    ).update(estado=Reservacion.Estado.COMPLETADO)
+
     reservaciones = Reservacion.objects.filter(
         area_comun=area,
         tipo_reserva=Reservacion.Tipo.AREA_COMUN,
@@ -2627,7 +2725,7 @@ def reservacion_disponibilidad(request):
             Reservacion.Estado.APROBADO,
         ],
         fecha_reserva__lt=fin_semana,
-        fin_reserva__gt=inicio_semana,
+        fin_reserva__gt=max(inicio_semana, ahora),
     ).select_related(
         "usuario",
         "unidad",
@@ -2643,6 +2741,7 @@ def reservacion_disponibilidad(request):
         reservaciones_data.append(
             {
                 "id": reservacion.id,
+                "unidad_id": reservacion.unidad_id,
                 "inicio": timezone.localtime(
                     reservacion.fecha_reserva
                 ).isoformat(),
@@ -2667,6 +2766,9 @@ def reservacion_disponibilidad(request):
 
     reglas = {
         "duracion_maxima": area.duracion_maxima,
+        "permite_multiples_reservas_por_unidad_dia": (
+            area.permite_multiples_reservas_por_unidad_dia
+        ),
         "requiere_reserva": area.requiere_reserva,
         "permite_reservas_consecutivas": (
             area.permite_reservas_consecutivas
@@ -2709,8 +2811,7 @@ def reservaciones_lista(request):
     if not condominios.exists():
         return redirect("inicio")
 
-    # El personal consulta todas las reservas de su condominio; residentes
-    # también pueden ver la agenda compartida, sin datos personales sensibles.
+    # El personal consulta las reservas de su condominio; cada residente ve las suyas.
     reservaciones = Reservacion.objects.select_related(
         "usuario",
         "area_comun",
@@ -2722,16 +2823,22 @@ def reservaciones_lista(request):
         reservaciones = reservaciones.filter(
             unidad__edificio__condominio__in=condominios
         )
+    if usuario_actual.rol == Usuario.Rol.RESIDENTE:
+        reservaciones = reservaciones.filter(usuario=usuario_actual)
 
-    filtro = request.GET.get("filtro", "todas")
     ahora = timezone.now()
-    total_reservas = reservaciones.count()
+    Reservacion.objects.filter(
+        estado__in=[Reservacion.Estado.PENDIENTE, Reservacion.Estado.APROBADO],
+        fin_reserva__lt=ahora,
+    ).update(estado=Reservacion.Estado.COMPLETADO)
+
+    filtro = request.GET.get("filtro", "proximas")
     total_proximas = reservaciones.filter(
         fin_reserva__gte=ahora,
         estado__in=[Reservacion.Estado.PENDIENTE, Reservacion.Estado.APROBADO],
     ).count()
     total_historial = reservaciones.filter(
-        Q(fin_reserva__lt=ahora)
+        Q(estado=Reservacion.Estado.COMPLETADO)
         | Q(estado__in=[Reservacion.Estado.CANCELADO, Reservacion.Estado.RECHAZADO])
     ).count()
     if filtro == "proximas":
@@ -2741,11 +2848,15 @@ def reservaciones_lista(request):
         )
     elif filtro == "historial":
         reservaciones = reservaciones.filter(
-            Q(fin_reserva__lt=ahora)
+            Q(estado=Reservacion.Estado.COMPLETADO)
             | Q(estado__in=[Reservacion.Estado.CANCELADO, Reservacion.Estado.RECHAZADO])
         )
-    elif filtro != "todas":
-        filtro = "todas"
+    else:
+        filtro = "proximas"
+        reservaciones = reservaciones.filter(
+            fin_reserva__gte=ahora,
+            estado__in=[Reservacion.Estado.PENDIENTE, Reservacion.Estado.APROBADO],
+        )
 
     reservaciones = list(reservaciones.order_by("-fecha_reserva", "-id"))
     puede_gestionar = es_super or tiene_rol(
@@ -2768,7 +2879,6 @@ def reservaciones_lista(request):
             "reservaciones": reservaciones,
             "filtro": filtro,
             "ahora": ahora,
-            "total_reservas": total_reservas,
             "total_proximas": total_proximas,
             "total_historial": total_historial,
             "puede_gestionar_reservas": puede_gestionar,
@@ -2845,6 +2955,8 @@ def reservacion_crear(request):
             "piso",
             "posicion"
         )
+
+    unidades = unidades.filter(activo=True, edificio__activo=True)
 
     if request.method == "POST":
 
@@ -3066,6 +3178,25 @@ def reservacion_crear(request):
                 errores.append(
                     f"La duración máxima permitida para esta área es de "
                     f"{area.duracion_maxima} horas."
+                )
+
+        if (
+            area
+            and unidad
+            and fecha_reserva
+            and not area.permite_multiples_reservas_por_unidad_dia
+        ):
+            fecha_local = timezone.localtime(fecha_reserva).date()
+            reserva_diaria_existente = Reservacion.objects.filter(
+                area_comun=area,
+                unidad=unidad,
+                tipo_reserva=Reservacion.Tipo.AREA_COMUN,
+                estado__in=[Reservacion.Estado.PENDIENTE, Reservacion.Estado.APROBADO],
+                fecha_reserva__date=fecha_local,
+            ).exists()
+            if reserva_diaria_existente:
+                errores.append(
+                    "Esta unidad ya tiene una reserva para esta área en ese día. Solo se permite una por día."
                 )
 
         # ============================== HORARIO DEL ÁREA ==============================
@@ -3467,6 +3598,25 @@ def reservacion_editar(request, reservacion_id):
                     f"{area_nueva.duracion_maxima} horas."
                 )
 
+        if (
+            area_nueva
+            and unidad
+            and fecha_reserva
+            and not area_nueva.permite_multiples_reservas_por_unidad_dia
+        ):
+            fecha_local = timezone.localtime(fecha_reserva).date()
+            reserva_diaria_existente = Reservacion.objects.filter(
+                area_comun=area_nueva,
+                unidad=unidad,
+                tipo_reserva=Reservacion.Tipo.AREA_COMUN,
+                estado__in=[Reservacion.Estado.PENDIENTE, Reservacion.Estado.APROBADO],
+                fecha_reserva__date=fecha_local,
+            ).exclude(id=reservacion.id).exists()
+            if reserva_diaria_existente:
+                errores.append(
+                    "Esta unidad ya tiene otra reserva para esta área en ese día. Solo se permite una por día."
+                )
+
         # ============================== HORARIO ==============================
 
         if (
@@ -3652,3 +3802,61 @@ def landing(request):
         request,
         "core/landing.html"
     )
+
+
+@login_required
+def condominio_eliminar(request, condominio_id):
+    usuario = obtener_usuario(request)
+    if request.method != "POST" or not es_super_administrador(usuario):
+        return redirect("condominios_lista")
+    condominio = get_object_or_404(Condominio, pk=condominio_id)
+    dependencias = []
+    for relacion in condominio._meta.related_objects:
+        acceso = relacion.get_accessor_name()
+        if not acceso or acceso.endswith("+"):
+            continue
+        relacionado = getattr(condominio, acceso, None)
+        if relacionado is None:
+            continue
+        existe = relacionado.exists() if hasattr(relacionado, "exists") else bool(relacionado)
+        if existe:
+            dependencias.append(relacion.related_model._meta.verbose_name_plural)
+    if dependencias:
+        messages.error(
+            request,
+            "No se puede eliminar porque todavía tiene información relacionada. "
+            "Desactiva el condominio para conservar su historial.",
+        )
+    else:
+        nombre = condominio.nombre
+        condominio.delete()
+        messages.success(request, f"Se eliminó el condominio {nombre}.")
+    return redirect("condominios_lista")
+
+
+@login_required
+def edificio_cambiar_estado(request, edificio_id):
+    usuario = obtener_usuario(request)
+    if request.method != "POST" or not puede_gestionar_condominio(usuario):
+        return redirect("inicio")
+    edificio = get_object_or_404(Edificio.objects.select_related("condominio"), pk=edificio_id)
+    if not usuario.puede_acceder_condominio(edificio.condominio_id):
+        return redirect("condominios_lista")
+    edificio.activo = not edificio.activo
+    edificio.save(update_fields=["activo"])
+    messages.success(request, "Edificio reactivado." if edificio.activo else "Edificio desactivado.")
+    return redirect("edificios_lista", condominio_id=edificio.condominio_id)
+
+
+@login_required
+def unidad_cambiar_estado(request, unidad_id):
+    usuario = obtener_usuario(request)
+    if request.method != "POST" or not puede_gestionar_condominio(usuario):
+        return redirect("inicio")
+    unidad = get_object_or_404(Unidad.objects.select_related("edificio__condominio"), pk=unidad_id)
+    if not usuario.puede_acceder_condominio(unidad.edificio.condominio_id):
+        return redirect("condominios_lista")
+    unidad.activo = not unidad.activo
+    unidad.save(update_fields=["activo"])
+    messages.success(request, "Unidad reactivada." if unidad.activo else "Unidad desactivada.")
+    return redirect("unidades_lista", edificio_id=unidad.edificio_id)

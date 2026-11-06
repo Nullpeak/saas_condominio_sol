@@ -1,6 +1,6 @@
 {% extends "core/base.html" %}
 
-{% block title %}Usuarios | CondoGestión{% endblock %}
+{% block title %}Usuarios | Comunidad al Día{% endblock %}
 {% block page_title %}Usuarios{% endblock %}
 
 {% block content %}
@@ -12,6 +12,11 @@
         </div>
         <a class="button" href="{% url 'usuario_crear' %}">Crear usuario</a>
     </div>
+
+    <form method="get" class="row g-2 mb-4" role="search">
+        <div class="col-md-8"><label class="form-label" for="q">Buscar usuario</label><input class="form-control" type="search" id="q" name="q" value="{{ busqueda }}" placeholder="Nombre, correo, RUT o usuario"></div>
+        <div class="col-md-4 d-flex align-items-end gap-2"><button class="button" type="submit">Buscar</button><a class="btn btn-outline-secondary" href="{% url 'usuarios_lista' %}">Limpiar</a></div>
+    </form>
 
     {% if usuarios %}
         <div class="table-responsive">

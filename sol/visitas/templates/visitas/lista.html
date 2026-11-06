@@ -1,6 +1,6 @@
 {% extends "core/base.html" %}
 
-{% block title %}Visitas | CondoGestión{% endblock %}
+{% block title %}Visitas | Comunidad al Día{% endblock %}
 {% block page_title %}Visitas{% endblock %}
 
 {% block content %}
@@ -63,7 +63,7 @@
                 <thead>
                     <tr>
                         <th>Visita</th><th>Unidad</th><th>Fecha</th><th>Motivo</th><th>Estado</th><th>Llegada</th>
-                        {% if puede_gestionar %}<th class="text-end">Acción</th>{% endif %}
+                        <th class="text-end">Acciones</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -81,18 +81,25 @@
                                 {% if visita.estado == "presente" %}<span class="badge text-bg-success">Presente</span>
                                 {% elif visita.estado == "sin_registro" %}<span class="badge text-bg-secondary">Sin registro</span>
                                 {% elif visita.estado == "finalizada" %}<span class="badge text-bg-light">Salida registrada</span>
+                                {% elif visita.estado == "cancelada" %}<span class="badge text-bg-secondary">Cancelada</span>
                                 {% else %}<span class="badge text-bg-warning">Programada</span>{% endif %}
                             </td>
                             <td>{% if visita.tiempo_llegada %}{{ visita.tiempo_llegada|date:"H:i" }}{% else %}—{% endif %}</td>
-                            {% if puede_gestionar %}
-                                <td class="text-end">
+                            <td class="text-end text-nowrap">
+                                {% if puede_gestionar %}
                                     {% if visita.estado == "pendiente" and visita.fecha_visita == hoy %}
                                         <form method="post" action="{% url 'visitas:marcar_presente' visita.id %}" class="d-inline">
                                             {% csrf_token %}<button type="submit" class="btn btn-sm btn-success">Marcar presente</button>
                                         </form>
-                                    {% else %}<span class="text-muted small">—</span>{% endif %}
-                                </td>
-                            {% endif %}
+                                    {% elif visita.estado == "presente" %}
+                                        <form method="post" action="{% url 'visitas:marcar_presente' visita.id %}" class="d-inline">{% csrf_token %}<button type="submit" class="btn btn-sm btn-outline-success">Registrar salida</button></form>
+                                    {% endif %}
+                                {% endif %}
+                                {% if visita.estado == "pendiente" and visita.fecha_visita >= hoy and puede_gestionar or visita.estado == "pendiente" and visita.fecha_visita >= hoy and visita.registrado_por_id == usuario_actual.id %}
+                                    <a class="btn btn-sm btn-outline-primary" href="{% url 'visitas:editar' visita.id %}">Editar</a>
+                                    <form method="post" action="{% url 'visitas:cancelar' visita.id %}" class="d-inline" onsubmit="return confirm('¿Cancelar esta visita?');">{% csrf_token %}<button type="submit" class="btn btn-sm btn-outline-danger">Cancelar</button></form>
+                                {% endif %}
+                            </td>
                         </tr>
                     {% endfor %}
                 </tbody>

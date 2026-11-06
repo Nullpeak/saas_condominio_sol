@@ -1,7 +1,7 @@
 {% extends "core/base.html" %}
 
 {% block title %}
-Áreas comunes - CondoGestión
+Áreas comunes - Comunidad al Día
 {% endblock %}
 
 {% block page_title %}
@@ -28,12 +28,10 @@
 
         </div>
 
-        <a
-            class="button"
-            href="{% url 'area_comun_crear' condominio.id %}"
-        >
-            + Nueva área común
-        </a>
+        <div class="d-flex flex-wrap gap-2">
+            <a class="button button-secondary" href="{% url 'areas_comunes_selector' %}">Cambiar condominio</a>
+            <a class="button" href="{% url 'area_comun_crear' condominio.id %}">+ Nueva área común</a>
+        </div>
 
     </div>
 
@@ -47,6 +45,11 @@
     <h2>
         Áreas comunes registradas
     </h2>
+
+    <form method="get" class="row g-2 mt-2 mb-3">
+        <div class="col-md-8"><label class="form-label" for="q">Buscar área común</label><input class="form-control" type="search" id="q" name="q" value="{{ busqueda }}" placeholder="Nombre o descripción"></div>
+        <div class="col-md-4 d-flex align-items-end gap-2"><button class="button" type="submit">Buscar</button><a class="btn btn-outline-secondary" href="{% url 'areas_comunes_lista' condominio.id %}">Limpiar</a></div>
+    </form>
 
     {% if areas %}
 

@@ -1,6 +1,6 @@
 {% extends "core/base.html" %}
 
-{% block title %}Condominios | CondoGestión{% endblock %}
+{% block title %}Condominios | Comunidad al Día{% endblock %}
 {% block page_title %}Condominios{% endblock %}
 
 {% block content %}
@@ -13,10 +13,16 @@
         {% if usuario.rol == "Super Administrador" or usuario.rol == "Administrador" %}<a class="button" href="{% url 'condominio_crear' %}">Crear condominio</a>{% endif %}
     </div>
 
+    <form method="get" class="row g-2 mb-4">
+        <div class="col-md-6"><label class="form-label" for="q">Buscar condominio</label><input class="form-control" type="search" id="q" name="q" value="{{ busqueda }}" placeholder="Nombre, dirección o ciudad"></div>
+        <div class="col-md-3"><label class="form-label" for="estado">Mostrar</label><select class="form-select" id="estado" name="estado"><option value="activos" {% if estado_filtro == 'activos' %}selected{% endif %}>Activos</option><option value="inactivos" {% if estado_filtro == 'inactivos' %}selected{% endif %}>Inactivos</option><option value="todos" {% if estado_filtro == 'todos' %}selected{% endif %}>Todos</option></select></div>
+        <div class="col-md-3 d-flex align-items-end gap-2"><button class="button" type="submit">Buscar</button><a class="btn btn-outline-secondary" href="{% url 'condominios_lista' %}">Limpiar</a></div>
+    </form>
+
     {% if condominios %}
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
-                <thead><tr><th>Condominio</th><th>Dirección</th><th>Ciudad</th><th>Edificios</th><th class="text-end">Acciones</th></tr></thead>
+                <thead><tr><th>Condominio</th><th>Dirección</th><th>Ciudad</th><th>Edificios</th><th>Estado</th><th class="text-end">Acciones</th></tr></thead>
                 <tbody>
                     {% for condominio in condominios %}
                         <tr>
@@ -24,9 +30,11 @@
                             <td>{{ condominio.direccion }}</td>
                             <td>{{ condominio.ciudad.nombre }}</td>
                             <td>{{ condominio.edificios_set.count }}</td>
+                            <td>{% if condominio.activo %}<span class="text-success">Activo</span>{% else %}<span class="text-secondary">Inactivo</span>{% endif %}</td>
                             <td class="text-end text-nowrap">
                                 <a class="btn btn-sm btn-outline-secondary" href="{% url 'edificios_lista' condominio.id %}">Ver edificios</a>
                                 <a class="btn btn-sm btn-outline-primary" href="{% url 'condominio_editar' condominio.id %}">Editar</a>
+                                {% if usuario.rol == "Super Administrador" %}<form method="post" action="{% url 'condominio_eliminar' condominio.id %}" class="d-inline" onsubmit="return confirm('Se eliminará solo si no tiene información asociada. ¿Continuar?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger" type="submit">Eliminar</button></form>{% endif %}
                             </td>
                         </tr>
                     {% endfor %}

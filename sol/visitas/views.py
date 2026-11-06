@@ -132,7 +132,7 @@ def crear(request):
         messages.error(request, "Tu usuario todavía no tiene un condominio asignado.")
         return redirect("inicio")
 
-    unidades = unidades_visibles(usuario)
+    unidades = unidades_visibles(usuario).filter(activo=True, edificio__activo=True)
     errores = []
     if request.method == "POST":
         unidad_id = request.POST.get("unidad", "").strip()
@@ -198,7 +198,12 @@ def marcar_presente(request, visita_id):
         return redirect("visitas:lista")
 
     hoy = timezone.localdate()
-    if visita.fecha_visita < hoy and visita.estado == Visita.Estado.PENDIENTE:
+    if visita.estado == Visita.Estado.PRESENTE:
+        visita.estado = Visita.Estado.FINALIZADA
+        visita.tiempo_salida = timezone.now()
+        visita.save(update_fields=["estado", "tiempo_salida"])
+        messages.success(request, "Salida registrada correctamente.")
+    elif visita.fecha_visita < hoy and visita.estado == Visita.Estado.PENDIENTE:
         visita.estado = Visita.Estado.SIN_REGISTRO
         visita.save(update_fields=["estado"])
         messages.info(request, "La fecha programada ya pasó; la visita quedó como Sin registro.")
@@ -213,4 +218,89 @@ def marcar_presente(request, visita_id):
         llegada_local = timezone.localtime(visita.tiempo_llegada)
         messages.success(request, f"Llegada registrada a las {llegada_local:%H:%M}.")
 
+    return redirigir_lista(visita.fecha_visita)
+
+
+@login_required
+def editar(request, visita_id):
+    usuario = perfil_actual(request)
+    visita = get_object_or_404(Visita.objects.select_related("unidad__edificio__condominio", "registrado_por"), pk=visita_id)
+    unidades = unidades_visibles(usuario).filter(activo=True, edificio__activo=True)
+    es_personal = puede_gestionar(usuario) and usuario.puede_acceder_condominio(visita.condominio_id)
+    es_autor = visita.registrado_por_id == usuario.id
+    if not (es_personal or (usuario.rol == "Residente" and es_autor)):
+        messages.error(request, "No tienes permiso para editar esta visita.")
+        return redirigir_lista()
+    if visita.estado != Visita.Estado.PENDIENTE or visita.fecha_visita < timezone.localdate():
+        messages.error(request, "Solo puedes editar una visita futura que aún no haya llegado.")
+        return redirigir_lista(visita.fecha_visita)
+
+    datos = {
+        "unidad": str(visita.unidad_id),
+        "nombre": visita.nombre,
+        "fecha_visita": visita.fecha_visita.isoformat(),
+        "motivo": visita.motivo,
+        "patente_vehiculo": visita.patente_vehiculo,
+    }
+    errores = []
+    if request.method == "POST":
+        unidad_id = request.POST.get("unidad", "").strip()
+        unidad = unidades.filter(pk=unidad_id).first()
+        nombre = request.POST.get("nombre", "").strip()
+        fecha_texto = request.POST.get("fecha_visita", "").strip()
+        motivo = request.POST.get("motivo", "").strip()
+        patente = request.POST.get("patente_vehiculo", "").strip().upper()
+        datos = request.POST
+        if not unidad:
+            errores.append("Selecciona una unidad activa y autorizada.")
+        if not nombre:
+            errores.append("Ingresa el nombre de la visita.")
+        if len(patente) > 10:
+            errores.append("La patente no puede superar 10 caracteres.")
+        try:
+            fecha_visita = date.fromisoformat(fecha_texto)
+            if fecha_visita < timezone.localdate():
+                errores.append("La fecha de visita no puede estar en el pasado.")
+        except ValueError:
+            fecha_visita = None
+            errores.append("Indica una fecha de visita válida.")
+        if not errores:
+            visita.unidad = unidad
+            visita.edificio = unidad.edificio
+            visita.condominio = unidad.edificio.condominio
+            visita.nombre = nombre
+            visita.fecha_visita = fecha_visita
+            visita.motivo = motivo
+            visita.patente_vehiculo = patente
+            visita.save()
+            messages.success(request, "Se actualizaron los datos de la visita.")
+            return redirigir_lista(fecha_visita)
+    return render(request, "visitas/crear.html", {
+        "usuario_actual": usuario,
+        "unidades": unidades,
+        "errores": errores,
+        "datos": datos,
+        "hoy": timezone.localdate().isoformat(),
+        "es_residente": usuario.rol == "Residente",
+        "edicion": True,
+        "visita": visita,
+    })
+
+
+@login_required
+def cancelar(request, visita_id):
+    if request.method != "POST":
+        return redirect("visitas:lista")
+    usuario = perfil_actual(request)
+    visita = get_object_or_404(Visita.objects.select_related("condominio", "registrado_por"), pk=visita_id)
+    es_personal = puede_gestionar(usuario) and usuario.puede_acceder_condominio(visita.condominio_id)
+    es_autor = visita.registrado_por_id == usuario.id
+    if not (es_personal or (usuario.rol == "Residente" and es_autor)):
+        messages.error(request, "No tienes permiso para cancelar esta visita.")
+    elif visita.estado != Visita.Estado.PENDIENTE or visita.fecha_visita < timezone.localdate():
+        messages.error(request, "Solo puedes cancelar una visita pendiente que todavía no haya ocurrido.")
+    else:
+        visita.estado = Visita.Estado.CANCELADA
+        visita.save(update_fields=["estado"])
+        messages.success(request, "La visita quedó cancelada.")
     return redirigir_lista(visita.fecha_visita)
