@@ -1,413 +1,362 @@
-import mimetypes
-import os
 from datetime import date
+from functools import wraps
+from itertools import chain
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.core.exceptions import ValidationError
-from django.db.models import Q
-from django.http import FileResponse
+from django.core.exceptions import PermissionDenied, ValidationError
+from django.core.paginator import Paginator
+from django.db.models import Count, Q
+from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse
-from django.utils import timezone
+from django.views.decorators.http import require_POST
 
-from core.models import Unidad, Usuario
-from .models import Ticket, TicketArchivo, TicketHistorial
-from .validators import EXTENSIONES_IMAGEN, EXTENSIONES_VIDEO, validar_adjunto
+from core.models import Unidad
+
+from . import services
+from .forms import ComentarioForm, EditarTicketForm, GestionForm, TicketForm, VisitaFormSet
+from .models import Ticket, TicketArchivo, TicketVisita
+from .permisos import (
+    ACCIONES_RESIDENTE, Rol, acciones_residente, es_staff,
+    puede_comentar, puede_editar, puede_gestionar, tickets_visibles,
+)
+
+POR_PAGINA = 20
+
+TEXTO_ACCION = {
+    "confirmar": "Gracias por confirmar. El ticket quedó cerrado.",
+    "reabrir": "Reabriste el ticket. El equipo lo revisará de nuevo.",
+    "cancelar": "Cerraste el ticket.",
+}
 
 
-ROLES_TICKETS = ("Super Administrador", "Administrador", "Gestor", "Residente")
-ROLES_GESTION = ("Super Administrador", "Administrador", "Gestor")
+def con_perfil(view):
+    """login + perfil activo. Deja el perfil en request.perfil."""
+    @login_required
+    @wraps(view)
+    def envoltura(request, *args, **kwargs):
+        perfil = getattr(request.user, "usuario", None)
+        if perfil is None or not perfil.activo:
+            raise PermissionDenied
+        request.perfil = perfil
+        return view(request, *args, **kwargs)
+    return envoltura
 
 
-def perfil_actual(request):
-    return request.user.usuario
-
-
-def es_super(usuario):
-    return usuario.rol == "Super Administrador"
-
-
-def unidades_visibles(usuario):
-    unidades = Unidad.objects.select_related("edificio", "edificio__condominio")
-    if es_super(usuario):
-        return unidades.order_by("edificio__condominio__nombre", "edificio__nombre", "numero_unidad")
-    if usuario.rol == "Residente":
-        return unidades.filter(Q(dueno=usuario) | Q(arrendatario=usuario)).distinct().order_by(
-            "edificio__nombre", "numero_unidad"
-        )
-    condominios = usuario.condominios_asignados()
-    if not condominios.exists():
-        return unidades.none()
-    return unidades.filter(edificio__condominio__in=condominios).order_by(
-        "edificio__nombre", "numero_unidad"
+def _ticket_visible(perfil, ticket_id):
+    return get_object_or_404(
+        tickets_visibles(perfil).select_related(
+            "usuario", "asignado", "unidad__edificio", "condominio"
+        ),
+        pk=ticket_id,
     )
 
 
-def tickets_visibles(usuario):
-    tickets = Ticket.objects.select_related(
-        "condominio", "unidad", "unidad__edificio", "usuario", "asignado", "resuelto_por"
-    ).prefetch_related("archivos")
-    if usuario.rol == "Residente":
-        return tickets.filter(usuario=usuario)
-    if not es_super(usuario):
-        condominios = usuario.condominios_asignados()
-        if not condominios.exists():
-            return tickets.none()
-        tickets = tickets.filter(condominio__in=condominios)
-        if usuario.rol == "Gestor":
-            tickets = tickets.filter(Q(asignado__isnull=True) | Q(asignado=usuario))
-        return tickets
-    return tickets
+def _unidades_filtro(perfil, condominio_id=""):
+    """Unidades que se ofrecen en el filtro de la lista."""
+    unidades = Unidad.objects.select_related("edificio__condominio").order_by(
+        "edificio__condominio__nombre", "edificio__nombre", "numero_unidad"
+    )
+    if perfil.rol == Rol.RESIDENTE:
+        return unidades.filter(Q(dueno=perfil) | Q(arrendatario=perfil)).distinct()
+    if perfil.rol != Rol.SUPER:
+        unidades = unidades.filter(edificio__condominio__in=perfil.condominios_asignados())
+    if condominio_id.isdigit():
+        unidades = unidades.filter(edificio__condominio_id=condominio_id)
+    return unidades
 
 
-def filtrar_unidad(unidades, unidad_id):
-    if not unidad_id:
-        return None
-    try:
-        return unidades.filter(pk=int(unidad_id)).first()
-    except (TypeError, ValueError):
-        return None
-
-
-def tickets_lista_url():
-    return reverse("tickets:lista")
-
-
-@login_required
+# ============================================================== LISTA
+@con_perfil
 def lista(request):
-    usuario = perfil_actual(request)
-    if usuario.rol not in ROLES_TICKETS:
-        return redirect("inicio")
-    if not es_super(usuario) and not usuario.condominios_asignados().exists():
-        messages.error(request, "Tu usuario todavía no tiene un condominio asignado.")
-        return redirect("inicio")
+    perfil = request.perfil
+    staff = es_staff(perfil)
+    base = tickets_visibles(perfil)
 
-    tickets = tickets_visibles(usuario)
-    unidades = unidades_visibles(usuario)
-    vista = request.GET.get("vista", "activos").strip()
-    if vista not in ("activos", "historial"):
-        vista = "activos"
-    if vista == "historial":
-        tickets = tickets.filter(estado__in=(Ticket.Estado.RESUELTO, Ticket.Estado.CERRADO, Ticket.Estado.CANCELADO))
-    else:
-        tickets = tickets.exclude(estado__in=(Ticket.Estado.RESUELTO, Ticket.Estado.CERRADO, Ticket.Estado.CANCELADO))
-    busqueda = request.GET.get("q", "").strip()
-    if busqueda:
-        tickets = tickets.filter(Q(titulo__icontains=busqueda) | Q(descripcion__icontains=busqueda))
-    estado = request.GET.get("estado", "").strip()
-    if estado in [value for value, _label in Ticket.Estado.choices]:
-        tickets = tickets.filter(estado=estado)
-    else:
-        estado = ""
-    categoria = request.GET.get("categoria", "").strip()
-    if categoria in Ticket.Categoria.values:
-        tickets = tickets.filter(categoria=categoria)
-    else:
-        categoria = ""
-    unidad_id = request.GET.get("unidad", "").strip()
-    unidad = filtrar_unidad(unidades, unidad_id)
-    if unidad:
-        tickets = tickets.filter(unidad=unidad)
-    elif unidad_id:
-        unidad_id = ""
+    # --- filtros ---
+    f = {
+        "estado": request.GET.get("estado", "abiertos"),
+        "prioridad": request.GET.get("prioridad", ""),
+        "categoria": request.GET.get("categoria", ""),
+        "asignado": request.GET.get("asignado", ""),
+        "condominio": request.GET.get("condominio", ""),
+        "unidad": request.GET.get("unidad", ""),
+        "desde": request.GET.get("desde", ""),
+        "hasta": request.GET.get("hasta", ""),
+        "q": request.GET.get("q", "").strip(),
+    }
+    # Selector de condominio: super y administradores con más de un condominio
+    condominios = None
+    if staff:
+        asignados = perfil.condominios_asignados().filter(activo=True).order_by("nombre")
+        if asignados.count() > 1:
+            condominios = asignados
+    if condominios is not None and f["condominio"].isdigit():
+        base = base.filter(condominio_id=f["condominio"])
 
-    fecha_desde = request.GET.get("desde", "").strip()
-    if fecha_desde:
+    unidades = _unidades_filtro(perfil, f["condominio"] if condominios is not None else "")
+    if f["unidad"].isdigit() and unidades.filter(pk=f["unidad"]).exists():
+        base = base.filter(unidad_id=f["unidad"])
+    else:
+        f["unidad"] = ""
+    for campo, lookup in (("desde", "creado__date__gte"), ("hasta", "creado__date__lte")):
         try:
-            tickets = tickets.filter(creado__date__gte=date.fromisoformat(fecha_desde))
+            base = base.filter(**{lookup: date.fromisoformat(f[campo])}) if f[campo] else base
         except ValueError:
-            fecha_desde = ""
-    fecha_hasta = request.GET.get("hasta", "").strip()
-    if fecha_hasta:
-        try:
-            tickets = tickets.filter(creado__date__lte=date.fromisoformat(fecha_hasta))
-        except ValueError:
-            fecha_hasta = ""
+            f[campo] = ""
 
-    tickets = list(tickets.select_related("usuario", "unidad", "unidad__edificio").prefetch_related(
-        "archivos", "historial__usuario"
-    ).order_by("-creado", "-id"))
-    for ticket in tickets:
-        for archivo in ticket.archivos.all():
-            extension = os.path.splitext(archivo.archivo.name)[1].lower()
-            archivo.es_imagen = extension in EXTENSIONES_IMAGEN
-            archivo.es_video = extension in EXTENSIONES_VIDEO
-        ticket.puede_editar = (
-            usuario.rol == "Residente"
-            and ticket.usuario_id == usuario.id
-            and ticket.estado == Ticket.Estado.ABIERTO
-        )
-        ticket.puede_cancelar = ticket.puede_editar
-        ticket.puede_responder = (
-            ticket.usuario_id == usuario.id or usuario.rol in ROLES_GESTION
-        )
+    conteos = dict(base.values_list("estado").annotate(n=Count("id")).values_list("estado", "n"))
+    qs = base
+    if f["estado"] == "abiertos":
+        qs = qs.filter(estado__in=Ticket.ABIERTOS)
+    elif f["estado"] in Ticket.Estado.values:
+        qs = qs.filter(estado=f["estado"])
+    if f["prioridad"] == "sin":
+        qs = qs.filter(prioridad="")
+    elif f["prioridad"] in Ticket.Prioridad.values:
+        qs = qs.filter(prioridad=f["prioridad"])
+    if f["categoria"] in Ticket.Categoria.values:
+        qs = qs.filter(categoria=f["categoria"])
+    if staff and f["asignado"] == "yo":
+        qs = qs.filter(asignado=perfil)
+    elif staff and f["asignado"] == "nadie":
+        qs = qs.filter(asignado__isnull=True)
+    if f["q"]:
+        termino = f["q"].lstrip("#")
+        filtro = Q(titulo__icontains=termino) | Q(descripcion__icontains=termino)
+        if termino.isdigit():
+            filtro |= Q(pk=int(termino))
+        qs = qs.filter(filtro)
 
-    gestores = Usuario.objects.filter(rol="Gestor", activo=True)
-    if not es_super(usuario):
-        gestores = gestores.filter(condominio__in=usuario.condominios_asignados())
+    page = Paginator(
+        qs.select_related("usuario", "asignado", "unidad__edificio", "condominio")
+        .annotate(n_comentarios=Count("comentarios", filter=Q(comentarios__interno=False) if not staff else None))
+        .order_by("-actualizado", "-pk"),  # con annotate Django no aplica el ordering del Meta
+        POR_PAGINA,
+    ).get_page(request.GET.get("page"))
+
+    # Querystring sin "page", para la paginación
+    params = request.GET.copy()
+    params.pop("page", None)
+
+    pestanas = [("abiertos", "Pendientes", sum(conteos.get(e, 0) for e in Ticket.ABIERTOS))]
+    pestanas += [(v, l, conteos.get(v, 0)) for v, l in Ticket.Estado.choices]
+    pestanas.append(("todos", "Todos", sum(conteos.values())))
 
     return render(request, "tickets/lista.html", {
-        "usuario_actual": usuario,
-        "tickets": tickets,
-        "unidades": unidades,
-        "gestores": gestores.order_by("nombre", "apellido"),
-        "estados": Ticket.Estado.choices,
-        "categorias": Ticket.Categoria.choices,
-        "prioridades": Ticket.Prioridad.choices,
-        "busqueda": busqueda,
-        "estado_filtro": estado,
-        "categoria_filtro": categoria,
-        "unidad_filtro": unidad_id,
-        "fecha_desde": fecha_desde,
-        "fecha_hasta": fecha_hasta,
-        "puede_gestionar": usuario.rol in ROLES_GESTION,
-        "puede_asignar": usuario.rol in ("Super Administrador", "Administrador"),
-        "vista": vista,
+        "page": page, "f": f, "staff": staff, "pestanas": pestanas,
+        "querystring": params.urlencode(),
+        "prioridades": Ticket.Prioridad.choices, "categorias": Ticket.Categoria.choices,
+        "condominios": condominios,
+        "unidades": unidades if staff or unidades.count() > 1 else None,
+        "sin_asignar": base.filter(estado__in=Ticket.ABIERTOS, asignado__isnull=True).count() if staff else 0,
     })
 
 
-@login_required
+# ============================================================== CREAR
+@con_perfil
 def crear(request):
-    usuario = perfil_actual(request)
-    if usuario.rol not in ROLES_TICKETS:
-        return redirect("inicio")
-    if not es_super(usuario) and not usuario.condominios_asignados().exists():
-        messages.error(request, "Tu usuario todavía no tiene un condominio asignado.")
-        return redirect("inicio")
-
-    unidades = unidades_visibles(usuario).filter(activo=True, edificio__activo=True)
-    errores = []
-    if request.method == "POST":
-        titulo = request.POST.get("titulo", "").strip()
-        descripcion = request.POST.get("descripcion", "").strip()
-        unidad_id = request.POST.get("unidad", "").strip()
-        prioridad = request.POST.get("prioridad", "").strip() if usuario.rol in ("Super Administrador", "Administrador") else ""
-        categoria = request.POST.get("categoria", Ticket.Categoria.OTRO).strip()
-        archivos = request.FILES.getlist("adjuntos")
-
-        unidad = filtrar_unidad(unidades, unidad_id)
-        if not unidad:
-            errores.append("Selecciona una unidad válida.")
-        if not titulo:
-            errores.append("Escribe un nombre para el ticket.")
-        elif len(titulo) > 150:
-            errores.append("El nombre no puede superar 150 caracteres.")
-        if not descripcion:
-            errores.append("Describe el problema o solicitud.")
-        if categoria not in Ticket.Categoria.values:
-            errores.append("Selecciona una categoría válida.")
-        if prioridad and prioridad not in [value for value, _label in Ticket.Prioridad.choices]:
-            errores.append("La prioridad seleccionada no es válida.")
-        if len(archivos) > 5:
-            errores.append("Puedes adjuntar hasta 5 archivos por ticket.")
-        for archivo in archivos:
-            try:
-                validar_adjunto(archivo)
-            except ValidationError as error:
-                errores.extend(error.messages)
-
-        if not errores:
-            ticket = Ticket(
-                condominio=unidad.edificio.condominio,
-                unidad=unidad,
-                usuario=usuario,
-                titulo=titulo,
-                descripcion=descripcion,
-                prioridad=prioridad,
-                categoria=categoria,
-            )
-            ticket.full_clean()
-            ticket.save()
-            TicketHistorial.objects.create(
-                ticket=ticket,
-                usuario=usuario,
-                tipo=TicketHistorial.Tipo.CREADO,
-                detalle="Se creó el ticket.",
-                estado_nuevo=ticket.estado,
-            )
-            for archivo in archivos:
-                TicketArchivo.objects.create(ticket=ticket, archivo=archivo)
-            messages.success(request, "El ticket se creó correctamente.")
-            return redirect(tickets_lista_url())
-
-    return render(request, "tickets/crear.html", {
-        "usuario_actual": usuario,
-        "unidades": unidades,
-        "prioridades": Ticket.Prioridad.choices,
-        "categorias": Ticket.Categoria.choices,
-        "puede_definir_prioridad": usuario.rol in ("Super Administrador", "Administrador"),
-        "errores": errores,
-        "datos": request.POST if request.method == "POST" else {},
-        "es_residente": usuario.rol == "Residente",
-        "unidad_unica": unidades.count() == 1,
-    })
-
-
-@login_required
-def asignar(request, ticket_id):
-    usuario = perfil_actual(request)
-    if request.method != "POST" or usuario.rol not in ("Super Administrador", "Administrador"):
-        return redirect("tickets:lista")
-    ticket = get_object_or_404(tickets_visibles(usuario), pk=ticket_id)
-    asignado_anterior = ticket.asignado
-    gestor_id = request.POST.get("gestor", "").strip()
-    if not gestor_id:
-        ticket.asignado = None
-    else:
-        try:
-            gestor = Usuario.objects.get(pk=int(gestor_id), rol="Gestor", activo=True)
-        except (Usuario.DoesNotExist, TypeError, ValueError):
-            messages.error(request, "Selecciona un gestor válido.")
-            return redirect("tickets:lista")
-        if not usuario.puede_acceder_condominio(ticket.condominio_id):
-            messages.error(request, "No tienes acceso al condominio de este ticket.")
-            return redirect("tickets:lista")
-        if gestor.condominio_id != ticket.condominio_id:
-            messages.error(request, "El gestor debe pertenecer al condominio del ticket.")
-            return redirect("tickets:lista")
-        ticket.asignado = gestor
-    ticket.save(update_fields=["asignado"])
-    if getattr(asignado_anterior, "id", None) != getattr(ticket.asignado, "id", None):
-        nombre_asignado = f"{ticket.asignado.nombre} {ticket.asignado.apellido}" if ticket.asignado else "Sin asignar"
-        TicketHistorial.objects.create(ticket=ticket, usuario=usuario, tipo=TicketHistorial.Tipo.ASIGNACION, detalle=f"Asignación actualizada: {nombre_asignado}.")
-    messages.success(request, "Se actualizó la asignación del ticket.")
-    return redirect("tickets:lista")
-
-
-@login_required
-def cambiar_estado(request, ticket_id):
-    usuario = perfil_actual(request)
-    if request.method != "POST" or usuario.rol not in ROLES_GESTION:
-        return redirect("tickets:lista")
-    ticket = get_object_or_404(tickets_visibles(usuario), pk=ticket_id)
-    nuevo_estado = request.POST.get("estado", "").strip()
-    estados_validos = [value for value, _label in Ticket.Estado.choices]
-    if nuevo_estado not in estados_validos:
-        messages.error(request, "Selecciona un estado válido.")
-        return redirect("tickets:lista")
-
-    estado_anterior = ticket.estado
-    ticket.estado = nuevo_estado
-    if nuevo_estado in (Ticket.Estado.RESUELTO, Ticket.Estado.CERRADO):
-        ticket.resuelto = timezone.now()
-        ticket.resuelto_por = usuario
-    ticket.save(update_fields=["estado", "resuelto", "resuelto_por"])
-    if estado_anterior != nuevo_estado:
-        TicketHistorial.objects.create(
-            ticket=ticket, usuario=usuario, tipo=TicketHistorial.Tipo.ESTADO,
-            detalle=f"Estado actualizado a {ticket.get_estado_display()}.",
-            estado_anterior=estado_anterior, estado_nuevo=nuevo_estado,
+    perfil = request.perfil
+    inicial = {"categoria": request.GET["categoria"]} if request.GET.get("categoria") in Ticket.Categoria.values else None
+    form = TicketForm(request.POST or None, request.FILES or None, perfil=perfil, initial=inicial)
+    visitas = VisitaFormSet(request.POST or None, prefix="visitas")
+    # El formulario de visitas solo cuenta si el ticket es de esa categoría
+    visitas_ok = not form.es_de_visitas() or visitas.is_valid()
+    if request.method == "POST" and form.is_valid() and visitas_ok:
+        d = form.cleaned_data
+        ticket = services.crear_ticket(
+            perfil,
+            condominio=d["condominio_final"],
+            titulo=d["titulo"],
+            descripcion=d["descripcion"],
+            categoria=d["categoria"],
+            unidad=d.get("unidad"),
+            archivos=d["archivos"],
+            visitas=[f.cleaned_data for f in visitas] if form.es_de_visitas() else None,
         )
-    messages.success(request, "Se actualizó el estado del ticket.")
-    return redirect("tickets:lista")
+        if form.es_de_visitas():
+            messages.success(request, f"Solicitud #{ticket.pk} enviada. Las visitas quedan registradas cuando la administración las apruebe.")
+        else:
+            messages.success(request, f"Ticket #{ticket.pk} creado. Te avisaremos cuando haya novedades.")
+        return redirect("tickets:detalle", ticket.pk)
+    return render(request, "tickets/crear.html", {"form": form, "visitas": visitas})
 
 
-@login_required
-def archivo(request, archivo_id):
-    usuario = perfil_actual(request)
-    adjunto = get_object_or_404(
-        TicketArchivo.objects.select_related("ticket", "ticket__usuario", "ticket__condominio"),
-        pk=archivo_id,
-    )
-    ticket = adjunto.ticket
-    permitido = (
-        usuario.rol in ROLES_TICKETS
-        and tickets_visibles(usuario).filter(pk=ticket.pk).exists()
-    )
-    if not permitido:
-        messages.error(request, "No tienes acceso a este archivo.")
-        return redirect("tickets:lista")
+# ============================================================== DETALLE
+def _contexto_detalle(perfil, ticket, comentario_form=None, gestion_form=None):
+    gestiona = puede_gestionar(perfil, ticket)
 
-    content_type = mimetypes.guess_type(adjunto.archivo.name)[0] or "application/octet-stream"
-    return FileResponse(
-        adjunto.archivo.open("rb"),
-        content_type=content_type,
-        as_attachment=False,
-        filename=os.path.basename(adjunto.archivo.name),
+    comentarios = ticket.comentarios.select_related("autor").prefetch_related("archivos")
+    if not gestiona:
+        comentarios = comentarios.filter(interno=False)
+    eventos = ticket.eventos.select_related("autor")
+    # Una sola línea de tiempo: mensajes e historial ordenados por fecha
+    linea = sorted(
+        chain(
+            ({"tipo": "comentario", "obj": c, "creado": c.creado} for c in comentarios),
+            ({"tipo": "evento", "obj": e, "creado": e.creado} for e in eventos),
+        ),
+        key=lambda x: x["creado"],
     )
 
+    if comentario_form is None and puede_comentar(perfil, ticket):
+        comentario_form = ComentarioForm(staff=gestiona)
+    if gestion_form is None and gestiona:
+        gestion_form = GestionForm(perfil=perfil, ticket=ticket)
 
-@login_required
+    visitas = list(ticket.visitas.select_related("revisada_por", "visita"))
+    return {
+        "ticket": ticket,
+        "visitas": visitas,
+        "visitas_pendientes": sum(v.estado == TicketVisita.Estado.PENDIENTE for v in visitas),
+        "puede_revisar_visitas": gestiona and ticket.estado != Ticket.Estado.CERRADO,
+        "adjuntos": ticket.pruebas.filter(comentario__isnull=True),
+        "linea": linea,
+        "gestiona": gestiona,
+        "comentario_form": comentario_form if puede_comentar(perfil, ticket) else None,
+        "gestion_form": gestion_form,
+        "acciones": acciones_residente(perfil, ticket),
+        "puede_editar": puede_editar(perfil, ticket),
+    }
+
+
+@con_perfil
+def detalle(request, ticket_id):
+    ticket = _ticket_visible(request.perfil, ticket_id)
+    return render(request, "tickets/detalle.html", _contexto_detalle(request.perfil, ticket))
+
+
+@con_perfil
 def editar(request, ticket_id):
-    usuario = perfil_actual(request)
-    ticket = get_object_or_404(tickets_visibles(usuario).select_related("unidad__edificio"), pk=ticket_id)
-    if usuario.rol != "Residente" or ticket.usuario_id != usuario.id or ticket.estado != Ticket.Estado.ABIERTO:
-        messages.error(request, "Solo puedes editar tus propios tickets pendientes de atención.")
-        return redirect("tickets:lista")
-    errores = []
-    datos = {"titulo": ticket.titulo, "descripcion": ticket.descripcion, "categoria": ticket.categoria}
-    if request.method == "POST":
-        titulo = request.POST.get("titulo", "").strip()
-        descripcion = request.POST.get("descripcion", "").strip()
-        categoria = request.POST.get("categoria", "").strip()
-        if not titulo:
-            errores.append("Escribe un nombre para el ticket.")
-        elif len(titulo) > 150:
-            errores.append("El nombre no puede superar 150 caracteres.")
-        if not descripcion:
-            errores.append("Describe el problema o solicitud.")
-        if categoria not in Ticket.Categoria.values:
-            errores.append("Selecciona una categoría válida.")
-        datos = request.POST
-        if not errores:
-            cambiado = ticket.titulo != titulo or ticket.descripcion != descripcion or ticket.categoria != categoria
-            ticket.titulo, ticket.descripcion, ticket.categoria = titulo, descripcion, categoria
-            ticket.save(update_fields=["titulo", "descripcion", "categoria"])
-            if cambiado:
-                TicketHistorial.objects.create(ticket=ticket, usuario=usuario, tipo=TicketHistorial.Tipo.EDICION, detalle="El residente actualizó los datos del ticket.")
-            messages.success(request, "Se actualizaron los datos del ticket.")
-            return redirect("tickets:lista")
-    return render(request, "tickets/crear.html", {
-        "usuario_actual": usuario,
-        "unidades": [ticket.unidad] if ticket.unidad else [],
-        "prioridades": Ticket.Prioridad.choices,
-        "categorias": Ticket.Categoria.choices,
-        "puede_definir_prioridad": False,
-        "errores": errores,
-        "datos": datos,
-        "es_residente": True,
-        "unidad_unica": True,
-        "editar_ticket": ticket,
-    })
-
-
-@login_required
-def cancelar(request, ticket_id):
-    usuario = perfil_actual(request)
-    if request.method != "POST":
-        return redirect("tickets:lista")
-    ticket = get_object_or_404(tickets_visibles(usuario), pk=ticket_id)
-    if usuario.rol != "Residente" or ticket.usuario_id != usuario.id or ticket.estado != Ticket.Estado.ABIERTO:
-        messages.error(request, "Solo puedes cancelar tus propios tickets pendientes de atención.")
-        return redirect("tickets:lista")
-    ticket.estado = Ticket.Estado.CANCELADO
-    ticket.save(update_fields=["estado"])
-    TicketHistorial.objects.create(
-        ticket=ticket, usuario=usuario, tipo=TicketHistorial.Tipo.CANCELACION,
-        detalle="El residente canceló el ticket.", estado_anterior=Ticket.Estado.ABIERTO,
-        estado_nuevo=Ticket.Estado.CANCELADO,
-    )
-    messages.success(request, "El ticket fue cancelado y quedó en el historial.")
-    return redirect("tickets:lista")
-
-
-@login_required
-def responder(request, ticket_id):
-    usuario = perfil_actual(request)
-    if request.method != "POST":
-        return redirect("tickets:lista")
-    ticket = get_object_or_404(tickets_visibles(usuario), pk=ticket_id)
-    if ticket.usuario_id != usuario.id and usuario.rol not in ROLES_GESTION:
-        messages.error(request, "No tienes permiso para responder este ticket.")
-        return redirect("tickets:lista")
-    detalle = request.POST.get("respuesta", "").strip()
-    if not detalle:
-        messages.error(request, "Escribe una respuesta antes de enviarla.")
-    else:
-        TicketHistorial.objects.create(
-            ticket=ticket, usuario=usuario, tipo=TicketHistorial.Tipo.RESPUESTA,
-            detalle=detalle,
+    """El residente corrige su ticket mientras sigue abierto (nadie lo ha tomado)."""
+    perfil = request.perfil
+    ticket = _ticket_visible(perfil, ticket_id)
+    if not puede_editar(perfil, ticket):
+        messages.error(request, "Solo puedes editar tus tickets que siguen abiertos.")
+        return redirect("tickets:detalle", ticket.pk)
+    # instance=copia: si el formulario falla no se ensucia el ticket que muestra la plantilla
+    form = EditarTicketForm(request.POST or None, instance=Ticket.objects.get(pk=ticket.pk))
+    if request.method == "POST" and form.is_valid():
+        d = form.cleaned_data
+        cambio = services.editar(
+            perfil, ticket,
+            titulo=d["titulo"], descripcion=d["descripcion"],
+            categoria=d.get("categoria", ticket.categoria),
         )
-        messages.success(request, "La respuesta quedó agregada al ticket.")
-    return redirect("tickets:lista")
+        messages.success(request, "Ticket actualizado." if cambio else "No hubo cambios.")
+        return redirect("tickets:detalle", ticket.pk)
+    return render(request, "tickets/editar.html", {"form": form, "ticket": ticket})
+
+
+@con_perfil
+@require_POST
+def comentar(request, ticket_id):
+    perfil = request.perfil
+    ticket = _ticket_visible(perfil, ticket_id)
+    if not puede_comentar(perfil, ticket):
+        raise PermissionDenied
+    gestiona = puede_gestionar(perfil, ticket)
+    form = ComentarioForm(request.POST, request.FILES, staff=gestiona)
+    if not form.is_valid():
+        return render(request, "tickets/detalle.html",
+                      _contexto_detalle(perfil, ticket, comentario_form=form), status=400)
+    services.comentar(
+        perfil, ticket,
+        texto=form.cleaned_data["texto"],
+        interno=form.cleaned_data.get("interno", False),
+        archivos=form.cleaned_data["archivos"],
+        es_staff=gestiona,
+    )
+    messages.success(request, "Mensaje enviado.")
+    return redirect("tickets:detalle", ticket.pk)
+
+
+@con_perfil
+@require_POST
+def gestionar(request, ticket_id):
+    perfil = request.perfil
+    ticket = _ticket_visible(perfil, ticket_id)
+    if not puede_gestionar(perfil, ticket):
+        raise PermissionDenied
+    form = GestionForm(request.POST, perfil=perfil, ticket=ticket)
+    if not form.is_valid():
+        return render(request, "tickets/detalle.html",
+                      _contexto_detalle(perfil, ticket, gestion_form=form), status=400)
+    try:
+        eventos = services.actualizar(perfil, ticket, **form.cleaned_data)
+    except ValidationError as e:
+        form.add_error(None, e)
+        return render(request, "tickets/detalle.html",
+                      _contexto_detalle(perfil, ticket, gestion_form=form), status=400)
+    if eventos:
+        messages.success(request, "Ticket actualizado.")
+    else:
+        messages.info(request, "No hubo cambios.")
+    return redirect("tickets:detalle", ticket.pk)
+
+
+@con_perfil
+@require_POST
+def accion(request, ticket_id, nombre):
+    """Botones del residente: confirmar solución, reabrir o cancelar."""
+    perfil = request.perfil
+    ticket = _ticket_visible(perfil, ticket_id)
+    if nombre not in acciones_residente(perfil, ticket):
+        raise PermissionDenied
+    _, destino = ACCIONES_RESIDENTE[nombre]
+    services.actualizar(perfil, ticket, estado=destino)
+    motivo = request.POST.get("motivo", "").strip()
+    if motivo:
+        services.comentar(perfil, Ticket.objects.get(pk=ticket.pk), texto=motivo)
+    messages.success(request, TEXTO_ACCION[nombre])
+    return redirect("tickets:detalle", ticket.pk)
+
+
+# ============================================================== VISITAS
+@con_perfil
+@require_POST
+def revisar_visita(request, ticket_id, visita_id, decision):
+    """El staff aprueba o rechaza una visita (o todas las pendientes, con visita_id = 0)."""
+    perfil = request.perfil
+    ticket = _ticket_visible(perfil, ticket_id)
+    if not puede_gestionar(perfil, ticket) or decision not in ("aprobar", "rechazar"):
+        raise PermissionDenied
+    pendientes = ticket.visitas.filter(estado=TicketVisita.Estado.PENDIENTE)
+    if visita_id:
+        pendientes = pendientes.filter(pk=visita_id)
+    if not pendientes.exists():
+        messages.info(request, "No hay visitas pendientes que revisar.")
+        return redirect("tickets:detalle", ticket.pk)
+
+    hechas = 0
+    for visita in pendientes:
+        try:
+            if decision == "aprobar":
+                services.aprobar_visita(perfil, visita)
+            else:
+                services.rechazar_visita(perfil, visita, request.POST.get("motivo", "").strip())
+            hechas += 1
+        except ValidationError as e:
+            messages.error(request, f"{visita.nombre}: {' '.join(e.messages)}")
+    if hechas:
+        verbo = "aprobada" if decision == "aprobar" else "rechazada"
+        messages.success(request, f"{hechas} visita{'s' if hechas > 1 else ''} {verbo}{'s' if hechas > 1 else ''}.")
+    return redirect("tickets:detalle", ticket.pk)
+
+
+# ============================================================== ARCHIVOS
+@con_perfil
+def archivo(request, archivo_id):
+    """Los adjuntos no se sirven desde /media: solo los descarga quien puede ver el ticket."""
+    perfil = request.perfil
+    adj = get_object_or_404(TicketArchivo.objects.select_related("ticket", "comentario"), pk=archivo_id)
+    if not tickets_visibles(perfil).filter(pk=adj.ticket_id).exists():
+        raise Http404
+    if adj.comentario_id and adj.comentario.interno and not puede_gestionar(perfil, adj.ticket):
+        raise Http404
+    try:
+        f = adj.archivo.open("rb")
+    except FileNotFoundError:
+        raise Http404
+    descargar = not adj.es_imagen or "descargar" in request.GET
+    return FileResponse(f, as_attachment=descargar, filename=adj.nombre or None)

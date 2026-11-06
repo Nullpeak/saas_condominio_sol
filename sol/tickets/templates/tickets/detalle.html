@@ -1,0 +1,276 @@
+{% extends "core/base.html" %}
+
+{% block title %}Ticket #{{ ticket.pk }} · CondoGestión{% endblock %}
+{% block page_title %}🎫 Ticket #{{ ticket.pk }}{% endblock %}
+
+{% block extra_css %}
+{% include "tickets/_estilos.html" %}
+<style>
+    .tk-head h2 { font-size: 22px; margin: 6px 0 4px; }
+    .tk-desc { white-space: pre-wrap; line-height: 1.55; margin-top: 16px; }
+    .tk-adjuntos { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+    .tk-adj { display: flex; align-items: center; gap: 8px; border: 1px solid #e5e7eb; border-radius: 8px; padding: 6px; text-decoration: none; color: #1f2937; font-size: 13px; max-width: 240px; background: #fff; }
+    .tk-adj:hover { border-color: #93c5fd; }
+    .tk-adj img { width: 64px; height: 64px; object-fit: cover; border-radius: 6px; }
+    .tk-adj .doc { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: #f1f5f9; border-radius: 6px; font-size: 18px; }
+    .tk-adj span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .tk-linea { position: relative; margin-left: 8px; padding-left: 22px; border-left: 2px solid #e5e7eb; }
+    .tk-item { position: relative; margin-bottom: 18px; }
+    .tk-item::before { content: ""; position: absolute; left: -29px; top: 6px; width: 12px; height: 12px; border-radius: 50%; background: #cbd5e1; border: 2px solid #f4f6f8; }
+    .tk-item.msg::before { background: #2563eb; }
+    .tk-item.interno::before { background: #d97706; }
+    .tk-evento { font-size: 13px; color: #64748b; padding-top: 2px; }
+    .tk-msg { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px 14px; }
+    .tk-msg.staff { border-color: #bfdbfe; background: #f8fbff; }
+    .tk-msg.interno { border-color: #fcd34d; background: #fffbeb; }
+    .tk-msg-head { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; margin-bottom: 6px; }
+    .tk-msg-texto { white-space: pre-wrap; line-height: 1.5; font-size: 14px; }
+
+    .tk-datos { font-size: 14px; margin: 0; }
+    .tk-datos dt { font-size: 12px; color: #64748b; font-weight: 600; text-transform: uppercase; margin-top: 12px; }
+    .tk-datos dd { margin: 2px 0 0; }
+    .tk-side h3 { font-size: 15px; font-weight: 700; margin: 0 0 4px; }
+
+    .tk-vis-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+    .tk-vis-head h3 { font-size: 16px; font-weight: 700; margin: 0; }
+    .tk-vis { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 12px 0; border-top: 1px solid #f1f5f9; }
+    .tk-vis-nombre { font-weight: 600; }
+    .tk-vis-acciones { display: flex; gap: 6px; align-items: flex-start; flex-wrap: wrap; }
+    .tk-vis-acciones form { display: flex; gap: 6px; }
+    .tk-vis-acciones input[type=text] { padding: 6px 9px; border: 1px solid #cbd5e1; border-radius: 7px; font-size: 13px; width: 170px; }
+    .tk-vis-pendiente { background: #fef3c7; color: #92400e; }
+    .tk-vis-aprobada  { background: #dcfce7; color: #166534; }
+    .tk-vis-rechazada { background: #fee2e2; color: #991b1b; }
+    .btn-mini { padding: 6px 11px; font-size: 13px; }
+    .btn-rechazar { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+    .btn-rechazar:hover { background: #fee2e2; color: #991b1b; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<a href="{% url 'tickets:lista' %}" class="tk-muted text-decoration-none">← Volver a tickets</a>
+
+<div class="row g-4 mt-1">
+
+    <!-- ============================== COLUMNA PRINCIPAL ============================== -->
+    <div class="col-lg-8">
+
+        <div class="card-custom tk-head">
+            <div class="d-flex gap-2 flex-wrap align-items-center">
+                <span class="tk-badge tk-estado-{{ ticket.estado }}">{{ ticket.get_estado_display }}</span>
+                {% if ticket.prioridad %}<span class="tk-badge tk-prio-{{ ticket.prioridad }}">Prioridad {{ ticket.get_prioridad_display|lower }}</span>{% endif %}
+                <span class="tk-muted">{{ ticket.get_categoria_display }}</span>
+            </div>
+            <div class="d-flex justify-content-between align-items-start gap-2">
+                <h2>{{ ticket.titulo }}</h2>
+                {% if puede_editar %}<a class="button button-secondary btn-mini" href="{% url 'tickets:editar' ticket.pk %}">✏️ Editar</a>{% endif %}
+            </div>
+            <div class="tk-muted">
+                Reportado por <strong>{{ ticket.usuario }}</strong> el {{ ticket.creado|date:"d/m/Y \a \l\a\s H:i" }}
+            </div>
+            <div class="tk-desc">{{ ticket.descripcion }}</div>
+
+            {% if adjuntos %}
+                <div class="tk-adjuntos">
+                    {% for a in adjuntos %}{% include "tickets/_adjunto.html" %}{% endfor %}
+                </div>
+            {% endif %}
+        </div>
+
+        {% if visitas %}
+            <div class="card-custom">
+                <div class="tk-vis-head">
+                    <h3>👥 Visitas solicitadas ({{ visitas|length }})</h3>
+                    {% if puede_revisar_visitas and visitas_pendientes > 1 %}
+                        <form method="post" action="{% url 'tickets:revisar_visita' ticket.pk 0 'aprobar' %}">
+                            {% csrf_token %}
+                            <button class="button btn-mini" type="submit">✔️ Aprobar las {{ visitas_pendientes }} pendientes</button>
+                        </form>
+                    {% endif %}
+                </div>
+                {% if not ticket.unidad %}
+                    <div class="alert alert-warning py-2">Este ticket no tiene unidad: hay que asignarle una antes de aprobar visitas.</div>
+                {% endif %}
+
+                {% for v in visitas %}
+                    <div class="tk-vis">
+                        <div>
+                            <div class="tk-vis-nombre">
+                                {{ v.nombre }}
+                                <span class="tk-badge tk-vis-{{ v.estado }}">{% if v.estado == "aprobada" %}Registrada{% else %}{{ v.get_estado_display }}{% endif %}</span>
+                            </div>
+                            <div class="tk-muted">
+                                {% if v.rut %}RUT {{ v.rut }} · {% endif %}
+                                {% if v.patente %}🚗 {{ v.patente }} · {% endif %}
+                                {{ v.llegada|date:"d/m/Y H:i" }} → {% if v.llegada|date:"Ymd" == v.salida|date:"Ymd" %}{{ v.salida|date:"H:i" }}{% else %}{{ v.salida|date:"d/m/Y H:i" }}{% endif %}
+                            </div>
+                            {% if v.revisada_por %}
+                                <div class="tk-muted">
+                                    {% if v.estado == "aprobada" %}Aprobada{% else %}Rechazada{% endif %} por {{ v.revisada_por }} el {{ v.revisada|date:"d/m/Y H:i" }}
+                                    {% if v.visita_id %}· <a href="{% url 'visitas:lista' %}?fecha={{ v.visita.fecha_visita|date:"Y-m-d" }}">Ver en Visitas</a>{% endif %}
+                                </div>
+                            {% endif %}
+                            {% if v.motivo_rechazo %}<div class="tk-muted">Motivo: {{ v.motivo_rechazo }}</div>{% endif %}
+                        </div>
+
+                        {% if puede_revisar_visitas and v.estado == "pendiente" %}
+                            <div class="tk-vis-acciones">
+                                <form method="post" action="{% url 'tickets:revisar_visita' ticket.pk v.pk 'aprobar' %}">
+                                    {% csrf_token %}
+                                    <button class="button btn-mini" type="submit" {% if not ticket.unidad %}disabled{% endif %}>Aprobar</button>
+                                </form>
+                                <form method="post" action="{% url 'tickets:revisar_visita' ticket.pk v.pk 'rechazar' %}">
+                                    {% csrf_token %}
+                                    <input type="text" name="motivo" maxlength="255" placeholder="Motivo (opcional)" aria-label="Motivo del rechazo">
+                                    <button class="button btn-mini btn-rechazar" type="submit">Rechazar</button>
+                                </form>
+                            </div>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+
+                {% if not gestiona and visitas_pendientes %}
+                    <div class="tk-muted mt-2">Te avisaremos cuando la administración revise tu solicitud.</div>
+                {% endif %}
+            </div>
+        {% endif %}
+
+        <h3 class="h6 text-secondary text-uppercase mb-3">Actividad</h3>
+
+        <div class="tk-linea">
+            {% for item in linea %}
+                {% if item.tipo == "evento" %}
+                    <div class="tk-item">
+                        <div class="tk-evento">
+                            <strong>{{ item.obj.autor|default:"Sistema" }}</strong> {{ item.obj.texto }}
+                            · <span title="{{ item.creado|date:'d/m/Y H:i' }}">hace {{ item.creado|timesince }}</span>
+                        </div>
+                    </div>
+                {% else %}
+                    {% with c=item.obj %}
+                    <div class="tk-item msg {% if c.interno %}interno{% endif %}">
+                        <div class="tk-msg {% if c.interno %}interno{% elif c.autor_id != ticket.usuario_id %}staff{% endif %}">
+                            <div class="tk-msg-head">
+                                <span>
+                                    <strong>{{ c.autor }}</strong>
+                                    {% if c.autor_id != ticket.usuario_id %}<span class="tk-muted">· {{ c.autor.get_rol_display|capfirst }}</span>{% endif %}
+                                    {% if c.interno %}<span class="tk-badge" style="background:#fde68a;color:#78350f;">Nota interna</span>{% endif %}
+                                </span>
+                                <span class="tk-muted" title="{{ c.creado|date:'d/m/Y H:i' }}">hace {{ c.creado|timesince }}</span>
+                            </div>
+                            <div class="tk-msg-texto">{{ c.texto }}</div>
+                            {% if c.archivos.all %}
+                                <div class="tk-adjuntos">
+                                    {% for a in c.archivos.all %}{% include "tickets/_adjunto.html" %}{% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endwith %}
+                {% endif %}
+            {% endfor %}
+        </div>
+
+        {% if comentario_form %}
+            <div class="card-custom tk-form mt-2" id="responder">
+                <form method="post" action="{% url 'tickets:comentar' ticket.pk %}" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    {% for e in comentario_form.non_field_errors %}<div class="alert alert-danger">{{ e }}</div>{% endfor %}
+
+                    <label for="{{ comentario_form.texto.id_for_label }}" style="margin-top:0">Responder</label>
+                    {{ comentario_form.texto }}
+                    {% for e in comentario_form.texto.errors %}<div class="error">{{ e }}</div>{% endfor %}
+
+                    <label for="{{ comentario_form.archivos.id_for_label }}">{{ comentario_form.archivos.label }}</label>
+                    {{ comentario_form.archivos }}
+                    <div class="help">{{ comentario_form.archivos.help_text }}</div>
+                    {% for e in comentario_form.archivos.errors %}<div class="error">{{ e }}</div>{% endfor %}
+
+                    {% if comentario_form.interno %}
+                        <label class="tk-check">{{ comentario_form.interno }} {{ comentario_form.interno.label }}</label>
+                    {% endif %}
+
+                    {% if not gestiona and ticket.estado == "esperando" %}
+                        <div class="help">Al responder, el ticket vuelve a revisión.</div>
+                    {% endif %}
+
+                    <button class="button mt-3" type="submit">Enviar</button>
+                </form>
+            </div>
+        {% elif ticket.estado == "cerrado" %}
+            <div class="tk-muted mt-2">Este ticket está cerrado. Si el problema volvió, crea un ticket nuevo.</div>
+        {% endif %}
+
+    </div>
+
+
+    <!-- ============================== COLUMNA LATERAL ============================== -->
+    <div class="col-lg-4 tk-side">
+
+        <div class="card-custom">
+            <h3>Detalles</h3>
+            <dl class="tk-datos">
+                {% if request.user.usuario.rol == "Super Administrador" %}
+                    <dt>Condominio</dt><dd>{{ ticket.condominio }}</dd>
+                {% endif %}
+                <dt>Unidad</dt>
+                <dd>{% if ticket.unidad %}{{ ticket.unidad.edificio.nombre }} · {{ ticket.unidad.numero_unidad }}{% else %}No aplica{% endif %}</dd>
+                <dt>Responsable</dt><dd>{{ ticket.asignado|default:"Sin asignar" }}</dd>
+                <dt>Creado</dt><dd>{{ ticket.creado|date:"d/m/Y H:i" }}</dd>
+                <dt>Último movimiento</dt><dd>hace {{ ticket.actualizado|timesince }}</dd>
+                {% if ticket.resuelto %}<dt>Resuelto</dt><dd>{{ ticket.resuelto|date:"d/m/Y H:i" }}</dd>{% endif %}
+                {% if ticket.cerrado %}<dt>Cerrado</dt><dd>{{ ticket.cerrado|date:"d/m/Y H:i" }}</dd>{% endif %}
+            </dl>
+        </div>
+
+        {% if gestion_form %}
+            <div class="card-custom tk-form">
+                <h3>Gestionar</h3>
+                <form method="post" action="{% url 'tickets:gestionar' ticket.pk %}">
+                    {% csrf_token %}
+                    {% for e in gestion_form.non_field_errors %}<div class="alert alert-danger mt-2">{{ e }}</div>{% endfor %}
+                    {% for campo in gestion_form %}
+                        <label for="{{ campo.id_for_label }}">{{ campo.label }}</label>
+                        {{ campo }}
+                        {% for e in campo.errors %}<div class="error">{{ e }}</div>{% endfor %}
+                    {% endfor %}
+                    <div class="help">«Esperando respuesta» indica que necesitas algo del residente: cuando responda, vuelve a revisión.</div>
+                    <button class="button mt-3 w-100" type="submit">Guardar cambios</button>
+                </form>
+            </div>
+        {% endif %}
+
+        {% if acciones %}
+            <div class="card-custom tk-form">
+                {% if "confirmar" in acciones %}
+                    <h3>¿Quedó solucionado?</h3>
+                    <p class="tk-muted">El equipo marcó este ticket como resuelto.</p>
+                    <form method="post" action="{% url 'tickets:accion' ticket.pk 'confirmar' %}">
+                        {% csrf_token %}
+                        <button class="button w-100" type="submit">✔️ Sí, cerrar ticket</button>
+                    </form>
+                    <form method="post" action="{% url 'tickets:accion' ticket.pk 'reabrir' %}" class="mt-3">
+                        {% csrf_token %}
+                        <label for="motivo-reabrir">No, sigue el problema</label>
+                        <textarea id="motivo-reabrir" name="motivo" rows="2" placeholder="Cuéntanos qué falta (opcional)"></textarea>
+                        <button class="button button-secondary w-100 mt-2" type="submit">Reabrir ticket</button>
+                    </form>
+                {% endif %}
+                {% if "cancelar" in acciones %}
+                    <h3>¿Ya no lo necesitas?</h3>
+                    <form method="post" action="{% url 'tickets:accion' ticket.pk 'cancelar' %}">
+                        {% csrf_token %}
+                        <textarea name="motivo" rows="2" placeholder="Motivo (opcional)"></textarea>
+                        <button class="button button-secondary w-100 mt-2" type="submit">Cerrar mi ticket</button>
+                    </form>
+                {% endif %}
+            </div>
+        {% endif %}
+
+    </div>
+
+</div>
+
+{% endblock %}

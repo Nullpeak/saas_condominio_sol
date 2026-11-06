@@ -1,163 +1,162 @@
 {% extends "core/base.html" %}
-{% load l10n %}
 
-{% block title %}Tickets | Comunidad al Día{% endblock %}
-{% block page_title %}Tickets{% endblock %}
+{% block title %}Tickets · CondoGestión{% endblock %}
+{% block page_title %}🎫 {% if staff %}Tickets{% else %}Mis tickets{% endif %}{% endblock %}
+
+{% block extra_css %}
+{% include "tickets/_estilos.html" %}
+<style>
+    .tk-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+    .tk-tab { padding: 7px 12px; border-radius: 8px; font-size: 13px; text-decoration: none; color: #334155; background: #f1f5f9; }
+    .tk-tab:hover { background: #e2e8f0; color: #0f172a; }
+    .tk-tab.activa { background: #2563eb; color: white; }
+    .tk-tab .n { opacity: .75; margin-left: 4px; }
+    .tk-filtros { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
+    .tk-filtros select, .tk-filtros input { padding: 7px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; background: white; }
+    .tk-filtros input[type=search] { min-width: 220px; flex: 1; }
+    .tk-tabla { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .tk-tabla th { font-size: 12px; text-transform: uppercase; color: #64748b; font-weight: 600; padding: 8px 10px; border-bottom: 1px solid #e5e7eb; text-align: left; }
+    .tk-tabla td { padding: 12px 10px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+    .tk-tabla tr:hover td { background: #f8fafc; }
+    .tk-tabla a.tk-titulo { color: #0f172a; font-weight: 600; text-decoration: none; }
+    .tk-tabla a.tk-titulo:hover { color: #2563eb; }
+    .tk-id { color: #94a3b8; font-variant-numeric: tabular-nums; }
+    .tk-vacio { text-align: center; padding: 40px 10px; color: #64748b; }
+    @media (max-width: 800px) { .tk-ocultar-movil { display: none; } }
+</style>
+{% endblock %}
 
 {% block content %}
-<section class="card-custom">
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
-        <div>
-            <h2 class="h4 mb-1">{% if puede_gestionar %}Tickets del condominio{% else %}Mis tickets{% endif %}</h2>
-            <p class="text-muted mb-0">Consulta solicitudes, su estado y el registro de resolución.</p>
-        </div>
-        <a href="{% url 'tickets:crear' %}" class="button">+ Crear ticket</a>
+
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <p class="text-secondary mb-0">
+        {% if staff %}
+            Inconvenientes reportados en el condominio.
+            {% if sin_asignar %}<strong>{{ sin_asignar }}</strong> pendiente{{ sin_asignar|pluralize }} sin responsable.{% endif %}
+        {% else %}
+            Reporta un problema y sigue su avance aquí.
+        {% endif %}
+    </p>
+    <a class="button" href="{% url 'tickets:crear' %}">➕ Nuevo ticket</a>
+</div>
+
+<div class="card-custom">
+
+    <div class="tk-tabs">
+        {% for valor, etiqueta, n in pestanas %}
+            <a class="tk-tab {% if f.estado == valor %}activa{% endif %}"
+               href="?estado={{ valor }}{% if f.q %}&q={{ f.q|urlencode }}{% endif %}{% if f.condominio %}&condominio={{ f.condominio }}{% endif %}">
+                {{ etiqueta }}<span class="n">{{ n }}</span>
+            </a>
+        {% endfor %}
     </div>
 
-    <nav class="nav nav-pills gap-2 mb-4" aria-label="Sección de tickets">
-        <a class="nav-link {% if vista == 'activos' %}active{% endif %}" href="{% url 'tickets:lista' %}?vista=activos">Tickets activos</a>
-        <a class="nav-link {% if vista == 'historial' %}active{% endif %}" href="{% url 'tickets:lista' %}?vista=historial">Historial (resueltos y cerrados)</a>
-    </nav>
-
-    <form method="get" class="row g-3 align-items-end mb-4 p-3 rounded" style="background:#f8fafc;">
-        <div class="col-md-3">
-            <label for="q" class="form-label">Buscar</label>
-            <input type="search" class="form-control" id="q" name="q" value="{{ busqueda }}" placeholder="Nombre o descripción">
-        </div>
-        <div class="col-md-2">
-            <label for="estado" class="form-label">Estado</label>
-            <select class="form-select" id="estado" name="estado">
-                <option value="">Todos</option>
-                {% for codigo, etiqueta in estados %}<option value="{{ codigo }}" {% if estado_filtro == codigo %}selected{% endif %}>{{ etiqueta }}</option>{% endfor %}
+    <form class="tk-filtros" method="get">
+        <input type="hidden" name="estado" value="{{ f.estado }}">
+        <input type="search" name="q" value="{{ f.q }}" placeholder="Buscar por asunto, descripción o #número">
+        {% if condominios %}
+            <select name="condominio" onchange="this.form.submit()">
+                <option value="">Todos los condominios</option>
+                {% for c in condominios %}
+                    <option value="{{ c.id }}" {% if f.condominio == c.id|stringformat:"s" %}selected{% endif %}>{{ c.nombre }}</option>
+                {% endfor %}
             </select>
-        </div>
-        <div class="col-md-2">
-            <label for="categoria" class="form-label">Categoría</label>
-            <select class="form-select" id="categoria" name="categoria"><option value="">Todas</option>{% for codigo, etiqueta in categorias %}<option value="{{ codigo }}" {% if categoria_filtro == codigo %}selected{% endif %}>{{ etiqueta }}</option>{% endfor %}</select>
-        </div>
-        {% if puede_gestionar %}
-            <div class="col-md-2">
-                <label for="unidad" class="form-label">Unidad</label>
-                <select class="form-select" id="unidad" name="unidad">
-                    <option value="">Todas</option>
-                    {% for unidad in unidades %}
-                        <option value="{{ unidad.id }}" {% if unidad_filtro == unidad.id|stringformat:"s" %}selected{% endif %}>{{ unidad.edificio.condominio.nombre }} · {{ unidad.edificio.nombre }} · {{ unidad.numero_unidad }}</option>
-                    {% endfor %}
-                </select>
-            </div>
         {% endif %}
-        <div class="col-md-2">
-            <label for="desde" class="form-label">Desde</label>
-            <input type="date" class="form-control" id="desde" name="desde" value="{{ fecha_desde }}">
-        </div>
-        <div class="col-md-2">
-            <label for="hasta" class="form-label">Hasta</label>
-            <input type="date" class="form-control" id="hasta" name="hasta" value="{{ fecha_hasta }}">
-        </div>
-        <div class="col-md-1 d-flex gap-2">
-            <button type="submit" class="button">Ver</button>
-            <a href="{% url 'tickets:lista' %}" class="btn btn-outline-secondary">Limpiar</a>
-        </div>
+        {% if unidades %}
+            <select name="unidad" onchange="this.form.submit()">
+                <option value="">Todas las unidades</option>
+                {% for u in unidades %}
+                    <option value="{{ u.id }}" {% if f.unidad == u.id|stringformat:"s" %}selected{% endif %}>{% if condominios %}{{ u.edificio.condominio }} · {% endif %}{{ u.edificio.nombre }} · {{ u.numero_unidad }}</option>
+                {% endfor %}
+            </select>
+        {% endif %}
+        <label class="tk-muted">Desde <input type="date" name="desde" value="{{ f.desde }}" onchange="this.form.submit()"></label>
+        <label class="tk-muted">Hasta <input type="date" name="hasta" value="{{ f.hasta }}" onchange="this.form.submit()"></label>
+        <select name="categoria" onchange="this.form.submit()">
+            <option value="">Todas las categorías</option>
+            {% for v, l in categorias %}<option value="{{ v }}" {% if f.categoria == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+        </select>
+        {% if staff %}
+            <select name="prioridad" onchange="this.form.submit()">
+                <option value="">Cualquier prioridad</option>
+                {% for v, l in prioridades %}<option value="{{ v }}" {% if f.prioridad == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+                <option value="sin" {% if f.prioridad == "sin" %}selected{% endif %}>Sin prioridad</option>
+            </select>
+            <select name="asignado" onchange="this.form.submit()">
+                <option value="">Cualquier responsable</option>
+                <option value="yo" {% if f.asignado == "yo" %}selected{% endif %}>Asignados a mí</option>
+                <option value="nadie" {% if f.asignado == "nadie" %}selected{% endif %}>Sin asignar</option>
+            </select>
+        {% endif %}
+        <button class="button button-secondary" type="submit">Buscar</button>
     </form>
 
-    {% if tickets %}
-        <div class="d-grid gap-3">
-            {% for ticket in tickets %}
-                <article class="p-3 p-lg-4 rounded border bg-white">
-                    <div class="d-flex flex-wrap justify-content-between gap-3">
-                        <div>
-                            <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
-                                <span class="text-muted">#{{ ticket.id }}</span>
-                                <h3 class="h5 mb-0">{{ ticket.titulo }}</h3>
-                                {% if ticket.estado == "resuelto" or ticket.estado == "cerrado" %}
-                                    <span class="badge text-bg-success">{{ ticket.get_estado_display }}</span>
-                                {% elif ticket.estado == "en_revision" %}
-                                    <span class="badge text-bg-info">{{ ticket.get_estado_display }}</span>
-                                {% else %}
-                                    <span class="badge text-bg-warning">{{ ticket.get_estado_display }}</span>
-                                {% endif %}
-                                {% if ticket.prioridad %}<span class="badge text-bg-light">{{ ticket.get_prioridad_display }}</span>{% endif %}
-                                <span class="badge text-bg-light">{{ ticket.get_categoria_display }}</span>
-                            </div>
-                            <div class="small text-muted">
-                                Creado por {{ ticket.usuario.nombre }} {{ ticket.usuario.apellido }} · {% localize off %}{{ ticket.creado|date:"d/m/Y H:i" }}{% endlocalize %}
-                                {% if ticket.unidad %} · {{ ticket.unidad.edificio.nombre }} / Unidad {{ ticket.unidad.numero_unidad }}{% endif %}
-                            </div>
+    {% if page.object_list %}
+        <div class="table-responsive">
+        <table class="tk-tabla">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Asunto</th>
+                    <th>Estado</th>
+                    {% if staff %}<th>Prioridad</th>{% endif %}
+                    <th class="tk-ocultar-movil">{% if staff %}Responsable{% else %}Categoría{% endif %}</th>
+                    <th class="tk-ocultar-movil">Actividad</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for t in page %}
+                <tr>
+                    <td class="tk-id">{{ t.pk }}</td>
+                    <td>
+                        <a class="tk-titulo" href="{% url 'tickets:detalle' t.pk %}">{{ t.titulo }}</a>
+                        <div class="tk-muted">
+                            {{ t.get_categoria_display }}
+                            {% if t.unidad %} · {{ t.unidad.edificio.nombre }} {{ t.unidad.numero_unidad }}{% endif %}
+                            {% if staff %} · {{ t.usuario }}{% endif %}
+                            {% if condominios %} · {{ t.condominio }}{% endif %}
+                            {% if t.n_comentarios %} · 💬 {{ t.n_comentarios }}{% endif %}
                         </div>
-                        {% if ticket.asignado %}<div class="small text-muted">Asignado a {{ ticket.asignado.nombre }} {{ ticket.asignado.apellido }}</div>{% endif %}
-                    </div>
-
-                    <p class="mt-3 mb-3" style="white-space:pre-line;">{{ ticket.descripcion }}</p>
-
-                    {% if ticket.archivos.all %}
-                        <div class="d-flex flex-wrap gap-3 mb-3">
-                            {% for adjunto in ticket.archivos.all %}
-                                {% url 'tickets:archivo' adjunto.id as archivo_url %}
-                                <div class="border rounded p-2" style="max-width:240px;">
-                                    {% if adjunto.es_imagen %}
-                                        <a href="{{ archivo_url }}" target="_blank" rel="noopener"><img src="{{ archivo_url }}" alt="Adjunto del ticket {{ ticket.id }}" class="img-fluid rounded" style="max-height:170px;"></a>
-                                    {% elif adjunto.es_video %}
-                                        <video src="{{ archivo_url }}" controls preload="metadata" class="rounded" style="max-width:210px; max-height:170px;"></video>
-                                    {% endif %}
-                                </div>
-                            {% endfor %}
-                        </div>
+                    </td>
+                    <td><span class="tk-badge tk-estado-{{ t.estado }}">{{ t.get_estado_display }}</span></td>
+                    {% if staff %}
+                        <td><span class="tk-badge tk-prio-{{ t.prioridad }}">{{ t.get_prioridad_display|default:"—" }}</span></td>
                     {% endif %}
-
-                    {% if ticket.resuelto %}
-                        <div class="alert alert-success py-2 mb-3">
-                            Última resolución registrada el {% localize off %}{{ ticket.resuelto|date:"d/m/Y H:i" }}{% endlocalize %}{% if ticket.resuelto_por %} por {{ ticket.resuelto_por.nombre }} {{ ticket.resuelto_por.apellido }} ({{ ticket.resuelto_por.rol }}){% endif %}.
-                        </div>
-                    {% endif %}
-
-                    {% if ticket.historial.all %}
-                        <details class="mb-3">
-                            <summary class="small fw-semibold">Respuestas e historial</summary>
-                            <ol class="small text-muted mt-2 mb-0">
-                                {% for evento in ticket.historial.all %}<li class="mb-1"><strong>{{ evento.get_tipo_display }}</strong>{% if evento.usuario %} · {{ evento.usuario.nombre }} {{ evento.usuario.apellido }}{% endif %} · {{ evento.creado|date:"d/m/Y H:i" }} — {{ evento.detalle }}</li>{% endfor %}
-                            </ol>
-                        </details>
-                    {% endif %}
-
-                    {% if ticket.puede_responder %}
-                        <form method="post" action="{% url 'tickets:responder' ticket.id %}" class="d-flex gap-2 mb-3">{% csrf_token %}<label class="visually-hidden" for="respuesta-{{ ticket.id }}">Escribir respuesta</label><input class="form-control" id="respuesta-{{ ticket.id }}" name="respuesta" maxlength="2000" placeholder="Escribe una respuesta" required><button class="btn btn-sm btn-outline-primary" type="submit">Responder</button></form>
-                    {% endif %}
-                    {% if ticket.puede_editar %}<div class="d-flex gap-2 mb-3"><a class="btn btn-sm btn-outline-secondary" href="{% url 'tickets:editar' ticket.id %}">Editar ticket</a><form method="post" action="{% url 'tickets:cancelar' ticket.id %}" onsubmit="return confirm('¿Cancelar este ticket?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger" type="submit">Cancelar ticket</button></form></div>{% endif %}
-
-                    {% if puede_gestionar %}
-                        <div class="d-flex flex-wrap gap-3 pt-3 border-top">
-                            {% if puede_asignar %}<form method="post" action="{% url 'tickets:asignar' ticket.id %}" class="d-flex flex-wrap align-items-end gap-2">
-                                {% csrf_token %}
-                                <div>
-                                    <label class="form-label small mb-1" for="gestor-{{ ticket.id }}">Asignar a gestor</label>
-                                    <select class="form-select form-select-sm" id="gestor-{{ ticket.id }}" name="gestor">
-                                        <option value="">Sin asignar</option>
-                                        {% for gestor in gestores %}<option value="{{ gestor.id }}" {% if ticket.asignado_id == gestor.id %}selected{% endif %}>{{ gestor.nombre }} {{ gestor.apellido }}</option>{% endfor %}
-                                    </select>
-                                </div>
-                                <button type="submit" class="btn btn-sm btn-outline-primary">Guardar asignación</button>
-                            </form>{% endif %}
-                            <form method="post" action="{% url 'tickets:cambiar_estado' ticket.id %}" class="d-flex flex-wrap align-items-end gap-2">
-                                {% csrf_token %}
-                                <div>
-                                    <label class="form-label small mb-1" for="estado-{{ ticket.id }}">Estado</label>
-                                    <select class="form-select form-select-sm" id="estado-{{ ticket.id }}" name="estado">
-                                        {% for codigo, etiqueta in estados %}<option value="{{ codigo }}" {% if ticket.estado == codigo %}selected{% endif %}>{{ etiqueta }}</option>{% endfor %}
-                                    </select>
-                                </div>
-                                <button type="submit" class="btn btn-sm btn-success">Actualizar estado</button>
-                            </form>
-                        </div>
-                    {% endif %}
-                </article>
+                    <td class="tk-ocultar-movil">
+                        {% if staff %}{% if t.asignado %}{{ t.asignado }}{% else %}<span class="tk-muted">Sin asignar</span>{% endif %}{% else %}{{ t.get_categoria_display }}{% endif %}
+                    </td>
+                    <td class="tk-ocultar-movil tk-muted" title="{{ t.actualizado|date:'d/m/Y H:i' }}">hace {{ t.actualizado|timesince }}</td>
+                </tr>
             {% endfor %}
+            </tbody>
+        </table>
         </div>
     {% else %}
-        <div class="text-center py-5">
-            <h3 class="h5 mt-3">No hay tickets para mostrar</h3>
-            <p class="text-muted">Crea un ticket o ajusta los filtros.</p>
-            <a href="{% url 'tickets:crear' %}" class="button">Crear ticket</a>
+        <div class="tk-vacio">
+            {% if f.q or f.categoria or f.prioridad or f.asignado %}
+                No hay tickets que coincidan con los filtros.
+            {% elif f.estado == "abiertos" %}
+                🎉 No hay tickets pendientes.
+            {% else %}
+                No hay tickets en este estado.
+            {% endif %}
         </div>
     {% endif %}
-</section>
+
+    {% if page.has_other_pages %}
+        <nav class="mt-3" aria-label="Paginación">
+            <ul class="pagination pagination-sm mb-0">
+                {% if page.has_previous %}
+                    <li class="page-item"><a class="page-link" href="?{{ querystring }}&page={{ page.previous_page_number }}">«</a></li>
+                {% endif %}
+                <li class="page-item disabled"><span class="page-link">Página {{ page.number }} de {{ page.paginator.num_pages }}</span></li>
+                {% if page.has_next %}
+                    <li class="page-item"><a class="page-link" href="?{{ querystring }}&page={{ page.next_page_number }}">»</a></li>
+                {% endif %}
+            </ul>
+        </nav>
+    {% endif %}
+
+</div>
+
 {% endblock %}

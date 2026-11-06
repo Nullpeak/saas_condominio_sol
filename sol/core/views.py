@@ -205,7 +205,7 @@ def inicio(request):
         )
         tickets = Ticket.objects.filter(
             usuario=usuario,
-            estado__in=(Ticket.Estado.ABIERTO, Ticket.Estado.EN_REVISION),
+            estado__in=Ticket.ABIERTOS,
         )
     elif usuario.rol in (Usuario.Rol.SUPER, Usuario.Rol.ADMINISTRADOR, Usuario.Rol.GESTOR):
         reservas = Reservacion.objects.filter(
@@ -215,7 +215,7 @@ def inicio(request):
         )
         tickets = Ticket.objects.filter(
             condominio__in=condominios,
-            estado__in=(Ticket.Estado.ABIERTO, Ticket.Estado.EN_REVISION),
+            estado__in=Ticket.ABIERTOS,
         )
 
     return render(request, "core/inicio.html", {
@@ -2398,7 +2398,7 @@ def reservacion_crear(request):
         ):
 
             dias_anticipacion = (
-                fecha_reserva.date() - ahora.date()
+                fecha_reserva.date() - timezone.localdate(ahora)
             ).days
 
             if dias_anticipacion > area.dias_anticipacion_maxima:
@@ -3147,7 +3147,7 @@ def reservacion_crear(request):
         ):
 
             dias_anticipacion = (
-                fecha_reserva.date() - ahora.date()
+                fecha_reserva.date() - timezone.localdate(ahora)
             ).days
 
             if dias_anticipacion > area.dias_anticipacion_maxima:
@@ -3569,7 +3569,7 @@ def reservacion_editar(request, reservacion_id):
         ):
 
             dias_anticipacion = (
-                fecha_reserva.date() - ahora.date()
+                fecha_reserva.date() - timezone.localdate(ahora)
             ).days
 
             if dias_anticipacion > area_nueva.dias_anticipacion_maxima:
@@ -3781,6 +3781,7 @@ def reservacion_cancelar(request, reservacion_id):
     else:
         # Se conserva el registro para que siga apareciendo en el historial.
         reservacion.estado = Reservacion.Estado.CANCELADO
+        reservacion._actor = usuario_actual  # notis: quién canceló (no se avisa a sí mismo)
         reservacion.save(update_fields=["estado"])
         messages.success(request, "La reserva se canceló y quedó en el historial.")
 

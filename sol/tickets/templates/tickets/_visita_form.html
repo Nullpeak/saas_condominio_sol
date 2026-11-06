@@ -1,0 +1,14 @@
+<div class="tk-visita">
+    <div class="tk-visita-num">Persona {{ numero }}</div>
+    <button type="button" class="tk-quitar">Quitar</button>
+    {% for e in vf.non_field_errors %}<div class="error">{{ e }}</div>{% endfor %}
+    <div class="tk-visita-grid">
+        {% for campo in vf %}
+            <div class="{% if campo.name == 'nombre' %}ancho{% endif %}">
+                <label for="{{ campo.id_for_label }}">{{ campo.label }}</label>
+                {{ campo }}
+                {% for e in campo.errors %}<div class="error">{{ e }}</div>{% endfor %}
+            </div>
+        {% endfor %}
+    </div>
+</div>

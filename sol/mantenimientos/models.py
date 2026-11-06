@@ -69,6 +69,8 @@ class RegistroMantenimiento(models.Model):
     empresa = models.CharField(max_length=150, blank=True)
     telefono_empresa = models.CharField(max_length=40, blank=True)
     proximo_mantenimiento = models.DateField(null=True, blank=True)
+    # Fecha para la que ya se avisó (tarea "avisar_mantenciones_proximas"); si cambia, se vuelve a avisar
+    proximo_notificado = models.DateField(null=True, blank=True, editable=False)
     creado_por = models.ForeignKey(
         "core.Usuario", null=True, blank=True, on_delete=models.SET_NULL,
         related_name="registros_mantenimiento_creados",

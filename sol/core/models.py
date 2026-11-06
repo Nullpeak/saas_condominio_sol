@@ -9,6 +9,7 @@ from django.db.models import F, Q
 from django.core.files.base import ContentFile
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
+from django.utils import timezone
 from .validators import formatear_rut, validar_rut
 
 # Create your models here.
@@ -342,7 +343,7 @@ class Pago(models.Model):
         ]
     @property
     def esta_atrasado(self):
-        return self.estado == self.Estado.PENDIENTE and self.fecha_pago < date.today()
+        return self.estado == self.Estado.PENDIENTE and self.fecha_pago < timezone.localdate()
     
     def __str__(self):
         return f"{self.costo.nombre} - {self.unidad} ({self.estado})"
@@ -434,6 +435,8 @@ class Invitado(models.Model):
     def __str__(self):
         return f"{self.nombre} - {self.unidad}"
 #
+# Ticket y TicketArchivo se movieron a la app "tickets" (tickets/models.py).
+# Esta función se queda aquí solo porque la referencia core/migrations/0001_initial.py.
 def ticket_archivo_path(instance, filename):
     return f"tickets/{instance.ticket_id}/{filename}"
 #
