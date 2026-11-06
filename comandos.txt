@@ -1,3 +1,7 @@
 Para setear correo
 set EMAIL_HOST_USER=tucorreo@gmail.com
 set EMAIL_HOST_PASSWORD=la-contraseña-de-aplicación
+
+
+pipenv run celery -A sol worker -l info --pool=solo
+pipenv run celery -A sol beat -l info

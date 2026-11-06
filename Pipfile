@@ -12,7 +12,8 @@ pylint-django = "*"
 pylint-celery = "*"
 phonenumbers = "==9.0.41"
 geonamescache = "==3.0.2"
-celery = ">=5.4"
+celery = "*"
+pywin32 = {version = "*", markers = "sys_platform == 'win32'"}
 
 [dev-packages]
 
