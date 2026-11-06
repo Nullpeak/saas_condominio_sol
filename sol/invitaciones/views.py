@@ -10,6 +10,7 @@ from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils import timezone
 
+from core.enlaces import url_publica
 from core.models import Unidad, Usuario
 from .cupos import cupo_ocupado
 from .forms import AceptarInvitacionForm, InvitarForm
@@ -20,7 +21,7 @@ logger = logging.getLogger("invitaciones")
 
 
 def _enviar(request, inv, token):
-    link = request.build_absolute_uri(reverse("invitaciones:aceptar", args=[token]))
+    link = url_publica(request, reverse("invitaciones:aceptar", args=[token]))
     unidad = ""
     if inv.unidad_id:
         unidad = f"Unidad asignada: {inv.unidad} ({inv.get_relacion_display().lower()}).\n\n"

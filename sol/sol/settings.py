@@ -172,6 +172,11 @@ else:
     DEFAULT_FROM_EMAIL = "no-reply@saascondominio.local"
 
 
+# Dirección que usan los enlaces de los correos (ej. http://192.168.1.25:8000).
+# Si queda vacía y se entra por localhost, se usa la IP del equipo en la red (core/enlaces.py).
+SITIO_URL = os.environ.get("SITIO_URL", "").rstrip("/")
+
+
 # ------------------------------------------------------------------ Celery
 # Tareas en segundo plano y programadas. Ver sol/celery.py para cómo levantarlo.
 CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "filesystem://")

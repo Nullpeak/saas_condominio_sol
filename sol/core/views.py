@@ -7,6 +7,7 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.contrib.auth.models import User
+from .enlaces import base_publica
 from django.contrib.auth.views import (PasswordResetView,PasswordResetDoneView,PasswordResetConfirmView,PasswordResetCompleteView,)
 from django.urls import reverse_lazy
 from django.db import transaction
@@ -150,11 +151,14 @@ def password_reset_request(request):
             usuario.user.email = usuario.email
             usuario.user.save(update_fields=["email"])
 
+    # El enlace del correo usa la IP de la red (o SITIO_URL), no localhost: ver core/enlaces.py
+    protocolo, dominio = base_publica(request)
     vista = PasswordResetView.as_view(
         template_name="core/password_reset.html",
         email_template_name="core/password_reset_email.html",
         subject_template_name="core/password_reset_subject.txt",
-        success_url=reverse_lazy("password_reset_done")
+        success_url=reverse_lazy("password_reset_done"),
+        extra_email_context={"domain": dominio, "protocol": protocolo},
     )
 
     return vista(request)
