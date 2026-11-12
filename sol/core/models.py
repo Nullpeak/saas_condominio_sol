@@ -14,6 +14,10 @@ from .validators import formatear_rut, validar_rut
 
 # Create your models here.
 class Condominio(models.Model):
+    class ModalidadMora(models.TextChoices):
+        REGLAMENTO_TIPO = "reglamento_tipo", "Reglamento tipo (50% del interés corriente)"
+        REGLAMENTO_PROPIO = "reglamento_propio", "Tasa definida en el reglamento del condominio"
+
     nombre = models.CharField(max_length=150)
     direccion = models.CharField(max_length=255)
     ciudad = models.ForeignKey("Ciudad",on_delete=models.PROTECT,related_name="condominios",)
@@ -21,6 +25,17 @@ class Condominio(models.Model):
     edificios = models.PositiveSmallIntegerField(default=1,validators=[MinValueValidator(1)],)
     creado = models.DateTimeField(auto_now_add=True)
     activo = models.BooleanField(default=True)
+    modalidad_mora = models.CharField(
+        max_length=20,
+        choices=ModalidadMora.choices,
+        default=ModalidadMora.REGLAMENTO_TIPO,
+    )
+    tasa_mora_anual = models.DecimalField(
+        max_digits=7, decimal_places=4, null=True, blank=True,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+        help_text="Porcentaje anual indicado en el reglamento propio del condominio.",
+    )
+    fundamento_tasa_mora = models.CharField(max_length=180, blank=True)
 
     class Meta:
         db_table = "condominio"
@@ -68,6 +83,59 @@ class Edificio(models.Model):
                 and not self.unidades.exists()
             ):
                 self.generar_unidades()
+
+    def sincronizar_unidades(self, configuracion_anterior=None):
+        """Agrega los espacios faltantes y desactiva los que quedan fuera de la configuración."""
+        if not self.numero_pisos or not self.viviendas_por_piso:
+            return 0, 0, 0
+
+        existentes = list(self.unidades.all())
+        posiciones_existentes = {(unidad.piso, unidad.posicion) for unidad in existentes}
+        desactivar = [
+            unidad.pk
+            for unidad in existentes
+            if unidad.activo and (
+                unidad.piso > self.numero_pisos
+                or unidad.posicion > self.viviendas_por_piso
+            )
+        ]
+        if desactivar:
+            self.unidades.filter(pk__in=desactivar).update(activo=False)
+
+        reactivar = []
+        if configuracion_anterior and all(
+            valor is not None for valor in configuracion_anterior
+        ):
+            pisos_anteriores, viviendas_anteriores = configuracion_anterior
+            reactivar = [
+                unidad.pk
+                for unidad in existentes
+                if not unidad.activo
+                and unidad.piso <= self.numero_pisos
+                and unidad.posicion <= self.viviendas_por_piso
+                and (
+                    unidad.piso > pisos_anteriores
+                    or unidad.posicion > viviendas_anteriores
+                )
+            ]
+            if reactivar:
+                self.unidades.filter(pk__in=reactivar).update(activo=True)
+
+        ancho = len(str(self.viviendas_por_piso))
+        nuevas = [
+            Unidad(
+                edificio=self,
+                piso=piso,
+                posicion=posicion,
+                numero_unidad=f"{self.numero}-{piso}{posicion:0{ancho}d}",
+            )
+            for piso in range(1, self.numero_pisos + 1)
+            for posicion in range(1, self.viviendas_por_piso + 1)
+            if (piso, posicion) not in posiciones_existentes
+        ]
+        if nuevas:
+            Unidad.objects.bulk_create(nuevas)
+        return len(nuevas), len(desactivar), len(reactivar)
 
     def generar_unidades(self):
         ancho = len(str(self.viviendas_por_piso))
@@ -210,6 +278,9 @@ class Usuario(models.Model):
         self._normalizar_rut()
 
     def save(self, *args, **kwargs):
+        for campo in ("nombre", "nombre2", "apellido", "apellido2"):
+            valor = " ".join((getattr(self, campo) or "").split())
+            setattr(self, campo, valor.title())
         self._normalizar_rut()
         if not self.slug:
             self.slug = self._generar_slug()
@@ -233,8 +304,10 @@ class AreaComun(models.Model):
     condominio = models.ForeignKey(Condominio,on_delete=models.CASCADE,related_name="areas_comunes",)
     nombre = models.CharField(max_length=100)
     descripcion = models.TextField(blank=True)
+    activo = models.BooleanField(default=True)
     capacidad = models.PositiveSmallIntegerField(null=True, blank=True)
     reservable = models.BooleanField(default=False)
+    requiere_gastos_al_dia = models.BooleanField(default=False)
     duracion_maxima = models.PositiveSmallIntegerField(null=True,blank=True,validators=[MinValueValidator(1)],)
     permite_multiples_reservas_por_unidad_dia = models.BooleanField(default=True)
     requiere_reserva = models.BooleanField(default=True,)
@@ -355,7 +428,7 @@ class Reservacion(models.Model):
 
     class Estado(models.TextChoices):
         PENDIENTE = "pendiente", "Pendiente"
-        APROBADO = "aprobado", "Aprobado"
+        APROBADO = "aprobado", "Reservada"
         COMPLETADO = "completada", "Completada"
         RECHAZADO = "rechazado", "Rechazado"
         CANCELADO = "cancelado", "Cancelado"
@@ -366,8 +439,10 @@ class Reservacion(models.Model):
     fecha = models.DateTimeField(auto_now_add=True)
     fecha_reserva = models.DateTimeField()
     fin_reserva = models.DateTimeField(null=True, blank=True)
-    estado = models.CharField(max_length=10, choices=Estado.choices, default=Estado.PENDIENTE)
+    estado = models.CharField(max_length=10, choices=Estado.choices, default=Estado.APROBADO)
+    cantidad_personas = models.PositiveSmallIntegerField(default=1, validators=[MinValueValidator(1), MaxValueValidator(1000)])
     notas = models.TextField(blank=True)
+    motivo_cancelacion = models.TextField(blank=True)
     area_comun = models.ForeignKey(AreaComun,on_delete=models.PROTECT,null=True,blank=True,related_name="reservaciones",)
     nombre_invitado = models.CharField(max_length=100, blank=True)
     invitado = models.ForeignKey("Invitado",on_delete=models.SET_NULL,null=True,blank=True,related_name="reservaciones",)
@@ -389,8 +464,12 @@ class Reservacion(models.Model):
         if self.tipo_reserva == self.Tipo.AREA_COMUN:
             if not self.area_comun_id:
                 raise ValidationError("Debes seleccionar un área común.")
+            if self.area_comun_id and not self.area_comun.activo:
+                raise ValidationError("El área común está desactivada y no admite nuevas reservas.")
             if self.nombre_invitado:
                 raise ValidationError("Una reserva de área común no lleva invitado.")
+            if self.area_comun_id and self.area_comun.capacidad and self.cantidad_personas > self.area_comun.capacidad:
+                raise ValidationError({"cantidad_personas": f"La capacidad máxima del área es de {self.area_comun.capacidad} personas."})
         elif self.tipo_reserva == self.Tipo.INVITADO:
             if not self.nombre_invitado:
                 raise ValidationError("Debes indicar el nombre del invitado.")
@@ -501,3 +580,35 @@ class EspacioEstacionamiento(models.Model):
             raise ValidationError(
                 "Un estacionamiento de residente debe tener una unidad asignada."
             )
+
+
+class HistorialAdministrativo(models.Model):
+    class Accion(models.TextChoices):
+        CREAR = "crear", "Creación"
+        ACTUALIZAR = "actualizar", "Actualización"
+        ELIMINAR = "eliminar", "Eliminación"
+
+    creado = models.DateTimeField(auto_now_add=True, db_index=True)
+    actor = models.ForeignKey(
+        "Usuario", null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="acciones_administrativas",
+    )
+    condominio = models.ForeignKey(
+        "Condominio", null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="historial_administrativo",
+    )
+    accion = models.CharField(max_length=12, choices=Accion.choices)
+    modelo = models.CharField(max_length=80)
+    objeto_id = models.CharField(max_length=80)
+    objeto = models.CharField(max_length=180)
+    campos = models.JSONField(default=list, blank=True)
+
+    class Meta:
+        ordering = ["-creado", "-id"]
+        indexes = [
+            models.Index(fields=["condominio", "-creado"], name="core_hist_cond_fecha_idx"),
+            models.Index(fields=["accion", "-creado"], name="core_hist_acc_fecha_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.get_accion_display()} · {self.modelo} #{self.objeto_id}"

@@ -31,6 +31,7 @@
         {% csrf_token %}
         <div class="row g-3">
             <div class="col-md-4"><label class="form-label" for="fecha">Fecha del servicio o visita</label><input class="form-control" type="date" id="fecha" name="fecha" value="{{ datos.fecha|default:'' }}" required><div class="form-text">La fecha se mostrará como día/mes/año.</div></div>
+            <div class="col-md-4"><label class="form-label" for="tipo_mantenimiento">Tipo de mantenimiento</label><select class="form-select" id="tipo_mantenimiento" name="tipo_mantenimiento" required><option value="">Selecciona un tipo</option>{% for valor, etiqueta in tipos_mantenimiento %}<option value="{{ valor }}" {% if datos.tipo_mantenimiento == valor %}selected{% endif %}>{{ etiqueta }}</option>{% endfor %}</select></div>
             <div class="col-md-4"><label class="form-label" for="estado">Estado</label><select class="form-select" id="estado" name="estado">{% for valor, etiqueta in estados_mantenimiento %}<option value="{{ valor }}" {% if datos.estado == valor or not datos.estado and valor == 'programado' %}selected{% endif %}>{{ etiqueta }}</option>{% endfor %}</select></div>
             <div class="col-md-4"><label class="form-label" for="empresa">Empresa que realizó el servicio</label><input class="form-control" id="empresa" name="empresa" maxlength="150" value="{{ datos.empresa|default:'' }}"></div>
             <div class="col-md-4"><label class="form-label" for="telefono_empresa">Teléfono</label><input class="form-control" id="telefono_empresa" name="telefono_empresa" maxlength="40" value="{{ datos.telefono_empresa|default:'' }}"></div>
@@ -50,7 +51,7 @@
     {% for registro in registros %}
         <article class="card mb-3">
             <div class="d-flex flex-wrap justify-content-between gap-2">
-                <div><h3 class="h5 mb-1">{{ registro.fecha|date:"d/m/Y" }}</h3><span class="badge text-bg-secondary">{{ registro.get_estado_display }}</span><div class="text-secondary">{{ registro.empresa|default:"Empresa no indicada" }}{% if registro.telefono_empresa %} · {{ registro.telefono_empresa }}{% endif %}</div></div>
+                <div><h3 class="h5 mb-1">{{ registro.fecha|date:"d/m/Y" }}</h3><span class="badge text-bg-primary">{{ registro.get_tipo_mantenimiento_display }}</span> <span class="badge text-bg-secondary">{{ registro.get_estado_display }}</span><div class="text-secondary">{{ registro.empresa|default:"Empresa no indicada" }}{% if registro.telefono_empresa %} · {{ registro.telefono_empresa }}{% endif %}</div></div>
                 {% if registro.proximo_mantenimiento %}<div class="text-md-end"><div class="small text-secondary">Próximo mantenimiento</div><strong>{{ registro.proximo_mantenimiento|date:"d/m/Y" }}</strong></div>{% endif %}
             </div>
             <p class="mt-3 mb-2">{{ registro.descripcion|linebreaksbr }}</p>

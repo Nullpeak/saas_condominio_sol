@@ -7,7 +7,6 @@
 {% for l in liquidaciones %}<div class="card"><h2 class="h5">{{ l.unidad.edificio.nombre }} · Unidad {{ l.unidad.numero_unidad }}</h2><p>Alícuota aplicada: {{ l.alicuota_usada }}%</p>
     <div class="table-responsive"><table class="table"><thead><tr><th>Concepto</th><th>Categoría</th><th>Monto</th></tr></thead><tbody>{% for d in l.detalles.all %}<tr><td>{{ d.concepto }}</td><td>{{ d.categoria|title }}</td><td>${{ d.monto|floatformat:0 }}</td></tr>{% endfor %}
     <tr><td>Saldo pendiente de períodos anteriores</td><td>Saldo anterior</td><td>${{ l.saldo_anterior|floatformat:0 }}</td></tr>
-    {% if l.intereses %}<tr><td>Intereses</td><td>Mora</td><td>${{ l.intereses|floatformat:0 }}</td></tr>{% endif %}
     <tr class="table-light"><th colspan="2">Total liquidado</th><th>${{ l.total|floatformat:0 }}</th></tr>
     {% for pago in l.pagos.all %}<tr><td>Pago registrado · {{ pago.fecha|date:"d/m/Y" }}{% if pago.metodo %} · {{ pago.metodo }}{% endif %}</td><td>Pago</td><td>− ${{ pago.monto|floatformat:0 }}</td></tr>{% endfor %}
     <tr><th colspan="2">Saldo pendiente{% if l.en_mora %} · En mora{% endif %}</th><th>${{ l.saldo_actual|floatformat:0 }}</th></tr></tbody></table></div>

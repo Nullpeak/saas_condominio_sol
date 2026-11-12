@@ -55,12 +55,22 @@ class ElementoMantenimiento(models.Model):
 
 
 class RegistroMantenimiento(models.Model):
+    class TipoMantenimiento(models.TextChoices):
+        PREVENTIVO = "preventivo", "Preventivo"
+        CORRECTIVO = "correctivo", "Correctivo"
+        NO_ESPECIFICADO = "no_especificado", "Sin especificar (registro anterior)"
+
     class Estado(models.TextChoices):
         PROGRAMADO = "programado", "Programado"
         EN_CURSO = "en_curso", "En curso"
         COMPLETADO = "completado", "Completado"
     elemento = models.ForeignKey(
         ElementoMantenimiento, on_delete=models.CASCADE, related_name="registros"
+    )
+    tipo_mantenimiento = models.CharField(
+        max_length=20,
+        choices=TipoMantenimiento.choices,
+        default=TipoMantenimiento.NO_ESPECIFICADO,
     )
     fecha = models.DateField()
     descripcion = models.TextField()

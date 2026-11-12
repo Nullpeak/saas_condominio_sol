@@ -90,7 +90,14 @@ urlpatterns = [
         name="administracion"
     ),
 
+    path(
+        "administracion/administradores/<int:usuario_id>/",
+        superadmin_administrador_detalle,
+        name="superadmin_administrador_detalle",
+    ),
+
     path("reportes/", reportes, name="reportes"),
+    path("historial-administrativo/", historial_administrativo, name="historial_administrativo"),
 
 
     #============== USUARIOS ==============
@@ -204,6 +211,12 @@ urlpatterns = [
         "areas-comunes/<int:area_id>/editar/",
         area_comun_editar,
         name="area_comun_editar"
+    ),
+
+    path(
+        "areas-comunes/<int:area_id>/cambiar-estado/",
+        area_comun_cambiar_estado,
+        name="area_comun_cambiar_estado"
     ),
 
 

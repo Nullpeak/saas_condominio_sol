@@ -38,7 +38,7 @@ class ItemGastoForm(forms.ModelForm):
             "alcance": forms.Select(attrs={"class": "form-select"}),
             "edificio": forms.Select(attrs={"class": "form-select"}),
             "unidad": forms.Select(attrs={"class": "form-select"}),
-            "monto": forms.NumberInput(attrs={"class": "form-control", "min": "0.01", "step": "1", "placeholder": "Monto total de la factura"}),
+            "monto": forms.NumberInput(attrs={"class": "form-control", "min": "1", "step": "1", "placeholder": "Monto total de la factura"}),
             "respaldo": forms.ClearableFileInput(attrs={"class": "form-control", "accept": ".pdf,.jpg,.jpeg,.png"}),
         }
 
@@ -55,7 +55,7 @@ class ItemGastoForm(forms.ModelForm):
         self.fields["unidad"].label = "Unidad"
         self.fields["unidad"].help_text = "Se carga solo a esta unidad."
         self.fields["monto"].label = "Monto total de la boleta o factura ($)"
-        self.fields["monto"].help_text = "Total de la factura; el sistema calcula la parte de cada unidad."
+        self.fields["monto"].help_text = "Ingresa el total exacto en pesos, sin puntos de miles. El sistema calcula la parte que corresponde a cada unidad."
         self.fields["respaldo"].label = "Boleta o factura de respaldo (opcional)"
         self.fields["respaldo"].help_text = "Comprobante opcional."
         if periodo:

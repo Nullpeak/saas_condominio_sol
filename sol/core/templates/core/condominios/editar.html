@@ -122,6 +122,44 @@ Editar condominio
 
     </div>
 
+    <h3 style="margin-top:30px;">Interés por mora</h3>
+    <p style="color:#64748b;">Elige la regla del reglamento de este condominio. La tasa queda registrada para calcular los intereses en las próximas liquidaciones.</p>
+    <div style="max-width:680px;">
+        <label for="modalidad_mora" style="display:block; margin-bottom:6px; font-weight:600;">Modalidad</label>
+        <select id="modalidad_mora" name="modalidad_mora" class="form-select" style="margin-bottom:14px;">
+            <option value="reglamento_tipo" {% if modalidad_mora == 'reglamento_tipo' or not modalidad_mora and condominio.modalidad_mora == 'reglamento_tipo' %}selected{% endif %}>Reglamento tipo: 50% del interés corriente CMF</option>
+            <option value="reglamento_propio" {% if modalidad_mora == 'reglamento_propio' or not modalidad_mora and condominio.modalidad_mora == 'reglamento_propio' %}selected{% endif %}>Reglamento propio: tasa anual indicada por la comunidad</option>
+        </select>
+        <div id="mora-reglamento-propio" class="grid" style="display:none;">
+            <div>
+                <label for="tasa_mora_anual" style="display:block; margin-bottom:6px; font-weight:600;">Tasa anual (%)</label>
+                <input id="tasa_mora_anual" name="tasa_mora_anual" type="number" min="0.0001" step="0.0001" value="{{ datos.tasa_mora_anual|default:condominio.tasa_mora_anual|default:'' }}" class="form-control">
+            </div>
+            <div>
+                <label for="fundamento_tasa_mora" style="display:block; margin-bottom:6px; font-weight:600;">Referencia del reglamento</label>
+                <input id="fundamento_tasa_mora" name="fundamento_tasa_mora" maxlength="180" value="{{ datos.fundamento_tasa_mora|default:condominio.fundamento_tasa_mora }}" class="form-control" placeholder="Ej.: artículo 12 del reglamento">
+            </div>
+        </div>
+        <div id="mora-reglamento-tipo" style="padding:12px; border-radius:7px; background:#f1f5f9; color:#475569;">
+            Se aplica el 50% de la tasa corriente anual publicada por la CMF. El administrador no ingresa una tasa manual en esta modalidad.
+        </div>
+    </div>
+
+    <script>
+        (() => {
+            const selector = document.getElementById("modalidad_mora");
+            const propio = document.getElementById("mora-reglamento-propio");
+            const tipo = document.getElementById("mora-reglamento-tipo");
+            const actualizar = () => {
+                const usarPropio = selector.value === "reglamento_propio";
+                propio.style.display = usarPropio ? "grid" : "none";
+                tipo.style.display = usarPropio ? "none" : "block";
+            };
+            selector.addEventListener("change", actualizar);
+            actualizar();
+        })();
+    </script>
+
 
     <!-- ============================== PORTADA ============================== -->
 

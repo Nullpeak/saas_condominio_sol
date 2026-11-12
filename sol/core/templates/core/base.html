@@ -24,6 +24,11 @@
         .sidebar {
             width: 238px;
             flex-shrink: 0;
+            position: sticky;
+            top: 0;
+            align-self: flex-start;
+            height: 100vh;
+            overflow-y: auto;
             padding: 24px 16px;
             background: #172033;
             color: white;
@@ -360,7 +365,7 @@
 
         @media (max-width: 600px) {
             .app { display: block; }
-            .sidebar { width: 100%; padding: 14px; }
+            .sidebar { position: static; width: 100%; height: auto; overflow: visible; padding: 14px; }
             .logo { padding-bottom: 12px; }
             .menu { display: flex; flex-wrap: wrap; gap: 3px; }
             .menu-title { width: 100%; margin: 10px 8px 4px; }
@@ -397,10 +402,14 @@
                     <a href="{% url 'administracion' %}" class="{% if request.resolver_match.url_name == 'administracion' %}active{% endif %}">Administración</a>
                     <a href="{% url 'usuarios_lista' %}" class="{% if request.resolver_match.url_name == 'usuarios_lista' %}active{% endif %}">Usuarios</a>
                     <a href="{% url 'condominios_lista' %}" class="{% if request.resolver_match.url_name == 'condominios_lista' %}active{% endif %}">Condominios</a>
-                    <a href="{% url 'reportes' %}" class="{% if request.resolver_match.url_name == 'reportes' %}active{% endif %}">Reportes</a>
+                    {% if perfil.rol == "Administrador" %}<a href="{% url 'reportes' %}" class="{% if request.resolver_match.url_name == 'reportes' %}active{% endif %}">Reportes</a>{% endif %}
                 {% endif %}
 
                 {% if perfil.rol == "Super Administrador" or perfil.rol == "Administrador" or perfil.rol == "Gestor" %}
+                    <a href="{% url 'historial_administrativo' %}" class="{% if request.resolver_match.url_name == 'historial_administrativo' %}active{% endif %}">Historial administrativo</a>
+                {% endif %}
+
+                {% if perfil.rol == "Administrador" or perfil.rol == "Gestor" %}
                     <a href="{% url 'areas_comunes_selector' %}" class="{% if request.resolver_match.url_name == 'areas_comunes_selector' or request.resolver_match.url_name == 'areas_comunes_lista' or request.resolver_match.url_name == 'area_comun_crear' %}active{% endif %}">Áreas comunes</a>
                 {% endif %}
 
@@ -409,14 +418,16 @@
                     <a href="{% url 'invitaciones:invitar' %}" class="{% if request.resolver_match.namespace == 'invitaciones' %}active{% endif %}">Invitar usuarios</a>
                 {% endif %}
 
-                <div class="menu-title">Módulos</div>
-                <a href="{% url 'reservaciones_lista' %}" class="{% if request.resolver_match.url_name == 'reservaciones_lista' %}active{% endif %}">Reservas</a>
-                <a href="{% url 'visitas:lista' %}" class="{% if request.resolver_match.namespace == 'visitas' %}active{% endif %}">Visitas</a>
-                <a href="{% url 'tickets:lista' %}" class="{% if request.resolver_match.namespace == 'tickets' %}active{% endif %}">Tickets</a>
-                <a href="{% url 'anuncios:lista' %}" class="{% if request.resolver_match.namespace == 'anuncios' %}active{% endif %}">Anuncios{% if anuncios_nuevos %}<span class="menu-notice-dot" aria-label="Hay anuncios nuevos"></span>{% endif %}</a>
-                <a href="{% url 'gastos_comunes:lista' %}" class="{% if request.resolver_match.namespace == 'gastos_comunes' %}active{% endif %}">Gastos comunes</a>
-                {% if perfil.rol == "Super Administrador" or perfil.rol == "Administrador" or perfil.rol == "Gestor" %}
-                    <a href="{% url 'mantenimientos:lista' %}" class="{% if request.resolver_match.namespace == 'mantenimientos' %}active{% endif %}">Mantenimientos</a>
+                {% if perfil.rol != "Super Administrador" %}
+                    <div class="menu-title">Módulos</div>
+                    <a href="{% url 'reservaciones_lista' %}" class="{% if request.resolver_match.url_name == 'reservaciones_lista' %}active{% endif %}">Reservas</a>
+                    <a href="{% url 'visitas:lista' %}" class="{% if request.resolver_match.namespace == 'visitas' %}active{% endif %}">Visitas</a>
+                    <a href="{% url 'tickets:lista' %}" class="{% if request.resolver_match.namespace == 'tickets' %}active{% endif %}">Tickets</a>
+                    <a href="{% url 'anuncios:lista' %}" class="{% if request.resolver_match.namespace == 'anuncios' %}active{% endif %}">Anuncios{% if anuncios_nuevos %}<span class="menu-notice-dot" aria-label="Hay anuncios nuevos"></span>{% endif %}</a>
+                    <a href="{% url 'gastos_comunes:lista' %}" class="{% if request.resolver_match.namespace == 'gastos_comunes' %}active{% endif %}">Gastos comunes</a>
+                    {% if perfil.rol == "Administrador" or perfil.rol == "Gestor" %}
+                        <a href="{% url 'mantenimientos:lista' %}" class="{% if request.resolver_match.namespace == 'mantenimientos' %}active{% endif %}">Mantenimientos</a>
+                    {% endif %}
                 {% endif %}
             {% endif %}
 
@@ -431,6 +442,7 @@
 
             <div class="user-area">
 
+                {% if perfil.rol != "Super Administrador" %}
                 <!-- ============================== NOTIFICACIONES ============================== -->
 
                 <div class="dropdown">
@@ -458,6 +470,7 @@
                     </div>
 
                 </div>
+                {% endif %}
 
 
                 <div class="user-info">

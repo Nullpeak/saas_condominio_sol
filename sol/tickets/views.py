@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from functools import wraps
 from itertools import chain
 
@@ -9,6 +9,7 @@ from django.core.paginator import Paginator
 from django.db.models import Count, Q
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from core.models import Unidad
@@ -84,6 +85,7 @@ def lista(request):
         "desde": request.GET.get("desde", ""),
         "hasta": request.GET.get("hasta", ""),
         "q": request.GET.get("q", "").strip(),
+        "seguimiento": request.GET.get("seguimiento", "") if staff else "",
     }
     # Selector de condominio: super y administradores con más de un condominio
     condominios = None
@@ -127,6 +129,10 @@ def lista(request):
         if termino.isdigit():
             filtro |= Q(pk=int(termino))
         qs = qs.filter(filtro)
+    if f["seguimiento"] == "sin_movimiento":
+        qs = qs.filter(estado__in=Ticket.ABIERTOS, actualizado__lte=timezone.now() - timedelta(days=7))
+    else:
+        f["seguimiento"] = ""
 
     page = Paginator(
         qs.select_related("usuario", "asignado", "unidad__edificio", "condominio")
@@ -144,7 +150,9 @@ def lista(request):
     pestanas.append(("todos", "Todos", sum(conteos.values())))
 
     return render(request, "tickets/lista.html", {
-        "page": page, "f": f, "staff": staff, "pestanas": pestanas,
+        "page": page, "page_obj": page,
+        "page_range": page.paginator.get_elided_page_range(page.number),
+        "f": f, "staff": staff, "pestanas": pestanas,
         "querystring": params.urlencode(),
         "prioridades": Ticket.Prioridad.choices, "categorias": Ticket.Categoria.choices,
         "condominios": condominios,

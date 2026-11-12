@@ -4,6 +4,43 @@ from django.db import models
 from django.utils import timezone
 from core.models import Condominio, Edificio, Unidad, Usuario
 import uuid
+from datetime import date
+
+
+class TasaInteresCorriente(models.Model):
+    """Tasas publicadas por CMF, con su período de vigencia y respaldo."""
+
+    SEGMENTO_LEGAL = "no_reajustable_90d_hasta_200uf"
+    SEGMENTOS = ((SEGMENTO_LEGAL, "CLP no reajustable ≥90 días, hasta 200 UF (tasa consolidada CMF)"),)
+
+    vigente_desde = models.DateField(unique=True)
+    vigente_hasta = models.DateField(null=True, blank=True)
+    segmento = models.CharField(max_length=40, choices=SEGMENTOS, default=SEGMENTO_LEGAL)
+    tasa_anual = models.DecimalField(max_digits=7, decimal_places=4, validators=[MinValueValidator(0.0001)])
+    certificado = models.CharField(max_length=80)
+    fuente_url = models.URLField(max_length=500)
+
+    class Meta:
+        ordering = ["-vigente_desde"]
+        verbose_name = "tasa de interés corriente CMF"
+        verbose_name_plural = "tasas de interés corriente CMF"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.vigente_hasta and self.vigente_hasta < self.vigente_desde:
+            raise ValidationError({"vigente_hasta": "La fecha final no puede ser anterior a la inicial."})
+        fin = self.vigente_hasta
+        solapadas = TasaInteresCorriente.objects.exclude(pk=self.pk).filter(
+            vigente_desde__lte=fin or date.max,
+        ).filter(models.Q(vigente_hasta__isnull=True) | models.Q(vigente_hasta__gte=self.vigente_desde))
+        if solapadas.exists():
+            raise ValidationError("El período de vigencia se cruza con otra tasa CMF registrada.")
+
+    def __str__(self):
+        fin = self.vigente_hasta.isoformat() if self.vigente_hasta else "vigente"
+        return f"{self.certificado}: {self.tasa_anual}% ({self.vigente_desde} a {fin})"
+
+
 
 
 class Periodo(models.Model):
@@ -139,6 +176,7 @@ class PagoOnline(models.Model):
     referencia_externa = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     clave_idempotencia = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     orden_proveedor = models.CharField(max_length=80, unique=True, null=True, blank=True)
+    preferencia_proveedor = models.CharField(max_length=80, blank=True)
     url_pago = models.URLField(max_length=1000, blank=True)
     monto = models.DecimalField(max_digits=14, decimal_places=0, validators=[MinValueValidator(1)])
     estado = models.CharField(max_length=12, choices=Estado.choices, default=Estado.CREADO)
@@ -152,6 +190,34 @@ class PagoOnline(models.Model):
 
     def __str__(self):
         return f"Pago {self.referencia_externa} · {self.get_estado_display()}"
+
+
+class MercadoPagoConexion(models.Model):
+    """Credenciales OAuth cifradas de la cuenta vendedora de un condominio."""
+    condominio = models.OneToOneField(Condominio, on_delete=models.CASCADE, related_name="mercadopago_conexion")
+    vendedor_id = models.CharField(max_length=40)
+    public_key = models.CharField(max_length=120, blank=True)
+    access_token_cifrado = models.TextField()
+    refresh_token_cifrado = models.TextField()
+    modo_prueba = models.BooleanField(default=True)
+    vence = models.DateTimeField()
+    conectado_por = models.ForeignKey(Usuario, on_delete=models.PROTECT, related_name="conexiones_mercadopago")
+    conectado = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Mercado Pago · {self.condominio} · vendedor {self.vendedor_id}"
+
+
+class MercadoPagoIntentoOAuth(models.Model):
+    """State de un solo uso para vincular una cuenta mediante OAuth + PKCE."""
+    condominio = models.ForeignKey(Condominio, on_delete=models.CASCADE)
+    usuario = models.ForeignKey(Usuario, on_delete=models.CASCADE)
+    state_hash = models.CharField(max_length=64, unique=True)
+    state_cifrado = models.TextField(default="", blank=True)
+    verifier_cifrado = models.TextField()
+    modo_prueba = models.BooleanField(default=True)
+    creado = models.DateTimeField(auto_now_add=True)
+    consumido = models.DateTimeField(null=True, blank=True)
 
 
 class DetalleCargo(models.Model):

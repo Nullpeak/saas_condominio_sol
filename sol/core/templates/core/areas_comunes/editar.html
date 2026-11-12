@@ -178,6 +178,19 @@ Editar área común
         </div>
 
 
+        <div style="margin-bottom: 18px;">
+            <label>
+                <input
+                    type="checkbox"
+                    name="requiere_gastos_al_dia"
+                    {% if datos.requiere_gastos_al_dia or area.requiere_gastos_al_dia and not datos %}checked{% endif %}
+                >
+                <strong>Exigir gastos comunes al día para reservar</strong>
+            </label>
+            <div class="form-text">Actívalo solo si esta condición corresponde al reglamento del condominio.</div>
+        </div>
+
+
         <!-- ============================== REQUIERE RESERVA ============================== -->
 
         <div style="margin-bottom: 18px;">

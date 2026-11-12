@@ -1,15 +1,17 @@
 import os
-from datetime import date
+from datetime import date, timedelta
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import OuterRef, Subquery
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
 from core.models import Condominio
+from core.paginacion import paginar
 from .models import DocumentoMantenimiento, ElementoMantenimiento, RegistroMantenimiento
 from .validators import validar_documento
 
@@ -75,13 +77,23 @@ def lista(request):
     categoria = request.GET.get("categoria", "").strip()
     if categoria:
         elementos = elementos.filter(categoria__iexact=categoria)
-
-    elementos = list(elementos.order_by("categoria", "nombre"))
-    for elemento in elementos:
-        elemento.ultimo_registro = elemento.registros.first()
-        elemento.proximo_mantenimiento = (
-            elemento.ultimo_registro.proximo_mantenimiento if elemento.ultimo_registro else None
-        )
+    registro_reciente = RegistroMantenimiento.objects.filter(
+        elemento_id=OuterRef("pk")
+    ).order_by("-fecha", "-pk")
+    elementos = elementos.annotate(
+        proximo_mantenimiento=Subquery(registro_reciente.values("proximo_mantenimiento")[:1])
+    )
+    alerta = request.GET.get("alerta", "").strip()
+    hoy = timezone.localdate()
+    if alerta == "vencidos":
+        elementos = elementos.filter(proximo_mantenimiento__lt=hoy)
+    elif alerta == "proximos":
+        elementos = elementos.filter(proximo_mantenimiento__gte=hoy, proximo_mantenimiento__lte=hoy + timedelta(days=7))
+    else:
+        alerta = ""
+    paginacion = paginar(request, elementos.order_by("categoria", "nombre", "pk"))
+    elementos = paginacion["page_obj"]
+    for elemento in elementos.object_list:
         elemento.vencido = bool(
             elemento.proximo_mantenimiento and elemento.proximo_mantenimiento < timezone.localdate()
         )
@@ -96,6 +108,8 @@ def lista(request):
         "condominio_filtro": condominio_id,
         "categorias": categorias,
         "categoria_filtro": categoria,
+        "alerta_filtro": alerta,
+        **paginacion,
     })
 
 
@@ -212,6 +226,7 @@ def detalle(request, elemento_id):
         fecha_texto = request.POST.get("fecha", "").strip()
         proxima_texto = request.POST.get("proximo_mantenimiento", "").strip()
         descripcion = request.POST.get("descripcion", "").strip()
+        tipo_mantenimiento = request.POST.get("tipo_mantenimiento", "").strip()
         estado = request.POST.get("estado", RegistroMantenimiento.Estado.PROGRAMADO)
         detalle_cierre = request.POST.get("detalle_cierre", "").strip()
         empresa = request.POST.get("empresa", "").strip()
@@ -236,6 +251,11 @@ def detalle(request, elemento_id):
             errores.append("Selecciona un estado válido.")
         if not descripcion:
             errores.append("Describe el mantenimiento programado o el trabajo realizado.")
+        if tipo_mantenimiento not in (
+            RegistroMantenimiento.TipoMantenimiento.PREVENTIVO,
+            RegistroMantenimiento.TipoMantenimiento.CORRECTIVO,
+        ):
+            errores.append("Indica si el mantenimiento es preventivo o correctivo.")
         if estado == RegistroMantenimiento.Estado.COMPLETADO and not detalle_cierre:
             errores.append("Al completar el mantenimiento, indica qué trabajo se realizó.")
         if tipo_documento not in DocumentoMantenimiento.Tipo.values:
@@ -253,6 +273,7 @@ def detalle(request, elemento_id):
         if not errores:
             registro = RegistroMantenimiento(
                 elemento=elemento,
+                tipo_mantenimiento=tipo_mantenimiento,
                 fecha=fecha,
                 descripcion=descripcion,
                 estado=estado,
@@ -297,6 +318,10 @@ def detalle(request, elemento_id):
         },
         "tipos_documento": TIPOS_DOCUMENTO,
         "estados_mantenimiento": RegistroMantenimiento.Estado.choices,
+        "tipos_mantenimiento": (
+            (RegistroMantenimiento.TipoMantenimiento.PREVENTIVO, "Preventivo"),
+            (RegistroMantenimiento.TipoMantenimiento.CORRECTIVO, "Correctivo"),
+        ),
         "hoy": timezone.localdate().isoformat(),
     })
 
@@ -316,6 +341,7 @@ def editar_registro(request, registro_id):
     errores = []
     datos = request.POST if request.method == "POST" else {
         "fecha": registro.fecha.isoformat(), "estado": registro.estado,
+        "tipo_mantenimiento": registro.tipo_mantenimiento,
         "proximo_mantenimiento": registro.proximo_mantenimiento.isoformat() if registro.proximo_mantenimiento else "",
         "empresa": registro.empresa, "telefono_empresa": registro.telefono_empresa,
         "descripcion": registro.descripcion, "detalle_cierre": registro.detalle_cierre,
@@ -332,10 +358,16 @@ def editar_registro(request, registro_id):
             proxima = None
             errores.append("La próxima fecha no es válida.")
         estado = request.POST.get("estado", "")
+        tipo_mantenimiento = request.POST.get("tipo_mantenimiento", "").strip()
         descripcion = request.POST.get("descripcion", "").strip()
         detalle_cierre = request.POST.get("detalle_cierre", "").strip()
         if estado not in RegistroMantenimiento.Estado.values:
             errores.append("Selecciona un estado válido.")
+        if tipo_mantenimiento not in (
+            RegistroMantenimiento.TipoMantenimiento.PREVENTIVO,
+            RegistroMantenimiento.TipoMantenimiento.CORRECTIVO,
+        ):
+            errores.append("Indica si el mantenimiento es preventivo o correctivo.")
         if not descripcion:
             errores.append("Describe el mantenimiento.")
         if estado == RegistroMantenimiento.Estado.COMPLETADO and not detalle_cierre:
@@ -344,6 +376,7 @@ def editar_registro(request, registro_id):
             errores.append("La próxima fecha debe ser igual o posterior a la fecha del mantenimiento.")
         if not errores:
             registro.fecha = fecha
+            registro.tipo_mantenimiento = tipo_mantenimiento
             registro.proximo_mantenimiento = proxima
             registro.estado = estado
             registro.descripcion = descripcion
@@ -357,6 +390,10 @@ def editar_registro(request, registro_id):
     return render(request, "mantenimientos/registro_form.html", {
         "registro": registro, "datos": datos, "errores": errores,
         "estados": RegistroMantenimiento.Estado.choices,
+        "tipos_mantenimiento": (
+            (RegistroMantenimiento.TipoMantenimiento.PREVENTIVO, "Preventivo"),
+            (RegistroMantenimiento.TipoMantenimiento.CORRECTIVO, "Correctivo"),
+        ),
     })
 
 

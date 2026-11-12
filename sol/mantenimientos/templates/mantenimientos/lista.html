@@ -15,7 +15,7 @@
 <form method="get" class="card mb-4">
     <div class="row g-3 align-items-end">
         {% if usuario_actual.rol == "Super Administrador" or condominios|length > 1 %}
-        <div class="col-md-5">
+        <div class="col-md-4">
             <label class="form-label" for="condominio">Condominio</label>
             <select class="form-select" id="condominio" name="condominio">
                 <option value="">Todos los condominios</option>
@@ -23,11 +23,19 @@
             </select>
         </div>
         {% endif %}
-        <div class="col-md-5">
+        <div class="col-md-4">
             <label class="form-label" for="categoria">Categoría</label>
             <select class="form-select" id="categoria" name="categoria">
                 <option value="">Todas las categorías</option>
                 {% for nombre_categoria in categorias %}<option value="{{ nombre_categoria }}" {% if categoria_filtro == nombre_categoria %}selected{% endif %}>{{ nombre_categoria }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label" for="alerta">Seguimiento</label>
+            <select class="form-select" id="alerta" name="alerta">
+                <option value="">Todos los equipos</option>
+                <option value="vencidos" {% if alerta_filtro == "vencidos" %}selected{% endif %}>Mantenimiento vencido</option>
+                <option value="proximos" {% if alerta_filtro == "proximos" %}selected{% endif %}>Vence en 7 días</option>
             </select>
         </div>
         <div class="col-md-2"><button class="button button-secondary w-100" type="submit">Filtrar</button></div>
@@ -57,6 +65,7 @@
             </div>
         </section>
     {% endfor %}
+    {% include "core/_paginacion.html" %}
 {% else %}
     <div class="card text-center py-5">
         <h2 class="h5">Todavía no hay equipos o servicios registrados</h2>

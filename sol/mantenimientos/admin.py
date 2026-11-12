@@ -17,8 +17,8 @@ class ElementoMantenimientoAdmin(admin.ModelAdmin):
 
 @admin.register(RegistroMantenimiento)
 class RegistroMantenimientoAdmin(admin.ModelAdmin):
-    list_display = ("elemento", "fecha", "empresa", "proximo_mantenimiento", "creado_por")
-    list_filter = ("fecha", "elemento__categoria", "elemento__condominio")
+    list_display = ("elemento", "tipo_mantenimiento", "fecha", "empresa", "proximo_mantenimiento", "creado_por")
+    list_filter = ("tipo_mantenimiento", "fecha", "elemento__categoria", "elemento__condominio")
     search_fields = ("elemento__nombre", "elemento__condominio__nombre", "empresa", "descripcion")
     inlines = (DocumentoMantenimientoInline,)
 

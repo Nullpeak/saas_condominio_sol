@@ -1,23 +1,30 @@
 import json
+from decimal import Decimal, InvalidOperation
 from types import SimpleNamespace
-from datetime import time, datetime, timedelta
+from datetime import time, datetime, timedelta, date
 
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.contrib.auth.models import User
+from django.urls import reverse
 from .enlaces import base_publica
 from django.contrib.auth.views import (PasswordResetView,PasswordResetDoneView,PasswordResetConfirmView,PasswordResetCompleteView,)
 from django.urls import reverse_lazy
 from django.db import transaction
-from django.db.models import Count, Q
+from django.db.models import Count, OuterRef, Prefetch, Q, Subquery, Sum
 from django.core.exceptions import ValidationError
 from django.http import JsonResponse
 from django.utils import timezone
 from launch.guards import setup_disponible
 from launch.ciudades import ciudades_chile
 from tickets.models import Ticket
+from gastos_comunes.models import Periodo, Liquidacion, PagoRegistrado
+from gastos_comunes.services import saldos_acumulados, resumen_mora
+from visitas.models import Visita
+from mantenimientos.models import ElementoMantenimiento, RegistroMantenimiento
+from .paginacion import paginar
 
 from .validators import *
 from .models import *
@@ -58,7 +65,7 @@ def puede_gestionar_condominio(usuario):
 
 
 def puede_gestionar_areas(usuario):
-    return tiene_rol(usuario, "Super Administrador", "Administrador", "Gestor")
+    return tiene_rol(usuario, "Administrador", "Gestor")
 
 
 def puede_gestionar_roles(usuario):
@@ -198,7 +205,7 @@ def password_reset_complete(request):
 @login_required
 def inicio(request):
     usuario = obtener_usuario(request)
-    condominios = usuario.condominios_asignados().filter(activo=True)
+    condominios = usuario.condominios_asignados().filter(activo=True).order_by("nombre")
     reservas = Reservacion.objects.none()
     tickets = Ticket.objects.none()
     if usuario.rol == Usuario.Rol.RESIDENTE:
@@ -222,11 +229,211 @@ def inicio(request):
             estado__in=Ticket.ABIERTOS,
         )
 
-    return render(request, "core/inicio.html", {
+    contexto = {
         "usuario": usuario,
         "reservas_proximas": reservas.count(),
         "tickets_pendientes": tickets.count(),
-    })
+    }
+
+    condominios_operativos = condominios
+    condominio_operativo_id = ""
+    if usuario.rol == Usuario.Rol.ADMINISTRADOR:
+        condominio_operativo_id = request.GET.get("condominio", "").strip()
+        seleccionado = condominios.filter(pk=condominio_operativo_id).first() if condominio_operativo_id else None
+        if seleccionado:
+            condominios_operativos = condominios.filter(pk=seleccionado.pk)
+        else:
+            condominio_operativo_id = ""
+    if usuario.rol in (Usuario.Rol.ADMINISTRADOR, Usuario.Rol.GESTOR):
+        hoy = timezone.localdate()
+        ahora = timezone.now()
+        siete_dias = hoy + timedelta(days=7)
+        visitas_hoy = Visita.objects.filter(
+            condominio__in=condominios_operativos,
+            fecha_visita=hoy,
+            estado__in=(Visita.Estado.PENDIENTE, Visita.Estado.PRESENTE),
+        ).count()
+        tickets_sin_movimiento = Ticket.objects.filter(
+            condominio__in=condominios_operativos,
+            estado__in=Ticket.ABIERTOS,
+            actualizado__lte=ahora - timedelta(days=7),
+        ).count()
+        registro_reciente = RegistroMantenimiento.objects.filter(
+            elemento_id=OuterRef("pk")
+        ).order_by("-fecha", "-pk")
+        elementos_con_fecha = ElementoMantenimiento.objects.filter(
+            condominio__in=condominios_operativos,
+        ).annotate(
+            fecha_proxima=Subquery(registro_reciente.values("proximo_mantenimiento")[:1])
+        )
+        mantenciones_vencidas = elementos_con_fecha.filter(fecha_proxima__lt=hoy).count()
+        mantenciones_proximas = elementos_con_fecha.filter(
+            fecha_proxima__gte=hoy, fecha_proxima__lte=siete_dias
+        ).count()
+        reservas_semana = Reservacion.objects.filter(
+            unidad__edificio__condominio__in=condominios_operativos,
+            estado__in=(Reservacion.Estado.PENDIENTE, Reservacion.Estado.APROBADO),
+            fecha_reserva__date__gte=hoy,
+            fecha_reserva__date__lte=siete_dias,
+        ).count()
+        sufijo_condominio = f"&condominio={condominio_operativo_id}" if condominio_operativo_id else ""
+        tareas_operativas = [
+            {
+                "titulo": "Visitas programadas hoy",
+                "cantidad": visitas_hoy,
+                "detalle": "Registra llegadas y salidas del día.",
+                "url": f"{reverse('visitas:lista')}?todas=1&fecha={hoy.isoformat()}{sufijo_condominio}",
+                "alerta": bool(visitas_hoy),
+            },
+            {
+                "titulo": "Tickets sin movimiento por 7 días",
+                "cantidad": tickets_sin_movimiento,
+                "detalle": "Revisa solicitudes abiertas que llevan una semana sin actualización.",
+                "url": f"{reverse('tickets:lista')}?estado=abiertos&seguimiento=sin_movimiento{sufijo_condominio}",
+                "alerta": bool(tickets_sin_movimiento),
+            },
+            {
+                "titulo": "Mantenciones vencidas",
+                "cantidad": mantenciones_vencidas,
+                "detalle": "Consulta el último plan de mantenimiento de cada equipo.",
+                "url": f"{reverse('mantenimientos:lista')}?alerta=vencidos{sufijo_condominio}",
+                "alerta": bool(mantenciones_vencidas),
+            },
+            {
+                "titulo": "Mantenciones que vencen en 7 días",
+                "cantidad": mantenciones_proximas,
+                "detalle": "Anticípate a los servicios próximos.",
+                "url": f"{reverse('mantenimientos:lista')}?alerta=proximos{sufijo_condominio}",
+                "alerta": bool(mantenciones_proximas),
+            },
+            {
+                "titulo": "Reservas de los próximos 7 días",
+                "cantidad": reservas_semana,
+                "detalle": "Consulta la agenda de áreas comunes.",
+                "url": f"{reverse('reservaciones_lista')}?filtro=proximas&desde={hoy.isoformat()}&hasta={siete_dias.isoformat()}{sufijo_condominio}",
+                "alerta": False,
+            },
+        ]
+        contexto["tareas_operativas"] = tareas_operativas
+
+    # El superadministrador gestiona cuentas y condominios, pero no la operación diaria.
+    # El dashboard de gestión corresponde al administrador de un condominio.
+    if usuario.rol == Usuario.Rol.ADMINISTRADOR:
+        condominio_id = condominio_operativo_id
+        condominio_seleccionado = condominios.filter(pk=condominio_id).first() if condominio_id else None
+        condominios_vista = (
+            condominios.filter(pk=condominio_seleccionado.pk)
+            if condominio_seleccionado
+            else condominios
+        )
+        ahora = timezone.now()
+        estados_reserva = (Reservacion.Estado.PENDIENTE, Reservacion.Estado.APROBADO)
+        paneles = []
+        for condominio in condominios_vista:
+            periodo = Periodo.objects.filter(
+                condominio=condominio,
+                estado=Periodo.Estado.PUBLICADO,
+            ).order_by("-anio", "-mes").first()
+            total_liquidado = 0
+            total_pagado = 0
+            porcentaje_pagado = 0
+            morosidad_monto = 0
+            morosidad_unidades = 0
+            liquidaciones_periodo = Liquidacion.objects.none()
+            if periodo:
+                liquidaciones_periodo = Liquidacion.objects.filter(periodo=periodo)
+                total_liquidado = liquidaciones_periodo.aggregate(total=Sum("total"))["total"] or 0
+                total_pagado = PagoRegistrado.objects.filter(
+                    liquidacion__in=liquidaciones_periodo
+                ).aggregate(total=Sum("monto"))["total"] or 0
+                if total_liquidado:
+                    porcentaje_pagado = min(round(float(total_pagado) * 100 / float(total_liquidado)), 100)
+                saldos = saldos_acumulados(condominio, periodo)
+                mora_unidades = resumen_mora(condominio)
+                for liquidacion in liquidaciones_periodo.only("unidad_id", "saldo_anterior"):
+                    saldo_unidad = saldos.get(liquidacion.unidad_id, 0)
+                    mora = mora_unidades.get(liquidacion.unidad_id, {})
+                    principal_vencido = mora.get("principal_vencido", Decimal("0"))
+                    interes_devengado = mora.get("interes_devengado", Decimal("0"))
+                    if saldo_unidad > 0 and (principal_vencido > 0 or interes_devengado > 0):
+                        morosidad_monto += principal_vencido + interes_devengado
+                        morosidad_unidades += 1
+
+            reservas_condominio = Reservacion.objects.filter(
+                unidad__edificio__condominio=condominio,
+                estado__in=estados_reserva,
+                fecha_reserva__gte=ahora,
+            ).select_related("area_comun", "unidad", "unidad__edificio", "usuario").order_by("fecha_reserva")
+            tickets_condominio = Ticket.objects.filter(
+                condominio=condominio,
+                estado__in=Ticket.ABIERTOS,
+            ).select_related("unidad", "usuario", "asignado").order_by("-actualizado")
+            tickets_por_estado = Ticket.objects.filter(condominio=condominio)
+            paneles.append({
+                "condominio": condominio,
+                "periodo": periodo,
+                "total_liquidado": total_liquidado,
+                "total_pagado": total_pagado,
+                "total_pendiente": max(total_liquidado - total_pagado, 0),
+                "porcentaje_pagado": porcentaje_pagado,
+                "morosidad_monto": morosidad_monto,
+                "morosidad_unidades": morosidad_unidades,
+                "reservas_pendientes": reservas_condominio.filter(estado=Reservacion.Estado.PENDIENTE).count(),
+                "reservas_proximas": reservas_condominio.count(),
+                "tickets_pendientes": tickets_condominio.count(),
+                "tickets_abiertos": tickets_por_estado.filter(estado=Ticket.Estado.ABIERTO).count(),
+                "tickets_en_atencion": tickets_por_estado.filter(estado__in=(Ticket.Estado.EN_REVISION, Ticket.Estado.ESPERANDO)).count(),
+                "tickets_resueltos": tickets_por_estado.filter(estado__in=(Ticket.Estado.RESUELTO, Ticket.Estado.CERRADO)).count(),
+            })
+
+        contexto.update({
+            "es_dashboard_administrador": True,
+            "condominios": condominios,
+            "condominio_filtro": str(condominio_seleccionado.pk) if condominio_seleccionado else "",
+            "paneles_condominio": paneles,
+        })
+        if not condominio_seleccionado:
+            # "Todos" resume la actividad de cada condominio asignado.
+            # Para pagos, suma el período publicado más reciente de cada uno.
+            total_liquidado_todos = sum((panel["total_liquidado"] for panel in paneles), 0)
+            total_pagado_todos = sum((panel["total_pagado"] for panel in paneles), 0)
+            morosidad_todos = sum((panel["morosidad_monto"] for panel in paneles), 0)
+            unidades_morosas_todas = sum((panel["morosidad_unidades"] for panel in paneles), 0)
+            porcentaje_todos = (
+                min(round(float(total_pagado_todos) * 100 / float(total_liquidado_todos)), 100)
+                if total_liquidado_todos else 0
+            )
+            reservas_todas = Reservacion.objects.filter(
+                unidad__edificio__condominio__in=condominios,
+                estado__in=estados_reserva,
+                fecha_reserva__gte=ahora,
+            ).select_related(
+                "area_comun", "unidad", "unidad__edificio", "unidad__edificio__condominio"
+            ).order_by("fecha_reserva")
+            tickets_todos = Ticket.objects.filter(
+                condominio__in=condominios,
+                estado__in=Ticket.ABIERTOS,
+            ).select_related(
+                "condominio", "unidad", "usuario", "asignado"
+            ).order_by("-actualizado")
+            contexto["resumen_todos"] = {
+                "total_liquidado": total_liquidado_todos,
+                "total_pagado": total_pagado_todos,
+                "total_pendiente": max(total_liquidado_todos - total_pagado_todos, 0),
+                "porcentaje_pagado": porcentaje_todos,
+                "morosidad_monto": morosidad_todos,
+                "morosidad_unidades": unidades_morosas_todas,
+                "periodos_con_datos": sum(1 for panel in paneles if panel["periodo"]),
+                "cantidad_condominios": len(paneles),
+                "reservas_proximas": reservas_todas.count(),
+                "reservas_pendientes": reservas_todas.filter(estado=Reservacion.Estado.PENDIENTE).count(),
+                "tickets_pendientes": tickets_todos.count(),
+                "tickets_abiertos": Ticket.objects.filter(condominio__in=condominios, estado=Ticket.Estado.ABIERTO).count(),
+                "tickets_en_atencion": Ticket.objects.filter(condominio__in=condominios, estado__in=(Ticket.Estado.EN_REVISION, Ticket.Estado.ESPERANDO)).count(),
+                "tickets_resueltos": Ticket.objects.filter(condominio__in=condominios, estado__in=(Ticket.Estado.RESUELTO, Ticket.Estado.CERRADO)).count(),
+            }
+
+    return render(request, "core/inicio.html", contexto)
 
 
 # ============================== ADMINISTRACIÓN ==============================
@@ -237,6 +444,18 @@ def administracion(request):
 
     if not puede_gestionar_usuarios(usuario):
         return redirect("inicio")
+
+    if es_super_administrador(usuario):
+        administradores = Usuario.objects.filter(
+            rol=Usuario.Rol.ADMINISTRADOR,
+        ).select_related("user").prefetch_related(
+            "condominios_administrados",
+            "condominio",
+        ).order_by("apellido", "nombre")
+        return render(request, "core/superadmin_administradores.html", {
+            "usuario": usuario,
+            "administradores": administradores,
+        })
 
     condominios = usuario.condominios_asignados().filter(activo=True)
     usuarios = Usuario.objects.select_related("user", "condominio").filter(
@@ -256,6 +475,128 @@ def administracion(request):
         "condominios": condominios,
         "usuarios": usuarios,
         "administradores": administradores,
+    })
+
+
+@login_required
+def superadmin_administrador_detalle(request, usuario_id):
+    superadmin = obtener_usuario(request)
+    if not es_super_administrador(superadmin):
+        return redirect("inicio")
+
+    administrador = get_object_or_404(
+        Usuario.objects.select_related("user").filter(
+            pk=usuario_id,
+            rol=Usuario.Rol.ADMINISTRADOR,
+        )
+    )
+    unidades_detalle = Unidad.objects.select_related(
+        "dueno", "arrendatario"
+    ).order_by("piso", "posicion")
+    edificios_detalle = Edificio.objects.order_by("numero").prefetch_related(
+        Prefetch("unidades", queryset=unidades_detalle, to_attr="unidades_detalle")
+    )
+    areas_detalle = AreaComun.objects.select_related("costo").prefetch_related("horarios")
+    condominios = list(
+        administrador.condominios_asignados().select_related("ciudad").prefetch_related(
+            Prefetch("edificios_set", queryset=edificios_detalle, to_attr="edificios_detalle"),
+            Prefetch("areas_comunes", queryset=areas_detalle, to_attr="areas_detalle"),
+            "administradores_asignados",
+        ).order_by("nombre")
+    )
+    dias_semana = ("Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo")
+    for condominio in condominios:
+        condominio.unidades_activas_total = 0
+        condominio.unidades_inactivas_total = 0
+        condominio.administradores_detalle = list(condominio.administradores_asignados.all())
+        if administrador.condominio_id == condominio.pk and all(
+            item.pk != administrador.pk for item in condominio.administradores_detalle
+        ):
+            condominio.administradores_detalle.append(administrador)
+        for area in condominio.areas_detalle:
+            area.horarios_detalle = [
+                {
+                    "dia": dias_semana[horario.dia_semana],
+                    "inicio": horario.hora_inicio,
+                    "fin": horario.hora_fin,
+                }
+                for horario in area.horarios.all()
+                if 0 <= horario.dia_semana < len(dias_semana)
+            ]
+        for edificio in condominio.edificios_detalle:
+            for unidad in edificio.unidades_detalle:
+                unidad.tiene_alicuota = unidad.alicuota is not None
+            edificio.unidades_activas = [u for u in edificio.unidades_detalle if u.activo]
+            edificio.unidades_inactivas = [u for u in edificio.unidades_detalle if not u.activo]
+            condominio.unidades_activas_total += len(edificio.unidades_activas)
+            condominio.unidades_inactivas_total += len(edificio.unidades_inactivas)
+        condominio.residentes_activos_total = Usuario.objects.filter(
+            condominio=condominio,
+            rol=Usuario.Rol.RESIDENTE,
+            activo=True,
+        ).count()
+
+    return render(request, "core/superadmin_administrador_detalle.html", {
+        "usuario": superadmin,
+        "administrador": administrador,
+        "condominios": condominios,
+    })
+
+
+@login_required
+def historial_administrativo(request):
+    actor = obtener_usuario(request)
+    if actor.rol not in (Usuario.Rol.SUPER, Usuario.Rol.ADMINISTRADOR, Usuario.Rol.GESTOR):
+        return redirect("inicio")
+
+    condominios = actor.condominios_asignados().filter(activo=True).order_by("nombre")
+    historial = HistorialAdministrativo.objects.select_related("actor", "condominio")
+    if actor.rol != Usuario.Rol.SUPER:
+        historial = historial.filter(condominio__in=condominios)
+
+    condominio_filtro = request.GET.get("condominio", "").strip()
+    if condominio_filtro.isdigit() and condominios.filter(pk=condominio_filtro).exists():
+        historial = historial.filter(condominio_id=condominio_filtro)
+    else:
+        condominio_filtro = ""
+    accion_filtro = request.GET.get("accion", "").strip()
+    if accion_filtro in HistorialAdministrativo.Accion.values:
+        historial = historial.filter(accion=accion_filtro)
+    else:
+        accion_filtro = ""
+    desde = request.GET.get("desde", "").strip()
+    hasta = request.GET.get("hasta", "").strip()
+    try:
+        if desde:
+            historial = historial.filter(creado__date__gte=date.fromisoformat(desde))
+    except ValueError:
+        desde = ""
+    try:
+        if hasta:
+            historial = historial.filter(creado__date__lte=date.fromisoformat(hasta))
+    except ValueError:
+        hasta = ""
+    busqueda = request.GET.get("q", "").strip()
+    if busqueda:
+        historial = historial.filter(
+            Q(modelo__icontains=busqueda)
+            | Q(objeto__icontains=busqueda)
+            | Q(objeto_id__icontains=busqueda)
+            | Q(actor__nombre__icontains=busqueda)
+            | Q(actor__apellido__icontains=busqueda)
+        )
+    paginacion = paginar(request, historial.order_by("-creado", "-pk"))
+    return render(request, "core/historial_administrativo.html", {
+        "usuario_actual": actor,
+        "historial": paginacion["page_obj"],
+        "condominios": condominios,
+        "condominio_filtro": condominio_filtro,
+        "accion_filtro": accion_filtro,
+        "acciones": HistorialAdministrativo.Accion.choices,
+        "desde": desde,
+        "hasta": hasta,
+        "busqueda": busqueda,
+        **paginacion,
     })
 
 
@@ -286,10 +627,12 @@ def usuarios_lista(request):
             | Q(rut__icontains=busqueda)
         )
 
+    paginacion = paginar(request, usuarios.order_by("apellido", "nombre", "pk"))
     return render(request, "core/usuarios/lista.html", {
         "usuario": usuario_actual,
-        "usuarios": usuarios,
+        "usuarios": paginacion["page_obj"],
         "busqueda": busqueda,
+        **paginacion,
     })
 
 
@@ -910,14 +1253,16 @@ def condominios_lista(request):
             | Q(direccion__icontains=busqueda)
             | Q(ciudad__nombre__icontains=busqueda)
         )
-    condominios = condominios.select_related("ciudad").order_by("nombre")
+    condominios = condominios.select_related("ciudad").order_by("nombre", "pk")
+    paginacion = paginar(request, condominios)
 
     return render(request, "core/condominios/lista.html", {
         "usuario": usuario_actual,
         "usuario_actual": usuario_actual,
-        "condominios": condominios,
+        "condominios": paginacion["page_obj"],
         "busqueda": busqueda,
         "estado_filtro": estado,
+        **paginacion,
     })
 
 
@@ -1029,8 +1374,35 @@ def condominio_editar(request, condominio_id):
         edificios_texto = request.POST.get("edificios", "").strip()
         activo = request.POST.get("activo") == "on"
         portada = request.FILES.get("portada")
+        modalidad_mora = request.POST.get("modalidad_mora", Condominio.ModalidadMora.REGLAMENTO_TIPO)
+        tasa_mora_texto = request.POST.get("tasa_mora_anual", "").strip().replace(",", ".")
+        fundamento_tasa_mora = request.POST.get("fundamento_tasa_mora", "").strip()
 
         errores = []
+
+        if modalidad_mora not in Condominio.ModalidadMora.values:
+            errores.append("Selecciona una modalidad de mora válida.")
+            modalidad_mora = Condominio.ModalidadMora.REGLAMENTO_TIPO
+        tasa_mora_anual = None
+        if modalidad_mora == Condominio.ModalidadMora.REGLAMENTO_PROPIO:
+            try:
+                tasa_mora_anual = Decimal(tasa_mora_texto)
+                if tasa_mora_anual <= 0:
+                    raise InvalidOperation
+            except (InvalidOperation, ValueError):
+                errores.append("Ingresa la tasa anual establecida en el reglamento del condominio.")
+            if not fundamento_tasa_mora:
+                errores.append("Indica el artículo o referencia del reglamento que establece la tasa.")
+            from gastos_comunes.models import TasaInteresCorriente
+            tasa_cmf = TasaInteresCorriente.objects.filter(
+                vigente_desde__lte=timezone.localdate(),
+            ).filter(Q(vigente_hasta__isnull=True) | Q(vigente_hasta__gte=timezone.localdate())).order_by("-vigente_desde").first()
+            if not tasa_cmf:
+                errores.append("No hay una tasa corriente CMF vigente para verificar el límite legal.")
+            elif tasa_mora_anual is not None and tasa_mora_anual > tasa_cmf.tasa_anual / Decimal("2"):
+                errores.append(f"La tasa no puede superar el 50% de la tasa corriente CMF vigente ({tasa_cmf.tasa_anual / Decimal('2')}% anual).")
+        else:
+            fundamento_tasa_mora = ""
 
         if not nombre:
             errores.append(
@@ -1094,6 +1466,9 @@ def condominio_editar(request, condominio_id):
                 condominio.ciudad = ciudad
                 condominio.edificios = cantidad_edificios
                 condominio.activo = activo
+                condominio.modalidad_mora = modalidad_mora
+                condominio.tasa_mora_anual = tasa_mora_anual
+                condominio.fundamento_tasa_mora = fundamento_tasa_mora
 
                 if portada:
                     condominio.portada = portada
@@ -1109,6 +1484,7 @@ def condominio_editar(request, condominio_id):
             "cantidad_edificios": condominio.edificios_set.count(),
             "errores": errores,
             "datos": request.POST,
+            "modalidad_mora": modalidad_mora,
         })
 
     return render(request, "core/condominios/editar.html", {
@@ -1116,6 +1492,7 @@ def condominio_editar(request, condominio_id):
         "condominio": condominio,
         "ciudades": ciudades,
         "cantidad_edificios": condominio.edificios_set.count(),
+        "modalidad_mora": condominio.modalidad_mora,
     })
 
 
@@ -1221,12 +1598,28 @@ def edificio_editar(request, edificio_id):
 
         if not errores:
 
+            configuracion_anterior = (
+                edificio.numero_pisos,
+                edificio.viviendas_por_piso,
+            )
             edificio.nombre = nombre
             edificio.numero_pisos = pisos
             edificio.viviendas_por_piso = viviendas
             edificio.subterraneo = subterraneo
 
             edificio.save()
+
+            if configuracion_anterior != (pisos, viviendas):
+                creadas, desactivadas, reactivadas = edificio.sincronizar_unidades(
+                    configuracion_anterior
+                )
+                if creadas or desactivadas or reactivadas:
+                    messages.info(
+                        request,
+                        f"Se agregaron {creadas} unidades, se desactivaron "
+                        f"{desactivadas} y se reactivaron {reactivadas} según "
+                        "la nueva configuración. Las unidades desactivadas conservan su historial.",
+                    )
 
             return redirect(
                 "edificios_lista",
@@ -1278,9 +1671,14 @@ def unidades_lista(request, edificio_id):
         "dueno",
         "arrendatario"
     ).order_by(
+        "-activo",
         "piso",
-        "posicion"
+        "posicion",
+        "pk",
     )
+    total_activas = edificio.unidades.filter(activo=True).count()
+    total_inactivas = edificio.unidades.filter(activo=False).count()
+    paginacion = paginar(request, unidades)
 
     return render(
         request,
@@ -1289,7 +1687,10 @@ def unidades_lista(request, edificio_id):
             "usuario_actual": usuario_actual,
             "edificio": edificio,
             "condominio": edificio.condominio,
-            "unidades": unidades,
+            "unidades": paginacion["page_obj"],
+            "total_activas": total_activas,
+            "total_inactivas": total_inactivas,
+            **paginacion,
         }
     )
 
@@ -1427,6 +1828,12 @@ def areas_comunes_selector(request):
         total_areas_comunes=Count("areas_comunes")
     ).order_by("nombre")
 
+    if condominios.count() == 1:
+        return redirect(
+            "areas_comunes_lista",
+            condominio_id=condominios.first().id,
+        )
+
     return render(
         request,
         "core/areas_comunes/condominios.html",
@@ -1511,6 +1918,10 @@ def area_comun_crear(request, condominio_id):
 
         reservable = request.POST.get(
             "reservable"
+        ) == "on"
+
+        requiere_gastos_al_dia = request.POST.get(
+            "requiere_gastos_al_dia"
         ) == "on"
 
         requiere_reserva = request.POST.get(
@@ -1614,6 +2025,7 @@ def area_comun_crear(request, condominio_id):
                 descripcion=descripcion,
                 capacidad=capacidad_numero,
                 reservable=reservable,
+                requiere_gastos_al_dia=requiere_gastos_al_dia,
                 requiere_reserva=requiere_reserva,
                 permite_reservas_consecutivas=permite_reservas_consecutivas,
                 duracion_maxima=duracion_maxima_numero,
@@ -1687,6 +2099,10 @@ def area_comun_editar(request, area_id):
 
         reservable = request.POST.get(
             "reservable"
+        ) == "on"
+
+        requiere_gastos_al_dia = request.POST.get(
+            "requiere_gastos_al_dia"
         ) == "on"
 
         requiere_reserva = request.POST.get(
@@ -1790,6 +2206,7 @@ def area_comun_editar(request, area_id):
             area.descripcion = descripcion
             area.capacidad = capacidad_numero
             area.reservable = reservable
+            area.requiere_gastos_al_dia = requiere_gastos_al_dia
             area.requiere_reserva = requiere_reserva
             area.permite_reservas_consecutivas = (
                 permite_reservas_consecutivas
@@ -1828,6 +2245,34 @@ def area_comun_editar(request, area_id):
             "area": area,
         }
     )
+
+
+@login_required
+def area_comun_cambiar_estado(request, area_id):
+    usuario_actual = obtener_usuario(request)
+    if request.method != "POST" or not puede_gestionar_areas(usuario_actual):
+        return redirect("inicio")
+
+    area = get_object_or_404(
+        AreaComun.objects.select_related("condominio"),
+        pk=area_id,
+    )
+    if not usuario_actual.puede_acceder_condominio(area.condominio_id):
+        return redirect("areas_comunes_selector")
+
+    area.activo = not area.activo
+    area.save(update_fields=["activo"])
+    if area.activo:
+        messages.success(
+            request,
+            f"{area.nombre} está activa nuevamente y conserva sus horarios configurados.",
+        )
+    else:
+        messages.success(
+            request,
+            f"{area.nombre} quedó desactivada. No se aceptarán nuevas reservas; sus horarios e historial se conservaron.",
+        )
+    return redirect("areas_comunes_lista", condominio_id=area.condominio_id)
 
 
 # ============================== CONFIGURAR HORARIOS ==============================
@@ -2168,7 +2613,8 @@ def reservacion_crear(request):
 
     areas = AreaComun.objects.filter(
         condominio__in=condominios,
-        reservable=True
+        reservable=True,
+        activo=True,
     ).prefetch_related(
         "horarios"
     ).order_by(
@@ -2265,7 +2711,11 @@ def reservacion_crear(request):
                     "El área común seleccionada no es válida."
                 )
 
-        if area and not area.reservable:
+        if area and not area.activo:
+            errores.append(
+                "El área común seleccionada está desactivada y no admite nuevas reservas."
+            )
+        elif area and not area.reservable:
 
             errores.append(
                 "El área común seleccionada no permite reservas."
@@ -2311,6 +2761,23 @@ def reservacion_crear(request):
             errores.append(
                 "Solo puedes realizar reservas usando una unidad de la que seas propietario o arrendatario."
             )
+
+        if (
+            area
+            and unidad
+            and es_residente(usuario_actual)
+            and area.requiere_gastos_al_dia
+        ):
+            from gastos_comunes.services import saldos_acumulados
+
+            saldo_unidad = saldos_acumulados(
+                unidad.edificio.condominio
+            ).get(unidad.id, 0)
+            if saldo_unidad > 0:
+                errores.append(
+                    "No se puede reservar esta área común porque la unidad tiene gastos comunes impagos. "
+                    "Regulariza el saldo pendiente y vuelve a intentarlo."
+                )
 
         # ============================== FECHAS ==============================
 
@@ -2527,7 +2994,7 @@ def reservacion_crear(request):
                 unidad=unidad,
                 fecha_reserva=fecha_reserva,
                 fin_reserva=fin_reserva,
-                estado=Reservacion.Estado.PENDIENTE,
+                estado=Reservacion.Estado.APROBADO,
                 notas=notas,
                 area_comun=area,
                 nombre_invitado="",
@@ -2716,10 +3183,17 @@ def reservacion_disponibilidad(request):
     )
 
     ahora = timezone.localtime()
-    Reservacion.objects.filter(
+    reservas_vencidas = Reservacion.objects.filter(
         estado__in=[Reservacion.Estado.PENDIENTE, Reservacion.Estado.APROBADO],
         fin_reserva__lt=ahora,
-    ).update(estado=Reservacion.Estado.COMPLETADO)
+    )
+    if usuario_actual.rol != Usuario.Rol.SUPER:
+        reservas_vencidas = reservas_vencidas.filter(unidad__edificio__condominio__in=condominios)
+    if usuario_actual.rol == Usuario.Rol.RESIDENTE:
+        reservas_vencidas = reservas_vencidas.filter(usuario=usuario_actual)
+    for reserva_vencida in reservas_vencidas.only("pk", "estado"):
+        reserva_vencida.estado = Reservacion.Estado.COMPLETADO
+        reserva_vencida.save(update_fields=["estado"])
 
     reservaciones = Reservacion.objects.filter(
         area_comun=area,
@@ -2830,6 +3304,52 @@ def reservaciones_lista(request):
     if usuario_actual.rol == Usuario.Rol.RESIDENTE:
         reservaciones = reservaciones.filter(usuario=usuario_actual)
 
+    puede_gestionar = es_super or tiene_rol(
+        usuario_actual, "Administrador", "Gestor"
+    )
+    condominios_filtro = usuario_actual.condominios_asignados().filter(activo=True).order_by("nombre")
+    area_filtro = ""
+    condominio_filtro = ""
+    estado_filtro = ""
+    desde = ""
+    hasta = ""
+    areas = AreaComun.objects.none()
+    if puede_gestionar:
+        condominio_filtro = request.GET.get("condominio", "").strip()
+        if condominio_filtro.isdigit() and condominios_filtro.filter(pk=condominio_filtro).exists():
+            reservaciones = reservaciones.filter(unidad__edificio__condominio_id=condominio_filtro)
+        else:
+            condominio_filtro = ""
+        areas = AreaComun.objects.filter(
+            condominio__in=condominios_filtro,
+        ).order_by("condominio__nombre", "nombre")
+        if condominio_filtro:
+            areas = areas.filter(condominio_id=condominio_filtro)
+        area_filtro = request.GET.get("area", "").strip()
+        if area_filtro.isdigit() and areas.filter(pk=area_filtro).exists():
+            reservaciones = reservaciones.filter(area_comun_id=area_filtro)
+        else:
+            area_filtro = ""
+
+        estado_filtro = request.GET.get("estado", "").strip()
+        if estado_filtro in Reservacion.Estado.values:
+            reservaciones = reservaciones.filter(estado=estado_filtro)
+        else:
+            estado_filtro = ""
+
+        desde = request.GET.get("desde", "").strip()
+        hasta = request.GET.get("hasta", "").strip()
+        try:
+            if desde:
+                reservaciones = reservaciones.filter(fecha_reserva__date__gte=date.fromisoformat(desde))
+        except ValueError:
+            desde = ""
+        try:
+            if hasta:
+                reservaciones = reservaciones.filter(fecha_reserva__date__lte=date.fromisoformat(hasta))
+        except ValueError:
+            hasta = ""
+
     ahora = timezone.now()
     Reservacion.objects.filter(
         estado__in=[Reservacion.Estado.PENDIENTE, Reservacion.Estado.APROBADO],
@@ -2862,16 +3382,19 @@ def reservaciones_lista(request):
             estado__in=[Reservacion.Estado.PENDIENTE, Reservacion.Estado.APROBADO],
         )
 
-    reservaciones = list(reservaciones.order_by("-fecha_reserva", "-id"))
-    puede_gestionar = es_super or tiene_rol(
-        usuario_actual, "Administrador", "Gestor"
-    )
-    for reservacion in reservaciones:
+    orden_reservas = ("fecha_reserva", "id") if filtro == "proximas" else ("-fecha_reserva", "-id")
+    paginacion = paginar(request, reservaciones.order_by(*orden_reservas))
+    reservaciones = paginacion["page_obj"]
+    for reservacion in reservaciones.object_list:
         reservacion.puede_cancelar = (
             (puede_gestionar or reservacion.usuario_id == usuario_actual.id)
             and reservacion.estado in [Reservacion.Estado.PENDIENTE, Reservacion.Estado.APROBADO]
             and reservacion.fin_reserva is not None
             and reservacion.fin_reserva > ahora
+        )
+        reservacion.puede_editar = (
+            reservacion.puede_cancelar
+            and reservacion.tipo_reserva == Reservacion.Tipo.AREA_COMUN
         )
         reservacion.es_mia = reservacion.usuario_id == usuario_actual.id
 
@@ -2886,6 +3409,15 @@ def reservaciones_lista(request):
             "total_proximas": total_proximas,
             "total_historial": total_historial,
             "puede_gestionar_reservas": puede_gestionar,
+            "areas_filtro": areas,
+            "condominios_filtro": condominios_filtro,
+            "condominio_filtro": condominio_filtro,
+            "area_filtro": area_filtro,
+            "estado_filtro": estado_filtro,
+            "estados_reserva": Reservacion.Estado.choices,
+            "desde": desde,
+            "hasta": hasta,
+            **paginacion,
         },
     )
 
@@ -2893,6 +3425,7 @@ def reservaciones_lista(request):
 # ============================== CREAR RESERVACIÓN ==============================
 
 @login_required
+@transaction.atomic
 def reservacion_crear(request):
     """
     Permite crear una reserva para un área común.
@@ -2920,7 +3453,8 @@ def reservacion_crear(request):
 
     areas = AreaComun.objects.filter(
         condominio__in=condominios,
-        reservable=True
+        reservable=True,
+        activo=True,
     ).prefetch_related(
         "horarios"
     ).order_by(
@@ -2990,6 +3524,15 @@ def reservacion_crear(request):
         ).strip()
 
         errores = []
+        cantidad_personas_texto = request.POST.get("cantidad_personas", "1").strip()
+        try:
+            cantidad_personas = int(cantidad_personas_texto)
+            if cantidad_personas < 1:
+                errores.append("La cantidad de personas debe ser al menos 1.")
+                cantidad_personas = 1
+        except (TypeError, ValueError):
+            cantidad_personas = 1
+            errores.append("Indica una cantidad válida de personas.")
 
         # ============================== ÁREA ==============================
 
@@ -3004,7 +3547,7 @@ def reservacion_crear(request):
         else:
 
             try:
-                area = AreaComun.objects.get(
+                area = AreaComun.objects.select_for_update().get(
                     id=int(area_id),
                     condominio__in=condominios
                 )
@@ -3017,7 +3560,11 @@ def reservacion_crear(request):
                     "El área común seleccionada no es válida."
                 )
 
-        if area and not area.reservable:
+        if area and not area.activo:
+            errores.append(
+                "El área común seleccionada está desactivada y no admite nuevas reservas."
+            )
+        elif area and not area.reservable:
 
             errores.append(
                 "El área común seleccionada no permite reservas."
@@ -3040,6 +3587,8 @@ def reservacion_crear(request):
                     "edificio"
                 ).get(
                     id=int(unidad_id),
+                    activo=True,
+                    edificio__activo=True,
                     edificio__condominio__in=condominios
                 )
 
@@ -3060,6 +3609,28 @@ def reservacion_crear(request):
             errores.append(
                 "Solo puedes realizar reservas usando una unidad de la que seas propietario o arrendatario."
             )
+
+        if (
+            area
+            and unidad
+            and es_residente(usuario_actual)
+            and area.requiere_gastos_al_dia
+        ):
+            from gastos_comunes.services import saldos_acumulados
+
+            saldo_unidad = saldos_acumulados(
+                unidad.edificio.condominio
+            ).get(unidad.id, 0)
+            if saldo_unidad > 0:
+                errores.append(
+                    "No se puede reservar esta área común porque la unidad tiene gastos comunes impagos. "
+                    "Regulariza el saldo pendiente y vuelve a intentarlo."
+                )
+
+        if area and unidad and area.condominio_id != unidad.edificio.condominio_id:
+            errores.append("El área y la unidad deben pertenecer al mismo condominio.")
+        if area and area.capacidad and cantidad_personas > area.capacidad:
+            errores.append(f"El área admite hasta {area.capacidad} personas por reserva.")
 
         # ============================== FECHAS ==============================
 
@@ -3292,9 +3863,10 @@ def reservacion_crear(request):
                 unidad=unidad,
                 fecha_reserva=fecha_reserva,
                 fin_reserva=fin_reserva,
-                estado=Reservacion.Estado.PENDIENTE,
+                estado=Reservacion.Estado.APROBADO,
                 notas=notas,
                 area_comun=area,
+                cantidad_personas=cantidad_personas,
                 nombre_invitado="",
             )
 
@@ -3343,6 +3915,7 @@ def reservacion_crear(request):
 # ============================== EDITAR RESERVACIÓN ==============================
 
 @login_required
+@transaction.atomic
 def reservacion_editar(request, reservacion_id):
 
     usuario_actual = obtener_usuario(request)
@@ -3382,7 +3955,8 @@ def reservacion_editar(request, reservacion_id):
 
     areas = AreaComun.objects.filter(
         condominio=condominio,
-        reservable=True
+        reservable=True,
+        activo=True,
     ).prefetch_related(
         "horarios"
     ).order_by(
@@ -3420,6 +3994,8 @@ def reservacion_editar(request, reservacion_id):
             "posicion"
         )
 
+    unidades = unidades.filter(activo=True, edificio__activo=True)
+
     if request.method == "POST":
 
         area_id = request.POST.get(
@@ -3448,6 +4024,15 @@ def reservacion_editar(request, reservacion_id):
         ).strip()
 
         errores = []
+        cantidad_personas_texto = request.POST.get("cantidad_personas", "1").strip()
+        try:
+            cantidad_personas = int(cantidad_personas_texto)
+            if cantidad_personas < 1:
+                errores.append("La cantidad de personas debe ser al menos 1.")
+                cantidad_personas = 1
+        except (TypeError, ValueError):
+            cantidad_personas = 1
+            errores.append("Indica una cantidad válida de personas.")
 
         # ============================== ÁREA ==============================
 
@@ -3455,10 +4040,11 @@ def reservacion_editar(request, reservacion_id):
 
         try:
 
-            area_nueva = AreaComun.objects.get(
+            area_nueva = AreaComun.objects.select_for_update().get(
                 id=int(area_id),
                 condominio=condominio,
-                reservable=True
+                reservable=True,
+                activo=True,
             )
 
         except (
@@ -3480,6 +4066,8 @@ def reservacion_editar(request, reservacion_id):
                 "edificio"
             ).get(
                 id=int(unidad_id),
+                activo=True,
+                edificio__activo=True,
                 edificio__condominio=condominio
             )
 
@@ -3502,6 +4090,26 @@ def reservacion_editar(request, reservacion_id):
             errores.append(
                 "Solo puedes realizar reservas usando una unidad de la que seas propietario o arrendatario."
             )
+
+        if (
+            area_nueva
+            and unidad
+            and es_residente(usuario_actual)
+            and area_nueva.requiere_gastos_al_dia
+        ):
+            from gastos_comunes.services import saldos_acumulados
+
+            saldo_unidad = saldos_acumulados(
+                unidad.edificio.condominio
+            ).get(unidad.id, 0)
+            if saldo_unidad > 0:
+                errores.append(
+                    "No se puede modificar esta reserva porque la unidad tiene gastos comunes impagos. "
+                    "Regulariza el saldo pendiente y vuelve a intentarlo."
+                )
+
+        if area_nueva and area_nueva.capacidad and cantidad_personas > area_nueva.capacidad:
+            errores.append(f"El área admite hasta {area_nueva.capacidad} personas por reserva.")
 
         # ============================== FECHAS ==============================
 
@@ -3712,6 +4320,7 @@ def reservacion_editar(request, reservacion_id):
             reservacion.fecha_reserva = fecha_reserva
             reservacion.fin_reserva = fin_reserva
             reservacion.notas = notas
+            reservacion.cantidad_personas = cantidad_personas
 
             try:
 
@@ -3741,6 +4350,10 @@ def reservacion_editar(request, reservacion_id):
                 "unidades": unidades,
                 "errores": errores,
                 "datos": request.POST,
+                "fecha_inicio": request.POST.get("fecha_reserva") or timezone.localtime(reservacion.fecha_reserva).strftime("%Y-%m-%dT%H:%M"),
+                "fecha_termino": request.POST.get("fin_reserva") or (timezone.localtime(reservacion.fin_reserva).strftime("%Y-%m-%dT%H:%M") if reservacion.fin_reserva else ""),
+                "cantidad_personas_edicion": request.POST.get("cantidad_personas", "1"),
+                "notas_edicion": request.POST.get("notas", ""),
             }
         )
 
@@ -3752,6 +4365,10 @@ def reservacion_editar(request, reservacion_id):
             "reservacion": reservacion,
             "areas": areas,
             "unidades": unidades,
+            "fecha_inicio": timezone.localtime(reservacion.fecha_reserva).strftime("%Y-%m-%dT%H:%M"),
+            "fecha_termino": timezone.localtime(reservacion.fin_reserva).strftime("%Y-%m-%dT%H:%M") if reservacion.fin_reserva else "",
+            "cantidad_personas_edicion": reservacion.cantidad_personas,
+            "notas_edicion": reservacion.notas,
         }
     )
 
@@ -3778,6 +4395,11 @@ def reservacion_cancelar(request, reservacion_id):
         messages.error(request, "Solo puedes cancelar tus propias reservas.")
         return redirect("reservaciones_lista")
 
+    motivo_cancelacion = request.POST.get("motivo_cancelacion", "").strip()
+    if not motivo_cancelacion:
+        messages.error(request, "Indica el motivo de la cancelación para que quede registrado y se notifique al residente.")
+        return redirect("reservaciones_lista")
+
     if reservacion.estado not in [Reservacion.Estado.PENDIENTE, Reservacion.Estado.APROBADO]:
         messages.info(request, "Esta reserva ya no está activa.")
     elif reservacion.fin_reserva and reservacion.fin_reserva <= timezone.now():
@@ -3785,8 +4407,9 @@ def reservacion_cancelar(request, reservacion_id):
     else:
         # Se conserva el registro para que siga apareciendo en el historial.
         reservacion.estado = Reservacion.Estado.CANCELADO
+        reservacion.motivo_cancelacion = motivo_cancelacion
         reservacion._actor = usuario_actual  # notis: quién canceló (no se avisa a sí mismo)
-        reservacion.save(update_fields=["estado"])
+        reservacion.save(update_fields=["estado", "motivo_cancelacion"])
         messages.success(request, "La reserva se canceló y quedó en el historial.")
 
     return redirect(
@@ -3861,6 +4484,30 @@ def unidad_cambiar_estado(request, unidad_id):
     unidad = get_object_or_404(Unidad.objects.select_related("edificio__condominio"), pk=unidad_id)
     if not usuario.puede_acceder_condominio(unidad.edificio.condominio_id):
         return redirect("condominios_lista")
+    if not unidad.activo:
+        edificio = unidad.edificio
+        if not edificio.activo:
+            messages.error(request, "Primero reactiva el edificio para poder activar sus unidades.")
+            return redirect("unidades_lista", edificio_id=edificio.pk)
+        if (
+            not edificio.numero_pisos
+            or not edificio.viviendas_por_piso
+            or unidad.piso > edificio.numero_pisos
+            or unidad.posicion > edificio.viviendas_por_piso
+        ):
+            messages.error(
+                request,
+                "Esta unidad está fuera de la configuración actual. Aumenta primero los pisos o las viviendas por piso del edificio.",
+            )
+            return redirect("unidades_lista", edificio_id=edificio.pk)
+        capacidad = edificio.numero_pisos * edificio.viviendas_por_piso
+        activas = edificio.unidades.filter(activo=True).count()
+        if activas >= capacidad:
+            messages.error(
+                request,
+                f"No se puede superar la capacidad configurada de {capacidad} unidades activas. Ajusta primero la configuración del edificio.",
+            )
+            return redirect("unidades_lista", edificio_id=edificio.pk)
     unidad.activo = not unidad.activo
     unidad.save(update_fields=["activo"])
     messages.success(request, "Unidad reactivada." if unidad.activo else "Unidad desactivada.")

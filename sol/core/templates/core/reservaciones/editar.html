@@ -1,0 +1,38 @@
+{% extends "core/base.html" %}
+
+{% block title %}Editar reserva | Comunidad al Día{% endblock %}
+{% block page_title %}Editar reserva{% endblock %}
+
+{% block content %}
+<section class="card">
+    <div class="mb-4">
+        <h1 class="h4 mb-1">Editar reserva</h1>
+        <p class="text-secondary mb-0">Al guardar se volverán a comprobar el horario, los topes, la capacidad y los cruces con otras reservas.</p>
+    </div>
+    {% if errores %}<div class="alert alert-danger">{% for error in errores %}<div>{{ error }}</div>{% endfor %}</div>{% endif %}
+    <form method="post" class="row g-3">
+        {% csrf_token %}
+        <div class="col-md-6">
+            <label for="area_comun" class="form-label">Área común</label>
+            <select id="area_comun" name="area_comun" class="form-select" required>
+                {% for area in areas %}<option value="{{ area.pk }}" {% if datos.area_comun == area.pk|stringformat:"s" or not datos and reservacion.area_comun_id == area.pk %}selected{% endif %}>{{ area.nombre }}{% if area.capacidad %} · capacidad {{ area.capacidad }} personas{% endif %}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-6">
+            <label for="unidad" class="form-label">Unidad</label>
+            <select id="unidad" name="unidad" class="form-select" required>
+                {% for unidad in unidades %}<option value="{{ unidad.pk }}" {% if datos.unidad == unidad.pk|stringformat:"s" or not datos and reservacion.unidad_id == unidad.pk %}selected{% endif %}>{{ unidad.edificio.nombre }} · {{ unidad.numero_unidad }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-6"><label for="fecha_reserva" class="form-label">Inicio</label><input type="datetime-local" id="fecha_reserva" name="fecha_reserva" class="form-control" value="{{ datos.fecha_reserva|default:fecha_inicio }}" required></div>
+        <div class="col-md-6"><label for="fin_reserva" class="form-label">Término</label><input type="datetime-local" id="fin_reserva" name="fin_reserva" class="form-control" value="{{ datos.fin_reserva|default:fecha_termino }}" required></div>
+        <div class="col-md-6">
+            <label for="cantidad_personas" class="form-label">Personas que asistirán</label>
+            <input type="number" id="cantidad_personas" name="cantidad_personas" class="form-control" min="1" max="1000" value="{{ cantidad_personas_edicion }}" required>
+            <small class="form-text text-muted">{{ reservacion.area_comun.capacidad|default:"Sin límite configurado" }}{% if reservacion.area_comun.capacidad %} personas como máximo en el área{% endif %}.</small>
+        </div>
+        <div class="col-12"><label for="notas" class="form-label">Notas</label><textarea id="notas" name="notas" rows="3" class="form-control">{{ notas_edicion }}</textarea></div>
+        <div class="col-12 d-flex gap-2"><button class="button" type="submit">Guardar cambios</button><a class="btn btn-outline-secondary" href="{% url 'reservaciones_lista' %}">Cancelar</a></div>
+    </form>
+</section>
+{% endblock %}

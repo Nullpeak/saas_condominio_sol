@@ -15,6 +15,51 @@
         {% endif %}
     </div>
 
+    {% if puede_gestionar_reservas %}
+        <form method="get" class="row g-3 align-items-end mb-4">
+            <input type="hidden" name="filtro" value="{{ filtro }}">
+            {% if condominios_filtro|length > 1 %}
+            <div class="col-sm-6 col-lg-3">
+                <label class="form-label" for="reserva-condominio">Condominio</label>
+                <select class="form-select" id="reserva-condominio" name="condominio">
+                    <option value="">Todos mis condominios</option>
+                    {% for condominio in condominios_filtro %}<option value="{{ condominio.pk }}" {% if condominio_filtro == condominio.pk|stringformat:"s" %}selected{% endif %}>{{ condominio.nombre }}</option>{% endfor %}
+                </select>
+            </div>
+            {% endif %}
+            <div class="col-sm-6 col-lg-3">
+                <label class="form-label" for="reserva-area">Área común</label>
+                <select class="form-select" id="reserva-area" name="area">
+                    <option value="">Todas las áreas</option>
+                    {% for area in areas_filtro %}
+                        <option value="{{ area.pk }}" {% if area_filtro == area.pk|stringformat:"s" %}selected{% endif %}>{{ area.condominio.nombre }} · {{ area.nombre }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-sm-6 col-lg-2">
+                <label class="form-label" for="reserva-estado">Estado</label>
+                <select class="form-select" id="reserva-estado" name="estado">
+                    <option value="">Todos</option>
+                    {% for valor, etiqueta in estados_reserva %}
+                        <option value="{{ valor }}" {% if estado_filtro == valor %}selected{% endif %}>{{ etiqueta }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-sm-6 col-lg-2">
+                <label class="form-label" for="reserva-desde">Desde</label>
+                <input class="form-control" id="reserva-desde" type="date" name="desde" value="{{ desde }}">
+            </div>
+            <div class="col-sm-6 col-lg-2">
+                <label class="form-label" for="reserva-hasta">Hasta</label>
+                <input class="form-control" id="reserva-hasta" type="date" name="hasta" value="{{ hasta }}">
+            </div>
+            <div class="col-12 d-flex gap-2">
+                <button class="button" type="submit">Aplicar filtros</button>
+                <a class="btn btn-outline-secondary" href="?filtro={{ filtro }}">Limpiar</a>
+            </div>
+        </form>
+    {% endif %}
+
     <div class="d-flex flex-wrap gap-2 mb-4" role="group" aria-label="Filtrar reservas">
         <a class="btn btn-sm {% if filtro == 'proximas' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="?filtro=proximas">Próximas <span class="badge text-bg-light">{{ total_proximas }}</span></a>
         <a class="btn btn-sm {% if filtro == 'historial' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="?filtro=historial">Historial <span class="badge text-bg-light">{{ total_historial }}</span></a>
@@ -26,6 +71,7 @@
                 <thead>
                     <tr>
                         <th>Área</th>
+                        {% if puede_gestionar_reservas %}<th>Condominio</th>{% endif %}
                         <th>Unidad</th>
                         <th>Fecha</th>
                         <th>Horario</th>
@@ -39,8 +85,10 @@
                             <td>
                                 <div class="fw-semibold">{{ reservacion.area_comun.nombre|default:reservacion.get_tipo_reserva_display }}</div>
                                 {% if reservacion.es_mia %}<small class="text-muted">Tu reserva</small>{% endif %}
+                                {% if reservacion.tipo_reserva == "area_comun" %}<small class="d-block text-muted">{{ reservacion.cantidad_personas }} persona{% if reservacion.cantidad_personas != 1 %}s{% endif %}</small>{% endif %}
                             </td>
-                            <td>{{ reservacion.unidad }}</td>
+                            {% if puede_gestionar_reservas %}<td>{{ reservacion.unidad.edificio.condominio.nombre }}</td>{% endif %}
+                            <td>{{ reservacion.unidad.edificio.nombre }} · Unidad {{ reservacion.unidad.numero_unidad }}</td>
                             <td>{{ reservacion.fecha_reserva|date:"d/m/Y" }}</td>
                             <td>{{ reservacion.fecha_reserva|date:"H:i" }}–{{ reservacion.fin_reserva|date:"H:i" }}</td>
                             <td>
@@ -50,6 +98,7 @@
                                     <span class="badge text-bg-warning">{{ reservacion.get_estado_display }}</span>
                                 {% elif reservacion.estado == "cancelado" %}
                                     <span class="badge text-bg-secondary">{{ reservacion.get_estado_display }}</span>
+                                    {% if reservacion.motivo_cancelacion %}<small class="d-block text-danger mt-1">Motivo: {{ reservacion.motivo_cancelacion }}</small>{% endif %}
                                 {% elif reservacion.estado == "rechazado" %}
                                     <span class="badge text-bg-danger">{{ reservacion.get_estado_display }}</span>
                                 {% else %}
@@ -58,9 +107,12 @@
                                 {% if reservacion.fin_reserva and reservacion.fin_reserva < ahora %}<small class="d-block text-muted">Realizada</small>{% endif %}
                             </td>
                             <td class="text-end">
+                                {% if reservacion.puede_editar %}<a class="btn btn-sm btn-outline-secondary mb-1" href="{% url 'reservacion_editar' reservacion.id %}">Editar</a>{% endif %}
                                 {% if reservacion.puede_cancelar %}
-                                    <form method="post" action="{% url 'reservacion_cancelar' reservacion.id %}" class="d-inline" onsubmit="return confirm('¿Quieres cancelar esta reserva? Quedará guardada en el historial.');">
+                                    <form method="post" action="{% url 'reservacion_cancelar' reservacion.id %}" class="d-inline-flex flex-column align-items-end gap-1" onsubmit="return confirm('¿Quieres cancelar esta reserva? Se notificará el motivo al residente.');">
                                         {% csrf_token %}
+                                        <label class="visually-hidden" for="motivo-{{ reservacion.id }}">Motivo de cancelación</label>
+                                        <input class="form-control form-control-sm" id="motivo-{{ reservacion.id }}" name="motivo_cancelacion" maxlength="1000" required placeholder="Motivo de cancelación" style="max-width: 220px">
                                         <button type="submit" class="btn btn-sm btn-outline-danger">Cancelar</button>
                                     </form>
                                 {% else %}
@@ -72,6 +124,7 @@
                 </tbody>
             </table>
         </div>
+        {% include "core/_paginacion.html" %}
     {% else %}
         <div class="text-center py-5">
             <h3 class="h5 mt-3">No hay reservas en esta sección</h3>

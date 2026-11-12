@@ -14,13 +14,6 @@
     <span><strong class="text-dark">{{ condominios|length }}</strong> condominios</span>
 </div>
 
-<nav class="quick-links" aria-label="Accesos de administración">
-    <a class="button" href="{% url 'usuarios_lista' %}">Gestionar usuarios</a>
-    <a class="button button-secondary" href="{% url 'usuario_crear' %}">Crear usuario</a>
-    <a class="button button-secondary" href="{% url 'condominios_lista' %}">Gestionar condominios</a>
-    {% if usuario.rol == "Super Administrador" or usuario.rol == "Administrador" %}<a class="button button-secondary" href="{% url 'condominio_crear' %}">Crear condominio</a>{% endif %}
-</nav>
-
 {% if usuario.rol == "Super Administrador" %}
 <section class="mt-5" aria-labelledby="admins-heading">
     <h2 class="section-heading" id="admins-heading">Administradores y sus condominios</h2>
@@ -84,13 +77,4 @@
     {% endif %}
 </section>
 
-<section class="mt-5" aria-labelledby="modulos-heading">
-    <h2 class="section-heading" id="modulos-heading">Operación del condominio</h2>
-    <div class="quick-links mt-0">
-        <a class="btn btn-outline-secondary" href="{% url 'reservaciones_lista' %}">Reservas</a>
-        <a class="btn btn-outline-secondary" href="{% url 'visitas:lista' %}">Visitas</a>
-        <a class="btn btn-outline-secondary" href="{% url 'tickets:lista' %}">Tickets</a>
-        <a class="btn btn-outline-secondary" href="{% url 'anuncios:lista' %}">Anuncios</a>
-    </div>
-</section>
 {% endblock %}

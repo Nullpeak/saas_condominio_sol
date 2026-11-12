@@ -1,0 +1,54 @@
+{% extends "core/base.html" %}
+
+{% block title %}Historial administrativo | Comunidad al Día{% endblock %}
+{% block page_title %}Historial administrativo{% endblock %}
+
+{% block content %}
+<section class="card">
+    <div class="mb-4">
+        <h1 class="h4 mb-1">Historial administrativo</h1>
+        <p class="text-secondary mb-0">Registro cronológico de altas, cambios y eliminaciones realizadas desde la aplicación. Se muestran los campos afectados, nunca sus valores privados.</p>
+    </div>
+    <form method="get" class="row g-3 align-items-end mb-4">
+        {% if condominios|length > 1 or usuario_actual.rol == "Super Administrador" %}
+        <div class="col-md-3">
+            <label for="condominio" class="form-label">Condominio</label>
+            <select id="condominio" name="condominio" class="form-select">
+                <option value="">Todos</option>
+                {% for condominio in condominios %}<option value="{{ condominio.pk }}" {% if condominio_filtro == condominio.pk|stringformat:"s" %}selected{% endif %}>{{ condominio.nombre }}</option>{% endfor %}
+            </select>
+        </div>
+        {% endif %}
+        <div class="col-md-2">
+            <label for="accion" class="form-label">Acción</label>
+            <select id="accion" name="accion" class="form-select">
+                <option value="">Todas</option>
+                {% for codigo, etiqueta in acciones %}<option value="{{ codigo }}" {% if accion_filtro == codigo %}selected{% endif %}>{{ etiqueta }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2"><label for="desde" class="form-label">Desde</label><input id="desde" class="form-control" type="date" name="desde" value="{{ desde }}"></div>
+        <div class="col-md-2"><label for="hasta" class="form-label">Hasta</label><input id="hasta" class="form-control" type="date" name="hasta" value="{{ hasta }}"></div>
+        <div class="col-md-3"><label for="q" class="form-label">Buscar</label><input id="q" class="form-control" type="search" name="q" value="{{ busqueda }}" placeholder="Persona, registro o tipo"></div>
+        <div class="col-12 d-flex gap-2"><button class="button" type="submit">Filtrar</button><a class="btn btn-outline-secondary" href="{% url 'historial_administrativo' %}">Limpiar</a></div>
+    </form>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead><tr><th>Fecha y hora</th><th>Quién</th><th>Condominio</th><th>Acción</th><th>Registro</th><th>Campos afectados</th></tr></thead>
+            <tbody>
+            {% for evento in historial %}
+                <tr>
+                    <td class="text-nowrap">{{ evento.creado|date:"d/m/Y H:i" }}</td>
+                    <td>{{ evento.actor.nombre|default:"Cuenta eliminada" }}{% if evento.actor %} {{ evento.actor.apellido }}{% endif %}</td>
+                    <td>{{ evento.condominio.nombre|default:"Sin condominio asociado" }}</td>
+                    <td>{{ evento.get_accion_display }}</td>
+                    <td>{{ evento.objeto }} <small class="text-secondary">({{ evento.modelo }})</small></td>
+                    <td>{% for campo in evento.campos %}<span class="badge text-bg-light border">{{ campo }}</span>{% empty %}<span class="text-secondary">—</span>{% endfor %}</td>
+                </tr>
+            {% empty %}<tr><td colspan="6" class="text-center text-secondary py-5">No hay movimientos que coincidan con los filtros.</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% include "core/_paginacion.html" %}
+</section>
+{% endblock %}

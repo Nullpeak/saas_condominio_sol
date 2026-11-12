@@ -153,9 +153,11 @@ def notificar_reservacion(sender, instance, created, **kwargs):
         return
     actor = getattr(instance, "_actor", None)
     url = reverse("reservaciones_lista")
+    motivo = (instance.motivo_cancelacion or "").strip()
+    detalle = f" Motivo: {motivo}" if instance.estado == Reservacion.Estado.CANCELADO and motivo else ""
     notificar(
         [instance.usuario],
-        f"Tu reservación #{instance.pk} cambió a estado: {instance.get_estado_display()}.",
+        f"Tu reservación #{instance.pk} cambió a estado: {instance.get_estado_display()}.{detalle}",
         remitente=actor, url=url,
     )
     if instance.estado == Reservacion.Estado.CANCELADO and actor and actor.pk == instance.usuario_id:
@@ -163,7 +165,8 @@ def notificar_reservacion(sender, instance, created, **kwargs):
         notificar(
             staff_del_condominio(instance.unidad.edificio.condominio_id),
             f"{actor} canceló la reservación #{instance.pk}"
-            + (f" del {cuando:%d-%m-%Y %H:%M}." if cuando else "."),
+            + (f" del {cuando:%d-%m-%Y %H:%M}." if cuando else ".")
+            + (f" Motivo: {motivo}" if motivo else ""),
             remitente=actor, url=url,
         )
 

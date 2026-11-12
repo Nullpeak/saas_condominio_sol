@@ -1,0 +1,14 @@
+{% extends "core/base.html" %}
+{% block title %}Cuentas Mercado Pago | Gastos comunes{% endblock %}
+{% block page_title %}Cuentas vendedoras{% endblock %}
+{% block content %}
+<header class="page-intro"><h1>Cuentas Mercado Pago</h1><p>Vincula la cuenta vendedora que recibirá los pagos de cada condominio. Mercado Pago solicitará autorización al titular de la cuenta.</p></header>
+<div class="quick-links mt-0"><a class="button button-secondary" href="{% url 'gastos_comunes:lista' %}">Volver a gastos comunes</a></div>
+<div class="card"><strong>Antes de conectar:</strong> la autorización ocurre en Mercado Pago. Puede usar automáticamente la cuenta que ya está abierta en tu navegador. Verifica que sea la cuenta vendedora designada para este condominio antes de autorizar. Si Mercado Pago selecciona otra cuenta, cambia a la correcta allí y vuelve a iniciar la conexión. GDC nunca te pedirá la contraseña de Mercado Pago. Cada cuenta vendedora solo puede quedar vinculada a un condominio.</div>
+{% if mercadopago_modo_prueba %}<div class="card"><strong>Ambiente de prueba.</strong> Conecta una cuenta vendedora de prueba de Mercado Pago. Para pagar, usa una cuenta compradora de prueba distinta; no se usarán cuentas ni correos reales.</div>{% else %}<div class="card"><strong>Ambiente de producción.</strong> Las cuentas conectadas y pagos pueden ser reales.</div>{% endif %}
+<div class="card"><div class="table-responsive"><table class="table align-middle mb-0"><thead><tr><th>Condominio</th><th>Cuenta vinculada</th><th>Acción</th></tr></thead><tbody>
+{% for condominio in condominios %}<tr><td>{{ condominio.nombre }}</td><td>{% if condominio.mercadopago_conexion %}Vendedor terminado en {{ condominio.mercadopago_conexion.vendedor_id|slice:"-4:" }} · {% if condominio.mercadopago_conexion.modo_prueba %}Prueba{% else %}Producción{% endif %}{% else %}<span class="text-muted">Sin conectar</span>{% endif %}</td><td><form method="post" action="{% url 'gastos_comunes:mercadopago_conectar' condominio.id %}" class="d-inline">{% csrf_token %}<button class="button" type="submit">{% if condominio.mercadopago_conexion %}Volver a autorizar{% else %}Conectar cuenta{% endif %}</button></form>{% if condominio.mercadopago_conexion %} <form method="post" action="{% url 'gastos_comunes:mercadopago_desconectar' condominio.id %}" class="d-inline">{% csrf_token %}<button class="button button-secondary" type="submit">Desconectar</button></form>{% endif %}</td></tr>
+{% empty %}<tr><td colspan="3" class="text-center text-muted py-4">No tienes condominios asignados para administrar.</td></tr>{% endfor %}
+</tbody></table></div></div>
+<p class="text-muted small">Los pagos se procesan con el token OAuth cifrado de la cuenta vendedora correspondiente. El personal de administración no puede ver los tokens.</p>
+{% endblock %}

@@ -7,7 +7,7 @@
     <p>{% if es_gestion %}Períodos, liquidaciones y pagos de tus condominios.{% else %}Liquidaciones e historial de tu unidad.{% endif %}</p>
 </header>
 {% if es_gestion %}
-    <div class="quick-links mt-0"><a class="button" href="{% url 'gastos_comunes:periodo_nuevo' %}">Crear período mensual</a></div>
+    <div class="quick-links mt-0"><a class="button" href="{% url 'gastos_comunes:periodo_nuevo' %}">Crear período mensual</a>{% if puede_configurar_mp %}<a class="button button-secondary" href="{% url 'gastos_comunes:mercadopago_cuentas' %}">Cuentas Mercado Pago</a>{% endif %}</div>
     <div class="card">
         <div class="table-responsive"><table class="table align-middle mb-0">
             <thead><tr><th>Período</th><th>Condominio</th><th>Vencimiento</th><th>Estado</th><th></th></tr></thead>
@@ -20,6 +20,7 @@
             </tbody>
         </table></div>
     </div>
+    {% include "core/_paginacion.html" %}
 {% else %}
     <div class="card">
         <div class="table-responsive"><table class="table align-middle mb-0">
@@ -37,5 +38,6 @@
             {% empty %}<tr><td colspan="6" class="text-center text-muted py-4">Aún no hay liquidaciones publicadas para tus unidades.</td></tr>{% endfor %}</tbody>
         </table></div>
     </div>
+    {% include "core/_paginacion.html" %}
 {% endif %}
 {% endblock %}

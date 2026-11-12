@@ -80,6 +80,7 @@
                 </section>
             {% endfor %}
         </div>
+        {% include "core/_paginacion.html" %}
     {% else %}
         <div class="py-4"><h3 class="h5">No hay anuncios para mostrar</h3><p class="text-muted mb-0">Cuando haya una publicación disponible, aparecerá aquí.</p></div>
     {% endif %}

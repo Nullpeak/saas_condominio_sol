@@ -15,6 +15,15 @@
 
     <form method="get" class="row g-3 align-items-end mb-4 p-3 rounded" style="background: #f8fafc;">
         <input type="hidden" name="todas" value="1">
+        {% if puede_gestionar and condominios_filtro|length > 1 %}
+        <div class="col-sm-6 col-lg-2">
+            <label for="condominio" class="form-label">Condominio</label>
+            <select id="condominio" name="condominio" class="form-select">
+                <option value="">Todos</option>
+                {% for condominio in condominios_filtro %}<option value="{{ condominio.pk }}" {% if condominio_filtro == condominio.pk|stringformat:"s" %}selected{% endif %}>{{ condominio.nombre }}</option>{% endfor %}
+            </select>
+        </div>
+        {% endif %}
         <div class="col-sm-6 col-lg-2">
             <label for="fecha" class="form-label">Día de visita</label>
             <input type="date" id="fecha" name="fecha" value="{{ fecha_filtro }}" class="form-control">
@@ -105,6 +114,7 @@
                 </tbody>
             </table>
         </div>
+        {% include "core/_paginacion.html" %}
     {% else %}
         <div class="text-center py-5">
             <h3 class="h5 mt-3">No encontramos visitas</h3>

@@ -28,6 +28,13 @@ DEBUG = True
 
 ALLOWED_HOSTS = ['*']
 
+# Trusted HTTPS origins for local testing through a temporary tunnel (for example ngrok).
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get("CSRF_TRUSTED_ORIGINS", "").split(",")
+    if origin.strip()
+]
+
 
 # Application definition
 
@@ -55,6 +62,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'core.middleware.ActorAuditoriaMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -132,10 +140,14 @@ MEDIA_URL = '/media/'
 
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
-# Mercado Pago remains restricted to the test environment until a separate
-# production rollout is explicitly implemented and reviewed.
-MERCADOPAGO_TEST_ACCESS_TOKEN = os.environ.get("MERCADOPAGO_TEST_ACCESS_TOKEN", "").strip()
+MERCADOPAGO_CLIENT_ID = os.environ.get("MERCADOPAGO_CLIENT_ID", "").strip()
+MERCADOPAGO_CLIENT_SECRET = os.environ.get("MERCADOPAGO_CLIENT_SECRET", "").strip()
+MERCADOPAGO_REDIRECT_URI = os.environ.get("MERCADOPAGO_REDIRECT_URI", "").strip()
+MERCADOPAGO_TOKEN_ENCRYPTION_KEY = os.environ.get("MERCADOPAGO_TOKEN_ENCRYPTION_KEY", "").strip()
+MERCADOPAGO_ENVIRONMENT = os.environ.get("MERCADOPAGO_ENVIRONMENT", "test").strip().lower()
 MERCADOPAGO_TEST_WEBHOOK_SECRET = os.environ.get("MERCADOPAGO_TEST_WEBHOOK_SECRET", "").strip()
+MERCADOPAGO_WEBHOOK_SECRET = os.environ.get("MERCADOPAGO_WEBHOOK_SECRET", "").strip()
+MERCADOPAGO_WEBHOOK_URL = os.environ.get("MERCADOPAGO_WEBHOOK_URL", "").strip()
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 

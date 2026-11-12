@@ -13,6 +13,7 @@ pylint-celery = "*"
 phonenumbers = "==9.0.41"
 geonamescache = "==3.0.2"
 celery = "*"
+cryptography = "==46.0.3"
 pywin32 = {version = "*", markers = "sys_platform == 'win32'"}
 
 [dev-packages]

@@ -34,6 +34,7 @@
             <div class="col-md-6">
                 <label for="fecha_visita" class="form-label">Día de visita</label>
                 <input type="date" id="fecha_visita" name="fecha_visita" class="form-control" min="{{ hoy }}" value="{{ datos.fecha_visita|default:hoy }}" required>
+                <small class="text-muted">La fecha parte en hoy, {{ hoy|date:"d/m/Y" }}; cámbiala si la visita será otro día.</small>
             </div>
             <div class="col-md-6">
                 <label for="patente_vehiculo" class="form-label">Patente (opcional)</label>

@@ -117,6 +117,20 @@
 
                 </div>
 
+                <div class="form-check mb-3">
+                    <input
+                        type="checkbox"
+                        id="requiere_gastos_al_dia"
+                        name="requiere_gastos_al_dia"
+                        class="form-check-input"
+                        {% if datos.requiere_gastos_al_dia %}checked{% endif %}
+                    >
+                    <label for="requiere_gastos_al_dia" class="form-check-label">
+                        <strong>Exigir gastos comunes al día para reservar</strong>
+                    </label>
+                    <div class="form-text">Actívalo solo si esta condición corresponde al reglamento del condominio.</div>
+                </div>
+
 
                 <div class="form-check mb-3">
                     <input type="checkbox" id="permite_multiples_reservas_por_unidad_dia" name="permite_multiples_reservas_por_unidad_dia" class="form-check-input" {% if datos.permite_multiples_reservas_por_unidad_dia or not datos %}checked{% endif %}>

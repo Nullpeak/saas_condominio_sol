@@ -1,0 +1,101 @@
+{% extends "core/base.html" %}
+
+{% block title %}{{ administrador.nombre }} {{ administrador.apellido }} | Comunidad al Día{% endblock %}
+{% block page_title %}Ficha de administrador{% endblock %}
+
+{% block content %}
+<div class="quick-links mt-0 mb-4">
+    <a class="button button-secondary" href="{% url 'administracion' %}">Volver a administradores</a>
+</div>
+
+<header class="page-intro">
+    <h1>{{ administrador.nombre }} {{ administrador.nombre2 }} {{ administrador.apellido }} {{ administrador.apellido2 }}</h1>
+    <p>Información de la cuenta de administración y de los condominios que tiene asignados.</p>
+</header>
+
+<section class="card mb-4" aria-labelledby="datos-admin">
+    <h2 class="h5" id="datos-admin">Datos del administrador</h2>
+    <div class="row g-3">
+        <div class="col-sm-6 col-lg-4"><span class="text-secondary">Correo</span><div class="fw-semibold">{{ administrador.email }}</div></div>
+        <div class="col-sm-6 col-lg-4"><span class="text-secondary">Teléfono</span><div class="fw-semibold">{{ administrador.telefono|default:"No registrado" }}</div></div>
+        <div class="col-sm-6 col-lg-4"><span class="text-secondary">RUT</span><div class="fw-semibold">{{ administrador.rut|default:"No registrado" }}</div></div>
+        <div class="col-sm-6 col-lg-4"><span class="text-secondary">Estado</span><div class="fw-semibold">{% if administrador.activo %}Activo{% else %}Inactivo{% endif %}</div></div>
+        <div class="col-sm-6 col-lg-4"><span class="text-secondary">Usuario de acceso</span><div class="fw-semibold">{% if administrador.user %}{{ administrador.user.username }}{% else %}Sin cuenta vinculada{% endif %}</div></div>
+        <div class="col-sm-6 col-lg-4"><span class="text-secondary">Último acceso</span><div class="fw-semibold">{% if administrador.user and administrador.user.last_login %}{{ administrador.user.last_login|date:"d/m/Y H:i" }}{% else %}Sin ingresos registrados{% endif %}</div></div>
+        <div class="col-sm-6 col-lg-4"><span class="text-secondary">Cuenta creada</span><div class="fw-semibold">{% if administrador.user %}{{ administrador.user.date_joined|date:"d/m/Y" }}{% else %}No disponible{% endif %}</div></div>
+    </div>
+</section>
+
+<section aria-labelledby="condominios-admin">
+    <h2 class="section-heading" id="condominios-admin">Condominios asignados</h2>
+    {% for condominio in condominios %}
+        <article class="card mb-4">
+            <header class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+                <div><h3 class="h4 mb-1">{{ condominio.nombre }}</h3><p class="text-secondary mb-0">{{ condominio.direccion }} · {{ condominio.ciudad.nombre }}{% if condominio.creado %} · Registrado el {{ condominio.creado|date:"d/m/Y" }}{% endif %}</p></div>
+                {% if condominio.activo %}<span class="badge text-bg-success">Activo</span>{% else %}<span class="badge text-bg-secondary">Inactivo</span>{% endif %}
+            </header>
+
+            <div class="row g-3 mb-4">
+                <div class="col-6 col-lg"><div class="border rounded p-3 h-100"><span class="text-secondary">Edificios</span><div class="fs-4 fw-semibold">{{ condominio.edificios_detalle|length }}</div></div></div>
+                <div class="col-6 col-lg"><div class="border rounded p-3 h-100"><span class="text-secondary">Unidades activas</span><div class="fs-4 fw-semibold">{{ condominio.unidades_activas_total }}</div></div></div>
+                <div class="col-6 col-lg"><div class="border rounded p-3 h-100"><span class="text-secondary">Unidades desactivadas</span><div class="fs-4 fw-semibold">{{ condominio.unidades_inactivas_total }}</div></div></div>
+                <div class="col-6 col-lg"><div class="border rounded p-3 h-100"><span class="text-secondary">Áreas comunes</span><div class="fs-4 fw-semibold">{{ condominio.areas_detalle|length }}</div></div></div>
+                <div class="col-6 col-lg"><div class="border rounded p-3 h-100"><span class="text-secondary">Residentes activos</span><div class="fs-4 fw-semibold">{{ condominio.residentes_activos_total }}</div></div></div>
+            </div>
+
+            <div class="mb-4">
+                <h4 class="h6">Administradores asignados</h4>
+                {% for asignado in condominio.administradores_detalle %}<span class="badge text-bg-light border me-1 mb-1">{{ asignado.nombre }} {{ asignado.apellido }}{% if not asignado.activo %} · inactivo{% endif %}</span>{% empty %}<span class="text-secondary">Sin administradores asignados</span>{% endfor %}
+            </div>
+
+            <div class="mb-4">
+                <h4 class="h6">Áreas comunes</h4>
+                {% if condominio.areas_detalle %}
+                    <div class="row g-3">
+                        {% for area in condominio.areas_detalle %}
+                            <div class="col-12 col-xl-6">
+                                <div class="border rounded p-3 h-100">
+                                    <div class="d-flex flex-wrap justify-content-between gap-2"><strong>{{ area.nombre }}</strong><span class="text-secondary">{% if area.reservable %}Reservable{% else %}No reservable{% endif %}</span></div>
+                                    {% if area.descripcion %}<p class="mb-2 mt-2">{{ area.descripcion }}</p>{% endif %}
+                                    <div class="small text-secondary">Capacidad: {{ area.capacidad|default:"No indicada" }} · Duración máxima: {% if area.duracion_maxima %}{{ area.duracion_maxima }} h{% else %}Sin límite indicado{% endif %}</div>
+                                    {% if area.costo %}<div class="small text-secondary">Costo: {{ area.costo.nombre }} (${{ area.costo.monto }})</div>{% endif %}
+                                    <div class="small text-secondary">Reserva obligatoria: {% if area.requiere_reserva %}Sí{% else %}No{% endif %} · Gastos al día: {% if area.requiere_gastos_al_dia %}Sí{% else %}No{% endif %}</div>
+                                    {% if area.horarios_detalle %}<ul class="small mb-0 mt-2">{% for horario in area.horarios_detalle %}<li>{{ horario.dia }}: {{ horario.inicio|time:"H:i" }}–{{ horario.fin|time:"H:i" }}</li>{% endfor %}</ul>{% else %}<div class="small text-secondary mt-2">Sin horarios configurados</div>{% endif %}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}<p class="text-secondary">No hay áreas comunes registradas.</p>{% endif %}
+            </div>
+
+            <div>
+                <h4 class="h6">Edificios y unidades</h4>
+                {% for edificio in condominio.edificios_detalle %}
+                    <details class="border rounded mb-2">
+                        <summary class="p-3" role="button">
+                            <strong>{{ edificio.nombre }}</strong>
+                            <span class="text-secondary"> · {% if edificio.activo %}Activo{% else %}Inactivo{% endif %} · {{ edificio.numero_pisos|default:"—" }} pisos · {{ edificio.viviendas_por_piso|default:"—" }} viviendas por piso · {{ edificio.unidades_activas|length }} unidades activas</span>
+                        </summary>
+                        <div class="p-3 pt-0">
+                            {% if edificio.unidades_detalle %}
+                                <div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead><tr><th>Unidad</th><th>Estado</th><th>Propietario</th><th>Arrendatario</th><th>Alícuota</th></tr></thead><tbody>
+                                    {% for unidad in edificio.unidades_detalle %}
+                                        <tr{% if not unidad.activo %} class="text-secondary table-light"{% endif %}>
+                                            <td>{{ unidad.numero_unidad }}</td><td>{% if unidad.activo %}Activa{% else %}Desactivada{% endif %}</td>
+                                            <td>{% if unidad.dueno %}{{ unidad.dueno.nombre }} {{ unidad.dueno.apellido }}{% if not unidad.propietario_vive %} · no vive ahí{% endif %}{% else %}Sin propietario registrado{% endif %}</td>
+                                            <td>{% if unidad.arrendatario %}{{ unidad.arrendatario.nombre }} {{ unidad.arrendatario.apellido }}{% else %}—{% endif %}</td>
+                                            <td>{% if unidad.tiene_alicuota %}{{ unidad.alicuota }}%{% else %}Sin configurar{% endif %}</td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody></table></div>
+                            {% else %}<p class="text-secondary mb-0">Sin unidades generadas.</p>{% endif %}
+                        </div>
+                    </details>
+                {% empty %}<p class="text-secondary">No hay edificios registrados.</p>{% endfor %}
+            </div>
+        </article>
+    {% empty %}
+        <div class="card"><p class="text-secondary mb-0">Este administrador no tiene condominios asignados.</p></div>
+    {% endfor %}
+</section>
+{% endblock %}

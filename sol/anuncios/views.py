@@ -11,6 +11,7 @@ from django.utils import timezone
 from django.urls import reverse
 
 from core.models import Condominio, Edificio, Unidad
+from core.paginacion import paginar
 from .models import (
     AnuncioOficial,
     AnuncioResidente,
@@ -145,11 +146,13 @@ def lista(request):
             anuncios = anuncios.filter(estado=estado_filtro)
         else:
             anuncios = anuncios.exclude(estado=AnuncioResidente.Estado.ARCHIVADO)
-    grupos = _agrupar_por_dia(list(anuncios.order_by("-creado", "-id")))
+    paginacion = paginar(request, anuncios.order_by("-creado", "-id"))
+    grupos = _agrupar_por_dia(paginacion["page_obj"].object_list)
     return render(request, "anuncios/lista.html", {
         "perfil": perfil,
         "tipo": tipo,
         "grupos": grupos,
+        **paginacion,
         "busqueda": busqueda,
         "desde": desde,
         "hasta": hasta,
@@ -213,7 +216,6 @@ def crear(request):
         edificios = []
         unidades = []
         if residente:
-            # La unidad se obtiene desde el perfil, nunca desde un campo editable del formulario.
             unidad = unidad_anuncio
             if not unidad:
                 errores.append("Tu cuenta no tiene una unidad asignada para publicar anuncios.")

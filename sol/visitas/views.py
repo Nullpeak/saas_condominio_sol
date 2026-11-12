@@ -8,6 +8,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from core.models import Unidad
+from core.paginacion import paginar
 from .models import Visita
 
 
@@ -58,6 +59,7 @@ def lista(request):
 
     hoy = timezone.localdate()
     unidades = unidades_visibles(usuario)
+    condominios_filtro = usuario.condominios_asignados().filter(activo=True).order_by("nombre") if puede_gestionar(usuario) else None
     visitas = Visita.objects.select_related(
         "condominio", "edificio", "unidad", "unidad__edificio", "registrado_por"
     )
@@ -66,10 +68,18 @@ def lista(request):
     elif not es_super(usuario):
         visitas = visitas.filter(condominio__in=usuario.condominios_asignados())
 
-    # Las visitas pendientes de días anteriores pasan al historial como Sin registro.
-    visitas.filter(fecha_visita__lt=hoy, estado=Visita.Estado.PENDIENTE).update(
-        estado=Visita.Estado.SIN_REGISTRO
-    )
+    condominio_filtro = request.GET.get("condominio", "").strip() if puede_gestionar(usuario) else ""
+    if condominio_filtro.isdigit() and condominios_filtro.filter(pk=condominio_filtro).exists():
+        visitas = visitas.filter(condominio_id=condominio_filtro)
+        unidades = unidades.filter(edificio__condominio_id=condominio_filtro)
+    else:
+        condominio_filtro = ""
+
+    # Registrar este cambio automático en el historial administrativo.
+    visitas_vencidas = visitas.filter(fecha_visita__lt=hoy, estado=Visita.Estado.PENDIENTE)
+    for visita_vencida in visitas_vencidas:
+        visita_vencida.estado = Visita.Estado.SIN_REGISTRO
+        visita_vencida.save(update_fields=["estado"])
 
     ver_todas = request.GET.get("todas") == "1"
     fecha_filtro = request.GET.get("fecha", "")
@@ -106,9 +116,11 @@ def lista(request):
     else:
         estado_filtro = ""
 
+    orden_visitas = ("fecha_visita", "tiempo_llegada", "nombre", "pk") if fecha_filtro else ("-fecha_visita", "-tiempo_llegada", "-pk")
+    paginacion = paginar(request, visitas.order_by(*orden_visitas))
     return render(request, "visitas/lista.html", {
         "usuario_actual": usuario,
-        "visitas": visitas.order_by("fecha_visita", "tiempo_llegada", "nombre"),
+        "visitas": paginacion["page_obj"],
         "unidades": unidades,
         "fecha_filtro": fecha_filtro,
         "unidad_filtro": unidad_filtro,
@@ -120,6 +132,9 @@ def lista(request):
         "es_fecha_hoy": fecha_filtro == hoy.isoformat(),
         "ver_todas": ver_todas,
         "puede_gestionar": puede_gestionar(usuario),
+        "condominios_filtro": condominios_filtro,
+        "condominio_filtro": condominio_filtro,
+        **paginacion,
     })
 
 

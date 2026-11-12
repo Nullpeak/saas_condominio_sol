@@ -3,12 +3,193 @@
 {% block title %}Inicio | Comunidad al Día{% endblock %}
 {% block page_title %}Inicio{% endblock %}
 
+{% block extra_css %}
+<style>
+    .dashboard-filter { display:flex; flex-wrap:wrap; align-items:end; gap:12px; }
+    .dashboard-filter label { display:block; margin-bottom:5px; color:#475569; font-size:13px; }
+    .dashboard-filter select { min-width:240px; min-height:40px; padding:7px 10px; border:1px solid #cbd5e1; border-radius:6px; background:white; }
+    .dashboard-condo { margin-bottom:24px; padding:22px; border:1px solid #e2e8f0; border-radius:10px; background:white; }
+    .dashboard-condo h2 { margin:0; font-size:19px; }
+    .dashboard-kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(175px,1fr)); gap:14px; margin:22px 0; }
+    .dashboard-kpi { min-height:112px; padding:17px; border:1px solid #e2e8f0; border-radius:10px; background:#fff; box-shadow:0 2px 8px #0f172a08; }
+    .dashboard-kpi span { display:block; color:#64748b; font-size:12px; font-weight:600; letter-spacing:.02em; }
+    .dashboard-kpi strong { display:block; margin-top:8px; color:#172033; font-size:25px; line-height:1.15; }
+    .dashboard-kpi small { display:block; margin-top:6px; }
+    .dashboard-kpi-primary { border-top:3px solid #2563eb; }
+    .dashboard-kpi-alert { border-top:3px solid #dc2626; }
+    .dashboard-visuals { display:grid; grid-template-columns:minmax(0,1.4fr) minmax(240px,.8fr); gap:16px; margin-top:18px; }
+    .dashboard-visual-card { min-height:155px; padding:20px; border:1px solid #e2e8f0; border-radius:10px; background:#fff; }
+    .dashboard-visual-card h3 { margin:0 0 8px; font-size:15px; }
+    .dashboard-progress-label { display:flex; justify-content:space-between; gap:12px; margin:16px 0 8px; color:#475569; font-size:13px; }
+    .dashboard-progress-track { height:12px; overflow:hidden; border-radius:99px; background:#e2e8f0; }
+    .dashboard-progress-value { height:100%; width:var(--progress); border-radius:inherit; background:linear-gradient(90deg,#2563eb,#38bdf8); }
+    .dashboard-progress-legend { display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px; margin-top:10px; color:#475569; font-size:13px; }
+    .dashboard-mora-card { background:#fffafa; border-color:#fecaca; }
+    .dashboard-mora-value { display:block; margin:8px 0 2px; color:#b91c1c; font-size:25px; font-weight:700; }
+    .dashboard-mora-clear { color:#15803d; }
+    .dashboard-section-label { margin:0 0 5px; color:#2563eb; font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; }
+    .work-queue-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:12px; }
+    .work-queue-item { display:flex; flex-direction:column; gap:7px; min-height:132px; padding:16px; border:1px solid #e2e8f0; border-left:4px solid #2563eb; border-radius:9px; background:#fff; color:#172033; text-decoration:none; }
+    .work-queue-item:hover { border-color:#93c5fd; box-shadow:0 4px 14px #0f172a12; }
+    .work-queue-item.is-alert { border-left-color:#dc2626; background:#fffafa; }
+    .work-queue-item strong { font-size:26px; line-height:1; }
+    .work-queue-item small { color:#64748b; }
+    @media(max-width:760px) { .dashboard-visuals { grid-template-columns:1fr; } }
+    @media(max-width:600px) { .dashboard-filter select { width:100%; } }
+</style>
+{% endblock %}
+
 {% block content %}
 <header class="page-intro">
     <h1>Hola, {{ usuario.nombre }}</h1>
     <p>{{ usuario.get_rol_display }}{% if usuario.condominio %} · {{ usuario.condominio.nombre }}{% endif %}</p>
 </header>
 
+{% if es_dashboard_administrador %}
+<section class="card" aria-labelledby="dashboard-heading">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+        <div>
+            <h2 class="h5 mb-1" id="dashboard-heading">Resumen de gestión</h2>
+            <p class="text-secondary mb-0">“Todos mis condominios” muestra el consolidado. Elige uno para ver solo su detalle.</p>
+        </div>
+        <form method="get" class="dashboard-filter">
+            <div>
+                <label for="condominio-dashboard">Condominio</label>
+                <select id="condominio-dashboard" name="condominio">
+                    <option value="">Todos mis condominios</option>
+                    {% for condominio in condominios %}
+                    <option value="{{ condominio.pk }}" {% if condominio_filtro == condominio.pk|stringformat:"s" %}selected{% endif %}>{{ condominio.nombre }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button class="button" type="submit">Ver resumen</button>
+        </form>
+    </div>
+</section>
+
+{% if resumen_todos %}
+<section class="dashboard-condo" aria-labelledby="resumen-total-heading">
+    <div>
+        <p class="dashboard-section-label">Panel ejecutivo</p>
+        <h2 id="resumen-total-heading">Consolidado de mis condominios</h2>
+        <p class="text-secondary mb-0">Incluye {{ resumen_todos.cantidad_condominios }} condominios. Los montos suman el período publicado más reciente de cada uno ({{ resumen_todos.periodos_con_datos }} con datos).</p>
+    </div>
+    <div class="dashboard-kpis">
+        <div class="dashboard-kpi dashboard-kpi-primary"><span>Total liquidado en los períodos publicados</span><strong>${{ resumen_todos.total_liquidado|floatformat:0 }}</strong><small class="text-secondary">Un período reciente por condominio</small></div>
+        <div class="dashboard-kpi dashboard-kpi-primary">
+            <span>Pagos confirmados</span><strong>${{ resumen_todos.total_pagado|floatformat:0 }}</strong>
+            <small class="text-secondary">{{ resumen_todos.porcentaje_pagado }}% recaudado</small>
+        </div>
+        <div class="dashboard-kpi"><span>Saldo pendiente</span><strong>${{ resumen_todos.total_pendiente|floatformat:0 }}</strong><small class="text-secondary">En los períodos incluidos arriba</small></div>
+        <a class="dashboard-kpi text-decoration-none" href="{% url 'reservaciones_lista' %}"><span>Reservas próximas</span><strong>{{ resumen_todos.reservas_proximas }}</strong><small class="text-secondary">La reserva queda confirmada automáticamente.</small></a>
+        <a class="dashboard-kpi text-decoration-none" href="{% url 'tickets:lista' %}"><span>Tickets abiertos</span><strong>{{ resumen_todos.tickets_abiertos }}</strong><small class="text-secondary">{{ resumen_todos.tickets_en_atencion }} en atención · {{ resumen_todos.tickets_resueltos }} resueltos o cerrados</small></a>
+    </div>
+    <div class="dashboard-visuals">
+        <div class="dashboard-visual-card">
+            <h3>Avance de recaudación</h3>
+            <div class="dashboard-progress-label"><span>Porcentaje recaudado</span><strong>{{ resumen_todos.porcentaje_pagado }}%</strong></div>
+            <div class="dashboard-progress-track" role="progressbar" aria-label="Avance de recaudación consolidado" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ resumen_todos.porcentaje_pagado }}"><div class="dashboard-progress-value" style="--progress:{{ resumen_todos.porcentaje_pagado }}%"></div></div>
+            <div class="dashboard-progress-legend"><span>Pagado <strong>${{ resumen_todos.total_pagado|floatformat:0 }}</strong></span><span>Pendiente <strong>${{ resumen_todos.total_pendiente|floatformat:0 }}</strong></span></div>
+            <div>
+                {% if resumen_todos.periodos_con_datos == 0 %}<small class="text-secondary">Aún no hay períodos publicados para comparar.</small>{% endif %}
+            </div>
+        </div>
+        <div class="dashboard-visual-card dashboard-mora-card">
+            <div>
+                <h3>Morosidad</h3>
+                {% if resumen_todos.morosidad_monto %}
+                <strong class="dashboard-mora-value">${{ resumen_todos.morosidad_monto|floatformat:0 }}</strong>
+                <p class="text-secondary mb-1">Saldo vencido en {{ resumen_todos.morosidad_unidades }} unidad{% if resumen_todos.morosidad_unidades != 1 %}es{% endif %}.</p>
+                {% else %}
+                <strong class="dashboard-mora-value dashboard-mora-clear">Sin morosidad</strong>
+                <p class="text-secondary mb-1">No hay saldos vencidos en los últimos períodos publicados.</p>
+                {% endif %}
+                <a href="{% url 'gastos_comunes:lista' %}" class="small">Revisar gastos comunes</a>
+            </div>
+        </div>
+    </div>
+</section>
+{% endif %}
+
+{% if condominio_filtro %}
+{% for panel in paneles_condominio %}
+<section class="dashboard-condo" aria-labelledby="condominio-{{ panel.condominio.pk }}">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div>
+            <p class="dashboard-section-label">Detalle del condominio</p>
+            <h2 id="condominio-{{ panel.condominio.pk }}">{{ panel.condominio.nombre }}</h2>
+            {% if panel.periodo %}
+            <p class="text-secondary mb-0">Último período publicado: {{ panel.periodo.mes|stringformat:"02d" }}/{{ panel.periodo.anio }}</p>
+            {% else %}
+            <p class="text-secondary mb-0">Todavía no hay períodos de gastos comunes publicados.</p>
+            {% endif %}
+        </div>
+        <a class="button button-secondary" href="{% url 'reportes' %}?condominio={{ panel.condominio.pk }}">Ver reportes</a>
+    </div>
+
+    <div class="dashboard-kpis">
+        <div class="dashboard-kpi">
+            <span>Total liquidado{% if panel.periodo %} en el último período{% endif %}</span>
+            <strong>{% if panel.periodo %}${{ panel.total_liquidado|floatformat:0 }}{% else %}—{% endif %}</strong>
+        </div>
+        <div class="dashboard-kpi"><span>Saldo pendiente</span><strong>{% if panel.periodo %}${{ panel.total_pendiente|floatformat:0 }}{% else %}—{% endif %}</strong><small class="text-secondary">Saldo del período mostrado</small></div>
+        <div class="dashboard-kpi">
+            <span>Pagos confirmados</span>
+            <strong>{% if panel.periodo %}${{ panel.total_pagado|floatformat:0 }}{% else %}—{% endif %}</strong>
+            {% if panel.periodo %}<small class="text-secondary">{{ panel.porcentaje_pagado }}% recaudado</small>{% endif %}
+        </div>
+        <a class="dashboard-kpi text-decoration-none" href="{% url 'reservaciones_lista' %}">
+            <span>Reservas próximas</span><strong>{{ panel.reservas_proximas }}</strong><small class="text-secondary">La reserva queda confirmada automáticamente.</small>
+        </a>
+        <a class="dashboard-kpi text-decoration-none" href="{% url 'tickets:lista' %}">
+            <span>Tickets abiertos</span><strong>{{ panel.tickets_abiertos }}</strong><small class="text-secondary">{{ panel.tickets_en_atencion }} en atención · {{ panel.tickets_resueltos }} resueltos o cerrados</small>
+        </a>
+    </div>
+
+    <div class="dashboard-visuals">
+        <div class="dashboard-visual-card">
+            <h3>Avance de recaudación</h3>
+            {% if panel.periodo %}
+            <div class="dashboard-progress-label"><span>Porcentaje recaudado</span><strong>{{ panel.porcentaje_pagado }}%</strong></div>
+            <div class="dashboard-progress-track" role="progressbar" aria-label="Avance de recaudación de {{ panel.condominio.nombre }}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ panel.porcentaje_pagado }}"><div class="dashboard-progress-value" style="--progress:{{ panel.porcentaje_pagado }}%"></div></div>
+            <div class="dashboard-progress-legend"><span>Pagado <strong>${{ panel.total_pagado|floatformat:0 }}</strong></span><span>Pendiente <strong>${{ panel.total_pendiente|floatformat:0 }}</strong></span></div>
+            {% else %}<p class="text-secondary mb-0">Sin períodos publicados.</p>{% endif %}
+        </div>
+        <div class="dashboard-visual-card dashboard-mora-card">
+            <div><h3>Morosidad</h3>
+                {% if panel.periodo and panel.morosidad_monto %}
+                <strong class="dashboard-mora-value">${{ panel.morosidad_monto|floatformat:0 }}</strong><p class="text-secondary mb-1">Saldo vencido en {{ panel.morosidad_unidades }} unidad{% if panel.morosidad_unidades != 1 %}es{% endif %}.</p>
+                {% elif panel.periodo %}<strong class="dashboard-mora-value dashboard-mora-clear">Sin morosidad</strong><p class="text-secondary mb-1">No hay saldos vencidos.</p>
+                {% else %}<p class="text-secondary mb-1">Sin períodos publicados para calcularla.</p>{% endif %}
+                <a href="{% url 'gastos_comunes:lista' %}" class="small">Revisar gastos comunes</a>
+            </div>
+        </div>
+    </div>
+</section>
+{% empty %}
+<section class="card"><p class="mb-0">No tienes condominios activos asignados para mostrar.</p></section>
+{% endfor %}
+{% endif %}
+{% endif %}
+
+{% if tareas_operativas %}
+<section class="card mb-4" aria-labelledby="bandeja-trabajo-heading">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+        <div><p class="dashboard-section-label">Seguimiento operativo</p><h2 class="h5 mb-1" id="bandeja-trabajo-heading">Bandeja de trabajo</h2><p class="text-secondary mb-0">Accesos directos a los asuntos que requieren seguimiento hoy o durante esta semana.</p></div>
+    </div>
+    <div class="work-queue-grid">
+        {% for tarea in tareas_operativas %}
+            <a class="work-queue-item {% if tarea.alerta %}is-alert{% endif %}" href="{{ tarea.url }}">
+                <span class="fw-semibold">{{ tarea.titulo }}</span>
+                <strong>{{ tarea.cantidad }}</strong>
+                <small>{{ tarea.detalle }}</small>
+            </a>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+
+{% if usuario.rol != "Super Administrador" and not es_dashboard_administrador %}
 <section class="card mb-4" aria-labelledby="seguimiento-heading">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
         <div><h2 class="h5 mb-1" id="seguimiento-heading">Seguimiento</h2><p class="text-secondary mb-0">Actividad pendiente de reservas y solicitudes.</p></div>
@@ -18,28 +199,6 @@
         <div class="col-md-6"><a class="d-flex justify-content-between align-items-center p-3 rounded border text-decoration-none" href="{% url 'tickets:lista' %}"><span>Tickets pendientes</span><strong class="fs-4">{{ tickets_pendientes }}</strong></a></div>
     </div>
 </section>
-
-{% if usuario.rol == "Super Administrador" or usuario.rol == "Administrador" %}
-    <section class="mb-5">
-        <h2 class="section-heading">Administración</h2>
-        <nav class="quick-links mt-0" aria-label="Accesos de administración">
-            <a class="button" href="{% url 'administracion' %}">Abrir administración</a>
-            <a class="button button-secondary" href="{% url 'usuarios_lista' %}">Usuarios</a>
-            <a class="button button-secondary" href="{% url 'condominios_lista' %}">Condominios</a>
-        </nav>
-    </section>
 {% endif %}
 
-<section>
-    <h2 class="section-heading">Accesos rápidos</h2>
-    <nav class="quick-links mt-0" aria-label="Módulos">
-        <a class="btn btn-outline-secondary" href="{% url 'reservaciones_lista' %}">Reservas</a>
-        <a class="btn btn-outline-secondary" href="{% url 'visitas:lista' %}">Visitas</a>
-        <a class="btn btn-outline-secondary" href="{% url 'tickets:lista' %}">Tickets</a>
-        <a class="btn btn-outline-secondary" href="{% url 'anuncios:lista' %}">Anuncios</a>
-        {% if usuario.rol == "Super Administrador" or usuario.rol == "Administrador" or usuario.rol == "Gestor" %}
-            <a class="btn btn-outline-secondary" href="{% url 'invitaciones:invitar' %}">Invitar usuarios</a>
-        {% endif %}
-    </nav>
-</section>
 {% endblock %}

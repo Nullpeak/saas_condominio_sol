@@ -56,28 +56,46 @@
 .bloque-horario:hover{background:#e9f2ff}
 .bloque-horario.disponible{background:#fff}
 .bloque-horario.fuera-horario{background:#f1f3f5;cursor:not-allowed}
-.bloque-horario.ocupado{background:#0d6efd;cursor:not-allowed;opacity:.75}
+.bloque-horario.ocupado{background:#fd7e14;cursor:not-allowed}
 .bloque-horario.pasado{background:#e9ecef;cursor:not-allowed}
 
 .bloque-horario.seleccionado{
-    background:#bfdbfe!important;
-    border-left:2px solid #2563eb;
-    border-right:2px solid #2563eb;
+    background:#0d6efd!important;
+    border-left:2px solid #0a58ca;
+    border-right:2px solid #0a58ca;
     z-index:2;
     cursor:move
 }
 
 .resize-handle{
     position:absolute;
-    left:0;
-    right:0;
+    left:50%;
+    width:32px;
     height:7px;
     z-index:8;
     cursor:ns-resize;
-    background:#2563eb;
-    opacity:.7
+    transform:translateX(-50%);
+    background:linear-gradient(180deg,#334155 0%,#111827 100%);
+    border-radius:2px;
+    box-shadow:0 1px 2px rgba(15,23,42,.4);
+    opacity:.9
 }
-.resize-handle:hover{opacity:1}
+.resize-handle::after{
+    content:"";
+    position:absolute;
+    left:calc(50% - 8px);
+    top:2px;
+    width:3px;
+    height:3px;
+    border-radius:50%;
+    background:#e2e8f0;
+    box-shadow:6px 0 0 #e2e8f0,12px 0 0 #e2e8f0
+}
+.resize-handle:hover{
+    background:linear-gradient(180deg,#475569 0%,#1e293b 100%);
+    box-shadow:0 1px 3px rgba(15,23,42,.55),0 0 0 1px rgba(255,255,255,.55);
+    opacity:1
+}
 .resize-handle.top{top:0}
 .resize-handle.bottom{bottom:0}
 
@@ -96,7 +114,8 @@
 .bloque-reserva{
     position:absolute;
     inset:2px;
-    background:#0d6efd;
+    background:#fd7e14;
+    border:1px solid #e8590c;
     border-radius:4px
 }
 
@@ -116,8 +135,8 @@
     bottom:2px;
     font-size:10px;
     font-weight:700;
-    color:#1d4ed8;
-    background:#eff6ff;
+    color:#fff;
+    background:#0a58ca;
     padding:1px 4px;
     border-radius:3px;
     z-index:6;
@@ -171,11 +190,11 @@
 
 .leyenda-disponible{background:#fff}
 .leyenda-fuera{background:#f1f3f5}
-.leyenda-ocupado{background:#0d6efd}
+.leyenda-ocupado{background:#fd7e14}
 
 .leyenda-seleccionado{
-    background:#bfdbfe;
-    border:2px solid #2563eb
+    background:#0d6efd;
+    border:2px solid #0a58ca
 }
 
 .mensaje-agenda{
@@ -211,6 +230,13 @@
                 </button>
             </div>
         {% endfor %}
+    {% endif %}
+
+    {% if errores %}
+        <div class="alert alert-danger" role="alert" aria-live="assertive">
+            <strong>No se pudo completar la reserva.</strong>
+            {% for error in errores %}<div>{{ error }}</div>{% endfor %}
+        </div>
     {% endif %}
 
     {% if form.errors %}
@@ -288,8 +314,7 @@
                         {% for unidad in unidades %}
 
                             <div class="form-control bg-light">
-                                {{ unidad.edificio.condominio.nombre }} · {{ unidad.edificio.nombre }} -
-                                Unidad {{ unidad.numero }}
+                                {{ unidad.edificio.nombre }} · Unidad {{ unidad.numero_unidad }}
                             </div>
 
                             <input type="hidden"
@@ -322,8 +347,7 @@
                             {% for unidad in unidades %}
 
                                 <option value="{{ unidad.id }}">
-                                    {{ unidad.edificio.condominio.nombre }} · {{ unidad.edificio.nombre }} -
-                                    Unidad {{ unidad.numero }}
+                                    {{ unidad.edificio.nombre }} · Unidad {{ unidad.numero_unidad }}
                                 </option>
 
                             {% endfor %}
@@ -379,7 +403,7 @@
 
                         <div class="leyenda-item">
                             <span class="leyenda-color leyenda-disponible"></span>
-                            Disponible
+                            Horario disponible
                         </div>
 
                         <div class="leyenda-item">
@@ -592,6 +616,12 @@
 
 
                         <div class="mb-4">
+                            <label for="cantidad_personas" class="form-label">Personas que asistirán</label>
+                            <input type="number" id="cantidad_personas" name="cantidad_personas" class="form-control" min="1" max="1000" value="{{ datos.cantidad_personas|default:'1' }}" required>
+                            <small id="ayuda-capacidad" class="form-text text-muted">Indica cuántas personas asistirán. Se validará con la capacidad del área seleccionada.</small>
+                        </div>
+
+                        <div class="mb-4">
 
                             <label for="notas"
                                    class="form-label">
@@ -722,6 +752,8 @@ const resumenFin=document.getElementById("resumen-fin");
 const reglaDuracion=document.getElementById("regla-duracion");
 const reglaAnticipacion=document.getElementById("regla-anticipacion");
 const reglaCapacidad=document.getElementById("regla-capacidad");
+const cantidadPersonas=document.getElementById("cantidad_personas");
+const ayudaCapacidad=document.getElementById("ayuda-capacidad");
 const reglaConsecutivas=document.getElementById("regla-consecutivas");
 const reglaMaxReservasDia=document.getElementById("regla-max-reservas-dia");
 const mensajeDuracion=document.getElementById("mensaje-duracion");
@@ -820,6 +852,12 @@ areaSelect.addEventListener("change",function(){
     resumenArea.innerHTML=
         "<strong>Área seleccionada:</strong> "+
         opcion.textContent.trim();
+
+    const capacidad=Number(opcion.dataset.capacidad||0);
+    cantidadPersonas.max=capacidad>0?String(capacidad):"1000";
+    ayudaCapacidad.textContent=capacidad>0
+        ?"Esta área admite hasta "+capacidad+" personas por reserva."
+        :"El área no tiene una capacidad máxima configurada.";
 
     cargarDisponibilidad();
 });

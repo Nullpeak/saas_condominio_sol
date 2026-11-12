@@ -1,7 +1,9 @@
 Para setear correo
-set EMAIL_HOST_USER=tucorreo@gmail.com
+set EMcd ..AIL_HOST_USER=tucorreo@gmail.com
 set EMAIL_HOST_PASSWORD=dncg lcoj bpui pjcl 
 
 
 pipenv run celery -A sol worker -l info --pool=solo
 pipenv run celery -A sol beat -l info
+
+

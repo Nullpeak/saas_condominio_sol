@@ -8,6 +8,17 @@ Unidades - {{ edificio.nombre }} - Comunidad al Día
 Unidades
 {% endblock %}
 
+{% block extra_css %}
+<style>
+    .unit-code-heading { display:flex; align-items:center; gap:7px; }
+    .unit-code-help { position:relative; display:inline-block; }
+    .unit-code-help summary { display:grid; place-items:center; width:20px; height:20px; border:1px solid #93c5fd; border-radius:50%; color:#1d4ed8; cursor:pointer; font-size:13px; font-weight:700; list-style:none; }
+    .unit-code-help summary::-webkit-details-marker { display:none; }
+    .unit-code-help-popover { position:absolute; z-index:20; top:26px; left:0; width:min(300px,75vw); padding:12px 14px; border:1px solid #cbd5e1; border-radius:8px; background:#fff; box-shadow:0 8px 24px #0f172a26; color:#334155; font-size:13px; font-weight:400; line-height:1.5; }
+    .unit-code { white-space:nowrap; font-weight:700; letter-spacing:.03em; color:#172033; }
+</style>
+{% endblock %}
+
 {% block content %}
 
 <!-- ============================== ENCABEZADO ============================== -->
@@ -39,7 +50,8 @@ Unidades
     </h2>
 
     <p style="color: #64748b;">
-        {{ unidades|length }} unidad{{ unidades|length|pluralize }} registrada{{ unidades|length|pluralize }}.
+        {{ total_activas }} activa{{ total_activas|pluralize }} y
+        {{ total_inactivas }} desactivada{{ total_inactivas|pluralize }}.
     </p>
 
 </div>
@@ -70,7 +82,12 @@ Unidades
                             border-bottom: 1px solid #e2e8f0;
                         "
                     >
-                        Unidad
+                        <span class="unit-code-heading">Código de unidad
+                            <details class="unit-code-help">
+                                <summary title="Explicación del código de unidad" aria-label="Explicar código de unidad">i</summary>
+                                <span class="unit-code-help-popover" role="note"><strong>Formato: Edificio-Piso-Departamento.</strong><br>Ejemplo: <strong>1-2-27</strong> significa edificio 1, piso 2, departamento 27. El formato se presenta separado para facilitar su lectura; el número interno guardado no se modifica.</span>
+                            </details>
+                        </span>
                     </th>
 
                     <th
@@ -90,7 +107,7 @@ Unidades
                             border-bottom: 1px solid #e2e8f0;
                         "
                     >
-                        Posición
+                        Departamento
                     </th>
 
                     <th
@@ -129,132 +146,15 @@ Unidades
 
 
             <tbody>
-
                 {% for unidad in unidades %}
-
-                    <tr>
-
-                        <td
-                            style="
-                                padding: 12px;
-                                border-bottom: 1px solid #e2e8f0;
-                            "
-                        >
-                            <strong>
-                                {{ unidad.numero_unidad }}
-                            </strong>
-                            <div style="margin-top:4px; font-size:12px; color:{% if unidad.activo %}#15803d{% else %}#64748b{% endif %};">{% if unidad.activo %}Activa{% else %}Inactiva{% endif %}</div>
-                        </td>
-
-
-                        <td
-                            style="
-                                padding: 12px;
-                                border-bottom: 1px solid #e2e8f0;
-                            "
-                        >
-                            {{ unidad.piso }}
-                        </td>
-
-
-                        <td
-                            style="
-                                padding: 12px;
-                                border-bottom: 1px solid #e2e8f0;
-                            "
-                        >
-                            {{ unidad.posicion }}
-                        </td>
-
-
-                        <td
-                            style="
-                                padding: 12px;
-                                border-bottom: 1px solid #e2e8f0;
-                            "
-                        >
-
-                            {% if unidad.dueno %}
-
-                                {{ unidad.dueno.nombre }}
-                                {{ unidad.dueno.apellido }}
-                                <div style="margin-top:4px; font-size:12px; color:#64748b;">{% if unidad.propietario_vive %}Vive en la unidad{% else %}No vive en la unidad{% endif %}</div>
-
-                            {% else %}
-
-                                <span style="color: #64748b;">
-                                    Sin propietario
-                                </span>
-
-                            {% endif %}
-
-                        </td>
-
-
-                        <td
-                            style="
-                                padding: 12px;
-                                border-bottom: 1px solid #e2e8f0;
-                            "
-                        >
-
-                            {% if unidad.arrendatario %}
-
-                                {{ unidad.arrendatario.nombre }}
-                                {{ unidad.arrendatario.apellido }}
-
-                            {% else %}
-
-                                <span style="color: #64748b;">
-                                    Sin arrendatario
-                                </span>
-
-                            {% endif %}
-
-                        </td>
-
-
-                        <td
-                            style="
-                                padding: 12px;
-                                border-bottom: 1px solid #e2e8f0;
-                            "
-                        >
-
-                            <a
-                                href="{% url 'unidad_editar' unidad.id %}"
-                                class="button"
-                            >
-                                Editar
-                            </a>
-                            <form method="post" action="{% url 'unidad_cambiar_estado' unidad.id %}" style="display:inline-block; margin-left:6px;">{% csrf_token %}<button class="button" type="submit">{% if unidad.activo %}Desactivar{% else %}Reactivar{% endif %}</button></form>
-
-                        </td>
-
-                    </tr>
-
-
+                    {% ifchanged unidad.activo %}
+                        {% if unidad.activo %}<tr><th colspan="6" style="padding:12px; text-align:left; background:#f1f5f9;">Unidades activas</th></tr>
+                        {% else %}<tr><th colspan="6" style="padding:12px; text-align:left; background:#e2e8f0; color:#64748b;">Unidades desactivadas · se conservan para consultar su historial</th></tr>{% endif %}
+                    {% endifchanged %}
+                    {% include "core/condominios/_unidad_fila.html" %}
                 {% empty %}
-
-                    <tr>
-
-                        <td
-                            colspan="6"
-                            style="
-                                padding: 30px;
-                                text-align: center;
-                                color: #64748b;
-                            "
-                        >
-
-                            Este edificio no tiene unidades generadas.
-
-                        </td>
-
-                    </tr>
-
+                    <tr><td colspan="6" style="padding:30px; text-align:center; color:#64748b;">Este edificio no tiene unidades generadas.</td></tr>
                 {% endfor %}
-
             </tbody>
 
         </table>
@@ -262,6 +162,8 @@ Unidades
     </div>
 
 </div>
+
+{% include "core/_paginacion.html" %}
 
 
 <!-- ============================== NAVEGACIÓN ============================== -->

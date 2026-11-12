@@ -1,4 +1,4 @@
-"""Generación y lectura de plantillas XLSX sin dependencias externas."""
+"""Generación y lectura de plantillas XLSX sin dependencias externas"""
 from io import BytesIO
 import posixpath
 import re
@@ -61,7 +61,7 @@ def crear_plantilla(titulo, instrucciones, encabezados, filas, anchos, columnas_
 
     current_row = ET.SubElement(data, f"{{{MAIN_NS}}}row", {"r": "1", "ht": "29", "customHeight": "1"})
     cell(1, 1, titulo, "2")
-    current_row = ET.SubElement(data, f"{{{MAIN_NS}}}row", {"r": "2", "ht": "30", "customHeight": "1"})
+    current_row = ET.SubElement(data, f"{{{MAIN_NS}}}row", {"r": "2", "ht": "54", "customHeight": "1"})
     cell(2, 1, instrucciones, "3")
     ET.SubElement(data, f"{{{MAIN_NS}}}row", {"r": "3", "ht": "8", "customHeight": "1"})
     current_row = ET.SubElement(data, f"{{{MAIN_NS}}}row", {"r": "4", "ht": "26", "customHeight": "1"})
@@ -78,6 +78,8 @@ def crear_plantilla(titulo, instrucciones, encabezados, filas, anchos, columnas_
                 style = "4" if col_idx in columnas_entrada else "5"
                 cell(row_idx, col_idx, valor, style)
     ET.SubElement(sheet, f"{{{MAIN_NS}}}autoFilter", {"ref": f"A4:{ultima}{max(4 + len(filas), 4)}"})
+    merge_cells = ET.SubElement(sheet, f"{{{MAIN_NS}}}mergeCells", {"count": "1"})
+    ET.SubElement(merge_cells, f"{{{MAIN_NS}}}mergeCell", {"ref": f"A2:{ultima}2"})
 
     styles = f'''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="{MAIN_NS}">
