@@ -87,12 +87,12 @@ def registrar_modelos_adicionales():
     from anuncios.models import AnuncioOficial, AnuncioResidente
     from gastos_comunes.models import ItemGasto, Liquidacion, PagoRegistrado, Periodo
     from mantenimientos.models import ElementoMantenimiento, RegistroMantenimiento
-    from tickets.models import Ticket, TicketVisita
+    from tickets.models import Ticket
     from visitas.models import Visita
 
     return _MODELOS_TRACKING + (
         AnuncioOficial, AnuncioResidente, ItemGasto, Liquidacion, PagoRegistrado,
-        Periodo, ElementoMantenimiento, RegistroMantenimiento, Ticket, TicketVisita,
+        Periodo, ElementoMantenimiento, RegistroMantenimiento, Ticket,
         Visita,
     )
 

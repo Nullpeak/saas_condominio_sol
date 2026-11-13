@@ -12,7 +12,7 @@ from anuncios.models import AnuncioResidente
 from core.models import Invitado, Reservacion, Usuario
 from gastos_comunes.models import PagoOnline, Periodo
 from invitaciones.models import Invitacion
-from tickets.models import Ticket, TicketComentario, TicketVisita
+from tickets.models import Ticket, TicketComentario
 from visitas.models import Visita
 
 from .models import Notification
@@ -96,7 +96,6 @@ def residentes_del_condominio(condominio_id):
 @receiver(pre_save, sender=PagoOnline)
 @receiver(pre_save, sender=AnuncioResidente)
 @receiver(pre_save, sender=Invitado)
-@receiver(pre_save, sender=TicketVisita)
 @receiver(pre_save, sender=Visita)
 @seguro
 def guardar_anterior(sender, instance, **kwargs):
@@ -136,8 +135,6 @@ def notificar_cambio_perfil(sender, instance, created, **kwargs):
 @receiver(post_save, sender=Reservacion)
 @seguro
 def notificar_reservacion(sender, instance, created, **kwargs):
-    if created and getattr(instance, "_desde_ticket", False):
-        return  # la aprobó el staff desde un ticket de visitas: el aviso lo da TicketVisita
     if created:
         notificar(
             staff_del_condominio(instance.unidad.edificio.condominio_id),
@@ -247,25 +244,6 @@ def notificar_comentario_ticket(sender, instance, created, **kwargs):
         destinatarios = [ticket.usuario, ticket.asignado]
         mensaje = f"Nueva respuesta de {autor} en el ticket #{ticket.pk}: {ticket.titulo}."
     notificar(destinatarios, mensaje, remitente=autor, url=url)
-
-
-@receiver(post_save, sender=TicketVisita)
-@seguro
-def notificar_visita_ticket(sender, instance, created, **kwargs):
-    anterior = getattr(instance, "_anterior", None)
-    if created or not anterior or anterior.estado == instance.estado:
-        return
-    ticket = instance.ticket
-    if instance.estado == TicketVisita.Estado.APROBADA:
-        mensaje = (f"Tu visita {instance.nombre} fue aprobada y quedó registrada para el "
-                   f"{instance.llegada:%d-%m-%Y %H:%M}.")
-    elif instance.estado == TicketVisita.Estado.RECHAZADA:
-        mensaje = f"Tu visita {instance.nombre} fue rechazada."
-        if instance.motivo_rechazo:
-            mensaje += f" Motivo: {instance.motivo_rechazo}"
-    else:
-        return
-    notificar([ticket.usuario], mensaje, remitente=instance.revisada_por, url=_url_ticket(ticket))
 
 
 # --------------------------------------------------------- Gastos comunes

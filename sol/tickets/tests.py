@@ -11,9 +11,8 @@ from django.utils import timezone
 from PIL import Image
 
 from core.models import Ciudad, Condominio, Unidad, Usuario
-from visitas.models import Visita
 from notis.models import Notification
-from .models import Ticket, TicketArchivo, TicketComentario, TicketEvento, TicketVisita
+from .models import Ticket, TicketArchivo, TicketComentario, TicketEvento
 
 MEDIA_TMP = tempfile.mkdtemp()
 Rol = Usuario.Rol
@@ -234,119 +233,6 @@ class TicketsTests(BaseTickets):
         self.assertEqual(t.estado, E.CERRADO)
 
 
-def fecha(dias, horas=0):
-    return timezone.localtime(timezone.now() + timedelta(days=dias, hours=horas)).strftime("%Y-%m-%dT%H:%M")
-
-
-def datos_visitas(*visitas):
-    data = {"visitas-TOTAL_FORMS": str(len(visitas)), "visitas-INITIAL_FORMS": "0",
-            "visitas-MIN_NUM_FORMS": "1", "visitas-MAX_NUM_FORMS": "10"}
-    for i, v in enumerate(visitas):
-        for k, val in v.items():
-            data[f"visitas-{i}-{k}"] = val
-    return data
-
-
-VISITA_ANA = {"nombre": "Ana Pérez", "rut": "12.345.678-5", "patente": "ab-cd 12", "llegada": fecha(1), "salida": fecha(1, 4)}
-VISITA_LUIS = {"nombre": "Luis Soto", "rut": "", "patente": "", "llegada": fecha(2), "salida": fecha(3)}
-
-
-@override_settings(MEDIA_ROOT=MEDIA_TMP)
-class VisitasTests(BaseTickets):
-
-    def crear_visitas(self, *visitas, **extra):
-        self.entrar(self.residente)
-        data = {"titulo": "Visitas del fin de semana", "categoria": "visitas", "descripcion": "Vienen mis primos",
-                "unidad": self.unidad.pk, **datos_visitas(*visitas), **extra}
-        r = self.post(reverse("tickets:crear"), data)
-        return r
-
-    def revisar(self, ticket, visita_id, decision, **data):
-        return self.post(reverse("tickets:revisar_visita", args=[ticket.pk, visita_id, decision]), data)
-
-    def test_solicitud_queda_pendiente_sin_registrar(self):
-        r = self.crear_visitas(VISITA_ANA, VISITA_LUIS)
-        self.assertEqual(r.status_code, 302)
-        t = Ticket.objects.get()
-        self.assertEqual(t.categoria, "visitas")
-        self.assertEqual(list(t.visitas.values_list("estado", flat=True)), ["pendiente", "pendiente"])
-        self.assertEqual(t.visitas.first().patente, "ABCD12")
-        self.assertFalse(Visita.objects.exists())
-        self.assertContains(self.client.get(reverse("tickets:detalle", args=[t.pk])), "Ana Pérez")
-
-    def test_validaciones(self):
-        # sin unidad
-        self.crear_visitas(VISITA_ANA, unidad="")
-        # salida antes de llegada
-        self.crear_visitas({**VISITA_ANA, "salida": fecha(0, 20)})
-        self.crear_visitas({**VISITA_ANA, "llegada": fecha(-2), "salida": fecha(-1)})
-        # RUT inválido
-        self.crear_visitas({**VISITA_ANA, "rut": "12.345.678-0"})
-        # sin ninguna visita
-        self.crear_visitas()
-        self.assertFalse(Ticket.objects.exists())
-
-    def test_otra_categoria_ignora_visitas(self):
-        self.crear_visitas({**VISITA_ANA, "nombre": ""}, categoria="mantencion")
-        t = Ticket.objects.get()
-        self.assertFalse(t.visitas.exists())
-
-    def test_aprobar_registra_y_rechazar_resuelve(self):
-        self.crear_visitas(VISITA_ANA, VISITA_LUIS)
-        t = Ticket.objects.get()
-        ana, luis = t.visitas.all()
-        Notification.objects.all().delete()
-
-        # El residente no puede aprobar
-        self.assertEqual(self.revisar(t, ana.pk, "aprobar").status_code, 403)
-
-        self.entrar(self.gestor)
-        self.revisar(t, ana.pk, "aprobar")
-        ana.refresh_from_db()
-        self.assertEqual(ana.estado, "aprobada")
-        v = ana.visita
-        self.assertEqual((v.nombre, v.patente_vehiculo, v.unidad, v.condominio, v.estado, v.registrado_por),
-                         ("Ana Pérez", "ABCD12", self.unidad, self.condo, Visita.Estado.PENDIENTE, self.gestor))
-        self.assertEqual(v.fecha_visita, timezone.localtime(ana.llegada).date())
-        t.refresh_from_db()
-        self.assertTrue(t.esta_abierto)  # queda Luis pendiente
-
-        # Aviso al residente
-        self.assertTrue(Notification.objects.filter(recipient=self.residente.user, message__contains="aprobada").exists())
-
-        # Aprobar dos veces no duplica
-        self.revisar(t, ana.pk, "aprobar")
-        self.assertEqual(Visita.objects.count(), 1)
-
-        self.revisar(t, luis.pk, "rechazar", motivo="Sin estacionamiento ese día")
-        luis.refresh_from_db()
-        self.assertEqual((luis.estado, luis.motivo_rechazo), ("rechazada", "Sin estacionamiento ese día"))
-        self.assertIsNone(luis.visita)
-        t.refresh_from_db()
-        self.assertEqual(t.estado, Ticket.Estado.RESUELTO)  # ya no quedan pendientes
-        self.assertEqual(Visita.objects.count(), 1)
-
-        # El residente ve la visita registrada en la app de visitas
-        self.entrar(self.residente)
-        self.assertContains(self.client.get(reverse("visitas:lista"), {"fecha": v.fecha_visita.isoformat()}), "Ana Pérez")
-
-    def test_aprobar_todas(self):
-        self.crear_visitas(VISITA_ANA, VISITA_LUIS)
-        t = Ticket.objects.get()
-        self.entrar(self.gestor)
-        self.revisar(t, 0, "aprobar")
-        self.assertEqual(Visita.objects.count(), 2)
-        t.refresh_from_db()
-        self.assertEqual(t.estado, Ticket.Estado.RESUELTO)
-
-    def test_staff_de_otro_condominio_no_aprueba(self):
-        self.crear_visitas(VISITA_ANA)
-        t = Ticket.objects.get()
-        self.entrar(self.gestor_otro)
-        self.assertEqual(self.revisar(t, 0, "aprobar").status_code, 404)
-        self.assertFalse(Visita.objects.exists())
-
-
 class IntegracionGdcTests(BaseTickets):
     """Lo que se sumó al unir con feature/gdc-requisitos-funcionales."""
 
@@ -409,3 +295,74 @@ class IntegracionGdcTests(BaseTickets):
                                                   "unidad": self.unidad.pk, "archivos": [falso]})
         self.assertEqual(r.status_code, 200)
         self.assertEqual(Ticket.objects.count(), 1)
+
+
+class BandejaTests(BaseTickets):
+    """Vista tipo chat: carpetas, filtros que se mantienen y acciones rápidas."""
+
+    def carpeta(self, nombre, **extra):
+        return self.client.get(reverse("tickets:lista"), {"carpeta": nombre, **extra})
+
+    def test_carpetas_del_staff(self):
+        t1 = self.crear(titulo="Uno")
+        t2 = self.crear(titulo="Dos")
+        Ticket.objects.filter(pk=t2.pk).update(asignado=self.gestor, estado=E.EN_REVISION)
+        self.entrar(self.gestor)
+        r = self.carpeta("pendientes")
+        conteos = {c: n for c, _, n in r.context["carpetas"]}
+        self.assertEqual((conteos["pendientes"], conteos["sin_asignar"], conteos["mios"]), (2, 1, 1))
+        self.assertEqual([t.pk for t in self.carpeta("mios").context["page"]], [t2.pk])
+        self.assertEqual([t.pk for t in self.carpeta("sin_asignar").context["page"]], [t1.pk])
+        self.assertIsNone(r.context.get("ticket"))
+
+    def test_residente_ve_sus_carpetas_y_el_detalle_en_la_misma_pagina(self):
+        t = self.crear()
+        r = self.client.get(reverse("tickets:detalle", args=[t.pk]), {"carpeta": "pendientes"})
+        self.assertEqual(r.status_code, 200)
+        self.assertTemplateUsed(r, "tickets/bandeja.html")
+        self.assertEqual(r.context["ticket"], t)
+        self.assertEqual([c for c, _, _ in r.context["carpetas"]], ["pendientes", "cerrados", "todos"])
+        self.assertContains(r, 'class="tkx-item p-', count=1)
+
+    def test_me_lo_asigno_y_vuelve_con_los_filtros(self):
+        t = self.crear()
+        self.entrar(self.gestor)
+        r = self.client.get(reverse("tickets:detalle", args=[t.pk]), {"carpeta": "sin_asignar"})
+        self.assertTrue(r.context["puede_asignarse"])
+        r = self.post(reverse("tickets:gestionar", args=[t.pk]), {
+            "estado": E.EN_REVISION, "prioridad": "", "categoria": t.categoria,
+            "asignado": self.gestor.pk, "qs": "carpeta=sin_asignar&page=3",
+        }, follow=False)
+        self.assertRedirects(r, reverse("tickets:detalle", args=[t.pk]) + "?carpeta=sin_asignar",
+                             fetch_redirect_response=False)
+        t.refresh_from_db()
+        self.assertEqual((t.estado, t.asignado), (E.EN_REVISION, self.gestor))
+
+    def test_qs_no_permite_redirigir_afuera(self):
+        t = self.crear()
+        r = self.post(reverse("tickets:comentar", args=[t.pk]),
+                      {"texto": "hola", "qs": "//evil.com/?x=1\r\nLocation: http://evil.com"})
+        self.assertTrue(r["Location"].startswith(reverse("tickets:detalle", args=[t.pk]) + "?"))
+        self.assertNotIn("\n", r["Location"])
+
+    def test_reabrir_desde_el_cuadro_de_mensaje_guarda_el_motivo(self):
+        t = self.crear()
+        Ticket.objects.filter(pk=t.pk).update(estado=E.RESUELTO)
+        self.post(reverse("tickets:accion", args=[t.pk, "reabrir"]), {"texto": "Sigue goteando"})
+        t.refresh_from_db()
+        self.assertEqual(t.estado, E.EN_REVISION)
+        self.assertEqual(t.comentarios.get().texto, "Sigue goteando")
+
+    def test_busqueda_por_residente_y_unidad(self):
+        t = self.crear()
+        self.entrar(self.gestor)
+        for q in (self.residente.nombre, self.unidad.numero_unidad, f"#{t.pk}"):
+            self.assertEqual([x.pk for x in self.carpeta("todos", q=q).context["page"]], [t.pk], q)
+
+    def test_ya_no_existe_la_categoria_visitas(self):
+        self.assertNotIn("visitas", Ticket.Categoria.values)
+        self.entrar(self.residente)
+        r = self.post(reverse("tickets:crear"), {"titulo": "x", "categoria": "visitas", "descripcion": "x",
+                                                  "unidad": self.unidad.pk})
+        self.assertEqual(r.status_code, 200)
+        self.assertFalse(Ticket.objects.exists())

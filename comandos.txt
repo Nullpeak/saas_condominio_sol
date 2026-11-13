@@ -1,9 +1,7 @@
-Para setear correo
-set EMcd ..AIL_HOST_USER=tucorreo@gmail.com
-set EMAIL_HOST_PASSWORD=dncg lcoj bpui pjcl 
+Para setear correo (mejor usa el archivo .env, que no se sube a GitHub)
+set EMAIL_HOST_USER=tucorreo@gmail.com
+set EMAIL_HOST_PASSWORD=la-contraseña-de-aplicación
 
 
 pipenv run celery -A sol worker -l info --pool=solo
 pipenv run celery -A sol beat -l info
-
-
