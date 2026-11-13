@@ -27,3 +27,6 @@ six==1.17.0
 tzdata==2026.2
 vine==5.1.0
 wcwidth==0.9.4
+cryptography==46.0.3
+cffi==2.1.1
+pycparser==3.12

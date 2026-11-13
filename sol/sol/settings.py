@@ -144,7 +144,9 @@ MERCADOPAGO_CLIENT_ID = os.environ.get("MERCADOPAGO_CLIENT_ID", "").strip()
 MERCADOPAGO_CLIENT_SECRET = os.environ.get("MERCADOPAGO_CLIENT_SECRET", "").strip()
 MERCADOPAGO_REDIRECT_URI = os.environ.get("MERCADOPAGO_REDIRECT_URI", "").strip()
 MERCADOPAGO_TOKEN_ENCRYPTION_KEY = os.environ.get("MERCADOPAGO_TOKEN_ENCRYPTION_KEY", "").strip()
-MERCADOPAGO_ENVIRONMENT = os.environ.get("MERCADOPAGO_ENVIRONMENT", "test").strip().lower()
+# Producción por defecto: el sandbox de Mercado Pago no se usa. Para volver a
+# pruebas hay que pedirlo explícitamente con MERCADOPAGO_ENVIRONMENT=test.
+MERCADOPAGO_ENVIRONMENT = os.environ.get("MERCADOPAGO_ENVIRONMENT", "production").strip().lower()
 MERCADOPAGO_TEST_WEBHOOK_SECRET = os.environ.get("MERCADOPAGO_TEST_WEBHOOK_SECRET", "").strip()
 MERCADOPAGO_WEBHOOK_SECRET = os.environ.get("MERCADOPAGO_WEBHOOK_SECRET", "").strip()
 MERCADOPAGO_WEBHOOK_URL = os.environ.get("MERCADOPAGO_WEBHOOK_URL", "").strip()

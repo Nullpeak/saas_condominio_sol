@@ -138,6 +138,7 @@ def detalle(request, periodo_id):
             "periodo": periodo,
             "liquidaciones": liquidaciones,
             "es_ultimo_periodo": periodo == ultimo_periodo,
+            "mercadopago_modo_prueba": getattr(settings, "MERCADOPAGO_ENVIRONMENT", "production") in {"test", "sandbox"},
             "puede_pagar_en_linea": periodo == ultimo_periodo and cuenta_conectada,
             "pagos_online_configurados": cuenta_conectada,
             "pagos_online": pagos_online,
@@ -277,7 +278,7 @@ def detalle(request, periodo_id):
 def iniciar_pago_online(request, liquidacion_id):
     usuario = perfil(request)
     if usuario.rol != Usuario.Rol.RESIDENTE:
-        messages.error(request, "Los pagos en línea de prueba están disponibles para residentes.")
+        messages.error(request, "Los pagos en línea están disponibles solo para residentes.")
         return redirect("gastos_comunes:lista")
     liquidacion = get_object_or_404(
         Liquidacion.objects.select_related("periodo__condominio", "unidad__edificio"),
@@ -393,7 +394,7 @@ def mercadopago_webhook(request):
     except MercadoPagoError:
         return HttpResponseServerError("Ambiente de Mercado Pago no configurado.")
     if not secret:
-        return HttpResponseServerError("Webhook de prueba no configurado.")
+        return HttpResponseServerError("Webhook de Mercado Pago no configurado.")
     if not verificar_firma_webhook(request, secret):
         return HttpResponseForbidden("Firma no válida.")
     try:

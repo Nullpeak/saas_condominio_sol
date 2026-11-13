@@ -26,7 +26,7 @@ class MercadoPagoError(Exception):
 
 
 def es_modo_prueba():
-    entorno = getattr(settings, "MERCADOPAGO_ENVIRONMENT", "test").strip().lower()
+    entorno = getattr(settings, "MERCADOPAGO_ENVIRONMENT", "production").strip().lower()
     if entorno in {"test", "sandbox"}:
         return True
     if entorno in {"production", "live"}:
