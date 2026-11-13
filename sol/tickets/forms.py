@@ -1,14 +1,11 @@
 import os
-from datetime import timedelta
 
 from django import forms
 from django.core.exceptions import ValidationError
 from django.db.models import Q
-from django.utils import timezone
 from PIL import Image
 
 from core.models import Condominio, Unidad
-from core.validators import formatear_rut, validar_rut
 from .models import Ticket
 from .validators import EXTENSIONES_VIDEO, MAX_ADJUNTO_BYTES, validar_adjunto
 from .permisos import Rol, asignables, estados_siguientes
@@ -124,16 +121,8 @@ class TicketForm(forms.Form):
         texto = f"{u.edificio.nombre} · Unidad {u.numero_unidad}"
         return f"{u.edificio.condominio} · {texto}" if self.varios_condominios else texto
 
-    def es_de_visitas(self):
-        """Para la plantilla y la vista: ¿el ticket que se está creando es de visitas?"""
-        valor = self["categoria"].value()
-        return valor == Ticket.Categoria.VISITAS
-
     def clean(self):
         data = super().clean()
-        if data.get("categoria") == Ticket.Categoria.VISITAS and not data.get("unidad") \
-                and "unidad" not in self.errors:
-            self.add_error("unidad", "Indica la unidad que recibirá a las visitas.")
         unidad = data.get("unidad")
         if self.varios_condominios:
             condominio = data.get("condominio")
@@ -157,66 +146,6 @@ class EditarTicketForm(forms.ModelForm):
         fields = ["titulo", "categoria", "descripcion"]
         labels = {"titulo": "Asunto", "descripcion": "Describe el problema"}
         widgets = {"descripcion": forms.Textarea(attrs={"rows": 6})}
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        if self.instance.categoria == Ticket.Categoria.VISITAS:
-            # Las visitas ya pedidas dependen de esta categoría: no se puede cambiar
-            del self.fields["categoria"]
-        else:
-            self.fields["categoria"].choices = [
-                c for c in Ticket.Categoria.choices if c[0] != Ticket.Categoria.VISITAS
-            ]
-
-
-# ------------------------------------------------------------ visitas
-MAX_VISITAS = 10
-MAX_DIAS_VISITA = 30
-FORMATO_FECHA = "%Y-%m-%dT%H:%M"
-
-
-def _fecha_hora(label):
-    return forms.DateTimeField(
-        label=label,
-        input_formats=[FORMATO_FECHA],
-        widget=forms.DateTimeInput(attrs={"type": "datetime-local"}, format=FORMATO_FECHA),
-    )
-
-
-class VisitaForm(forms.Form):
-    nombre = forms.CharField(label="Nombre completo", max_length=100)
-    rut = forms.CharField(label="RUT", max_length=12, required=False)
-    patente = forms.CharField(label="Patente", max_length=10, required=False,
-                              widget=forms.TextInput(attrs={"placeholder": "Si viene en auto"}))
-    llegada = _fecha_hora("Llega")
-    salida = _fecha_hora("Se va")
-
-    def clean_rut(self):
-        rut = self.cleaned_data["rut"].strip()
-        if not rut:
-            return ""
-        validar_rut(rut)
-        return formatear_rut(rut)
-
-    def clean_patente(self):
-        return self.cleaned_data["patente"].replace(" ", "").replace("-", "").upper()
-
-    def clean(self):
-        data = super().clean()
-        llegada, salida = data.get("llegada"), data.get("salida")
-        if llegada and salida:
-            if salida <= llegada:
-                self.add_error("salida", "Debe ser posterior a la llegada.")
-            elif salida - llegada > timedelta(days=MAX_DIAS_VISITA):
-                self.add_error("salida", f"Una visita no puede durar más de {MAX_DIAS_VISITA} días.")
-        if llegada and llegada < timezone.now() - timedelta(hours=1):
-            self.add_error("llegada", "La llegada no puede estar en el pasado.")
-        return data
-
-
-VisitaFormSet = forms.formset_factory(
-    VisitaForm, extra=0, min_num=1, validate_min=True, max_num=MAX_VISITAS, validate_max=True
-)
 
 
 # ------------------------------------------------------------ comentar

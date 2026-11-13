@@ -30,7 +30,6 @@ class Ticket(models.Model):
         ALTA = "alta", "Alta"
 
     class Categoria(models.TextChoices):
-        VISITAS = "visitas", "Registro de visitas"
         MANTENCION = "mantencion", "Mantención / reparaciones"
         AREAS_COMUNES = "areas_comunes", "Áreas comunes"
         SEGURIDAD = "seguridad", "Seguridad"
@@ -113,7 +112,6 @@ class TicketEvento(models.Model):
         PRIORIDAD = "prioridad", "Prioridad"
         ASIGNADO = "asignado", "Asignación"
         CATEGORIA = "categoria", "Categoría"
-        VISITA = "visita", "Visita"
 
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="eventos")
     autor = models.ForeignKey(Usuario, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
@@ -135,8 +133,6 @@ class TicketEvento(models.Model):
             return "creó el ticket"
         if self.tipo == self.Tipo.EDICION:
             return "editó el asunto, la descripción o la categoría"
-        if self.tipo == self.Tipo.VISITA:
-            return f"{self.nuevo} la visita de {self.anterior}"
         if self.tipo == self.Tipo.ASIGNADO:
             return f"asignó el ticket a {self.nuevo}" if self.nuevo else "quitó la asignación"
         nombre = self.get_tipo_display().lower()
@@ -175,42 +171,3 @@ class TicketArchivo(models.Model):
     @property
     def es_video(self):
         return os.path.splitext(self.archivo.name)[1].lower() in EXTENSIONES_VIDEO
-
-
-class TicketVisita(models.Model):
-    """
-    Visita que un residente pide registrar desde un ticket de categoría "visitas".
-    Queda pendiente hasta que el staff la aprueba: recién ahí se crea la Visita
-    programada en la app "visitas" (la que ve conserjería).
-    """
-
-    class Estado(models.TextChoices):
-        PENDIENTE = "pendiente", "Pendiente de aprobación"
-        APROBADA = "aprobada", "Aprobada"
-        RECHAZADA = "rechazada", "Rechazada"
-
-    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="visitas")
-    nombre = models.CharField(max_length=100)
-    rut = models.CharField(max_length=12, blank=True)
-    patente = models.CharField(max_length=10, blank=True)
-    llegada = models.DateTimeField()
-    salida = models.DateTimeField()
-    estado = models.CharField(max_length=10, choices=Estado.choices, default=Estado.PENDIENTE)
-    motivo_rechazo = models.CharField(max_length=255, blank=True)
-    revisada_por = models.ForeignKey(Usuario, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
-    revisada = models.DateTimeField(null=True, blank=True)
-    visita = models.OneToOneField(
-        "visitas.Visita", on_delete=models.SET_NULL, null=True, blank=True, related_name="ticket_visita"
-    )
-
-    class Meta:
-        db_table = "ticket_visita"
-        ordering = ["llegada", "pk"]
-
-    def __str__(self):
-        return f"{self.nombre} ({self.get_estado_display()}) - ticket #{self.ticket_id}"
-
-    def clean(self):
-        super().clean()
-        if self.llegada and self.salida and self.salida <= self.llegada:
-            raise ValidationError("La salida debe ser posterior a la llegada.")

@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Ticket, TicketArchivo, TicketComentario, TicketEvento, TicketVisita
+from .models import Ticket, TicketArchivo, TicketComentario, TicketEvento
 
 
 class ComentarioInline(admin.TabularInline):
@@ -13,12 +13,6 @@ class ArchivoInline(admin.TabularInline):
     model = TicketArchivo
     extra = 0
     readonly_fields = ("subido",)
-
-
-class VisitaInline(admin.TabularInline):
-    model = TicketVisita
-    extra = 0
-    readonly_fields = ("revisada_por", "revisada", "visita")
 
 
 class EventoInline(admin.TabularInline):
@@ -37,4 +31,4 @@ class TicketAdmin(admin.ModelAdmin):
     list_filter = ("estado", "prioridad", "categoria", "condominio")
     search_fields = ("titulo", "descripcion")
     raw_id_fields = ("usuario", "asignado", "unidad")
-    inlines = [VisitaInline, ComentarioInline, ArchivoInline, EventoInline]
+    inlines = [ComentarioInline, ArchivoInline, EventoInline]

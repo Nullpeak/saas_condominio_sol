@@ -4,12 +4,10 @@ de último movimiento quedan siempre al día, venga el cambio de la vista que ve
 
 `ticket._actor` le dice a las señales de notis quién hizo el cambio (para no notificarse a sí mismo).
 """
-from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 
-from visitas.models import Visita
-from .models import Ticket, TicketArchivo, TicketComentario, TicketEvento, TicketVisita
+from .models import Ticket, TicketArchivo, TicketComentario, TicketEvento
 
 E = Ticket.Estado
 
@@ -36,7 +34,7 @@ def _aplicar_estado(ticket, nuevo):
 
 
 @transaction.atomic
-def crear_ticket(perfil, *, condominio, titulo, descripcion, categoria, unidad=None, archivos=None, visitas=None):
+def crear_ticket(perfil, *, condominio, titulo, descripcion, categoria, unidad=None, archivos=None):
     ticket = Ticket(
         condominio=condominio,
         usuario=perfil,
@@ -49,8 +47,6 @@ def crear_ticket(perfil, *, condominio, titulo, descripcion, categoria, unidad=N
     ticket.save()
     TicketEvento.objects.create(ticket=ticket, autor=perfil, tipo=TicketEvento.Tipo.CREADO)
     _guardar_archivos(ticket, archivos)
-    if categoria == Ticket.Categoria.VISITAS:
-        TicketVisita.objects.bulk_create([TicketVisita(ticket=ticket, **v) for v in visitas or []])
     return ticket
 
 
@@ -138,69 +134,3 @@ def actualizar(perfil, ticket, **cambios):
         ticket.save()
         TicketEvento.objects.bulk_create(eventos)
     return eventos
-
-
-# ============================================================== VISITAS
-def _cerrar_revision_visitas(perfil, ticket):
-    """Cuando ya no quedan visitas pendientes, el ticket pasa solo a Resuelto."""
-    if ticket.visitas.filter(estado=TicketVisita.Estado.PENDIENTE).exists():
-        ticket.actualizado = timezone.now()
-        ticket._actor = perfil
-        ticket.save(update_fields=["actualizado"])
-    elif ticket.esta_abierto:
-        actualizar(perfil, ticket, estado=E.RESUELTO)
-
-
-def _bloquear_pendiente(perfil, visita):
-    visita = TicketVisita.objects.select_for_update().select_related("ticket__unidad").get(pk=visita.pk)
-    if visita.estado != TicketVisita.Estado.PENDIENTE:
-        raise ValidationError("Esa visita ya fue revisada.")
-    if visita.ticket.estado == E.CERRADO:
-        raise ValidationError("El ticket está cerrado.")
-    return visita
-
-
-@transaction.atomic
-def aprobar_visita(perfil, visita):
-    """Registra la visita en la app "visitas" (queda programada para conserjería)."""
-    visita = _bloquear_pendiente(perfil, visita)
-    ticket = visita.ticket
-    if not ticket.unidad_id:
-        raise ValidationError("El ticket no tiene unidad: no se puede registrar la visita.")
-
-    unidad = ticket.unidad
-    motivo = f"Aprobada desde el ticket #{ticket.pk}" + (f" · RUT {visita.rut}" if visita.rut else "")
-    registro = Visita.objects.create(
-        condominio_id=ticket.condominio_id,
-        edificio_id=unidad.edificio_id,
-        unidad=unidad,
-        registrado_por=perfil,
-        nombre=visita.nombre,
-        fecha_visita=timezone.localtime(visita.llegada).date(),
-        motivo=motivo[:160],
-        patente_vehiculo=visita.patente,
-    )
-
-    visita.estado = TicketVisita.Estado.APROBADA
-    visita.visita = registro
-    visita.revisada_por = perfil
-    visita.revisada = timezone.now()
-    visita.save()
-    TicketEvento.objects.create(ticket=ticket, autor=perfil, tipo=TicketEvento.Tipo.VISITA,
-                                anterior=visita.nombre, nuevo="aprobó")
-    _cerrar_revision_visitas(perfil, ticket)
-    return visita
-
-
-@transaction.atomic
-def rechazar_visita(perfil, visita, motivo=""):
-    visita = _bloquear_pendiente(perfil, visita)
-    visita.estado = TicketVisita.Estado.RECHAZADA
-    visita.motivo_rechazo = motivo[:255]
-    visita.revisada_por = perfil
-    visita.revisada = timezone.now()
-    visita.save()
-    TicketEvento.objects.create(ticket=visita.ticket, autor=perfil, tipo=TicketEvento.Tipo.VISITA,
-                                anterior=visita.nombre, nuevo="rechazó")
-    _cerrar_revision_visitas(perfil, visita.ticket)
-    return visita
