@@ -898,7 +898,7 @@ def usuario_crear(request):
             except ValidationError as error:
                 errores.extend(error.messages)
 
-        telefono_normalizado = None
+        telefono_normalizado = ""
 
         if telefono:
             try:
@@ -1220,7 +1220,7 @@ def usuario_editar(request, usuario_id):
             except ValidationError as error:
                 errores.extend(error.messages)
 
-        telefono_normalizado = None
+        telefono_normalizado = ""
 
         if telefono:
             try:
