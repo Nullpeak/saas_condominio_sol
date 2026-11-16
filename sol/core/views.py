@@ -3220,7 +3220,7 @@ def reservacion_disponibilidad(request):
     if not usuario_actual:
         return JsonResponse({"error": "No se encontró el usuario actual."}, status=403)
 
-    condominios = usuario_actual.condominios_asignados()   # <-- agregar
+    condominios = usuario_actual.condominios_asignados()
 
     area_id = request.GET.get("area_id")
     fecha_parametro = request.GET.get("fecha")
@@ -3251,7 +3251,7 @@ def reservacion_disponibilidad(request):
     # VERIFICAR QUE EL USUARIO PERTENEZCA AL CONDOMINIO
     # =========================================================
 
-    if not usuario_actual.puede_acceder_condominio(area.condominio_id):
+    if not condominios.filter(pk=area.condominio_id).exists():
         return JsonResponse(
             {
                 "error": "No tienes acceso a esta área común."
