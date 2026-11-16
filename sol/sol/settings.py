@@ -26,7 +26,14 @@ SECRET_KEY = 'django-insecure-8*0riol)&(jsvjl*51_b1#!5cdg%7k8x^6+7hwusyl=3p)4+o=
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
+
+# Trusted HTTPS origins for local testing through a temporary tunnel (for example ngrok).
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get("CSRF_TRUSTED_ORIGINS", "").split(",")
+    if origin.strip()
+]
 
 
 # Application definition
@@ -39,8 +46,14 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'core',
+    'visitas',
+    'tickets',
+    'anuncios',
     'launch',
-    'invitaciones'
+    'invitaciones',
+    'mantenimientos',
+    'gastos_comunes',
+    'notis',
 ]
 
 MIDDLEWARE = [
@@ -49,6 +62,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'core.middleware.ActorAuditoriaMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -65,6 +79,8 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'anuncios.context_processors.anuncios_nuevos',
+                'notis.context_processors.unread_count',
             ],
         },
     },
@@ -108,7 +124,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'es-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'America/Santiago'
 
 USE_I18N = True
 
@@ -123,6 +139,17 @@ STATIC_URL = 'static/'
 MEDIA_URL = '/media/'
 
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+MERCADOPAGO_CLIENT_ID = os.environ.get("MERCADOPAGO_CLIENT_ID", "").strip()
+MERCADOPAGO_CLIENT_SECRET = os.environ.get("MERCADOPAGO_CLIENT_SECRET", "").strip()
+MERCADOPAGO_REDIRECT_URI = os.environ.get("MERCADOPAGO_REDIRECT_URI", "").strip()
+MERCADOPAGO_TOKEN_ENCRYPTION_KEY = os.environ.get("MERCADOPAGO_TOKEN_ENCRYPTION_KEY", "").strip()
+# Producción por defecto: el sandbox de Mercado Pago no se usa. Para volver a
+# pruebas hay que pedirlo explícitamente con MERCADOPAGO_ENVIRONMENT=test.
+MERCADOPAGO_ENVIRONMENT = os.environ.get("MERCADOPAGO_ENVIRONMENT", "production").strip().lower()
+MERCADOPAGO_TEST_WEBHOOK_SECRET = os.environ.get("MERCADOPAGO_TEST_WEBHOOK_SECRET", "").strip()
+MERCADOPAGO_WEBHOOK_SECRET = os.environ.get("MERCADOPAGO_WEBHOOK_SECRET", "").strip()
+MERCADOPAGO_WEBHOOK_URL = os.environ.get("MERCADOPAGO_WEBHOOK_URL", "").strip()
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
@@ -157,3 +184,44 @@ else:
     # Sin credenciales: los correos salen por la terminal (desarrollo)
     EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
     DEFAULT_FROM_EMAIL = "no-reply@saascondominio.local"
+
+# Dirección que usan los enlaces de los correos (ej. http://192.168.1.25:8000).
+# Si queda vacía y se entra por localhost, se usa la IP del equipo en la red (core/enlaces.py).
+SITIO_URL = os.environ.get("SITIO_URL", "").rstrip("/")
+
+
+# ------------------------------------------------------------------ Celery
+# Tareas en segundo plano y programadas. Ver sol/celery.py para cómo levantarlo.
+CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "filesystem://")
+CELERY_DIR = BASE_DIR / ".celery"
+if CELERY_BROKER_URL.startswith("filesystem://"):
+    # Cola en archivos: sirve para desarrollo sin instalar Redis (también en Windows)
+    for carpeta in ("cola", "procesados", "control"):
+        (CELERY_DIR / carpeta).mkdir(parents=True, exist_ok=True)
+    CELERY_BROKER_TRANSPORT_OPTIONS = {
+        "data_folder_in": str(CELERY_DIR / "cola"),
+        "data_folder_out": str(CELERY_DIR / "cola"),
+        "processed_folder": str(CELERY_DIR / "procesados"),
+        "control_folder": str(CELERY_DIR / "control"),
+        "store_processed": False,
+    }
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_TASK_IGNORE_RESULT = True
+CELERY_BEAT_SCHEDULE_FILENAME = str(CELERY_DIR / "beat-schedule")
+# En pruebas (o set CELERY_EAGER=1) las tareas corren al instante, sin worker
+CELERY_TASK_ALWAYS_EAGER = os.environ.get("CELERY_EAGER") == "1"
+try:
+    from celery.schedules import crontab
+except ImportError:  # Celery aún no instalado: Django funciona igual, sin tareas programadas
+    crontab = None
+CELERY_BEAT_SCHEDULE = {} if crontab is None else {
+    "avisar-invitaciones": {
+        "task": "notis.tasks.avisar_invitaciones",
+        "schedule": crontab(minute=0),  # cada hora
+    },
+    "avisar-mantenciones-proximas": {
+        "task": "notis.tasks.avisar_mantenciones_proximas",
+        "schedule": crontab(hour=8, minute=0),  # todos los días a las 08:00
+    },
+}
+

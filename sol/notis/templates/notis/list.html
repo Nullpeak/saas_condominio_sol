@@ -1,0 +1,110 @@
+{% extends "core/base.html" %}
+
+{% block title %}Notificaciones · CondoGestión{% endblock %}
+{% block page_title %}🔔 Notificaciones{% endblock %}
+
+{% block content %}
+
+<div class="card-custom">
+
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+
+        <div class="btn-group" role="group" aria-label="Filtro">
+            <a href="?filtro=todas"
+               class="btn btn-sm {% if filtro != 'no_leidas' %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+                Todas
+            </a>
+            <a href="?filtro=no_leidas"
+               class="btn btn-sm {% if filtro == 'no_leidas' %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+                No leídas
+                {% if total_no_leidas %}<span class="badge text-bg-danger">{{ total_no_leidas }}</span>{% endif %}
+            </a>
+        </div>
+
+        {% if total_no_leidas %}
+            <form method="post" action="{% url 'mark_all_as_read' %}">
+                {% csrf_token %}
+                <button type="submit" class="button button-secondary">
+                    ✔️ Marcar todas como leídas
+                </button>
+            </form>
+        {% endif %}
+
+    </div>
+
+
+    <div class="notif-page-list">
+
+        {% for n in page %}
+
+            <div class="notif-row {% if not n.is_read %}notif-row-unread{% endif %}">
+
+                <span class="notif-dot {% if n.is_read %}notif-dot-off{% endif %}"></span>
+
+                <div class="notif-row-body">
+                    <div class="notif-msg">{{ n.message }}</div>
+                    <div class="notif-time">
+                        {{ n.created_at|date:"d/m/Y H:i" }} · Hace {{ n.created_at|timesince }}
+                        {% if n.sender %}· de {{ n.sender.get_full_name|default:n.sender.username }}{% endif %}
+                    </div>
+                </div>
+
+                <div class="notif-row-actions">
+                    {% if n.url %}
+                        <a href="{{ n.url }}" class="btn btn-sm btn-outline-primary">Abrir</a>
+                    {% endif %}
+
+                    {% if not n.is_read %}
+                        <form method="post" action="{% url 'mark_as_read' n.id %}">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-outline-secondary">
+                                Marcar como leída
+                            </button>
+                        </form>
+                    {% endif %}
+                </div>
+
+            </div>
+
+        {% empty %}
+
+            <div class="notif-empty">
+                {% if filtro == 'no_leidas' %}
+                    🎉 No tienes notificaciones sin leer
+                {% else %}
+                    Aún no tienes notificaciones
+                {% endif %}
+            </div>
+
+        {% endfor %}
+
+    </div>
+
+
+    {% if page.has_other_pages %}
+        <nav class="mt-3" aria-label="Paginación">
+            <ul class="pagination pagination-sm mb-0">
+
+                {% if page.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?filtro={{ filtro }}&page={{ page.previous_page_number }}">«</a>
+                    </li>
+                {% endif %}
+
+                <li class="page-item disabled">
+                    <span class="page-link">Página {{ page.number }} de {{ page.paginator.num_pages }}</span>
+                </li>
+
+                {% if page.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?filtro={{ filtro }}&page={{ page.next_page_number }}">»</a>
+                    </li>
+                {% endif %}
+
+            </ul>
+        </nav>
+    {% endif %}
+
+</div>
+
+{% endblock %}

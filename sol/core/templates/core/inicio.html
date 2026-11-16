@@ -1,136 +1,456 @@
 {% extends "core/base.html" %}
 
-{% block title %}
-Inicio - CondoGestión
-{% endblock %}
+{% block title %}Inicio | Comunidad al Día{% endblock %}
+{% block page_title %}Inicio{% endblock %}
 
-{% block page_title %}
-Inicio
+{% block extra_css %}
+<style>
+    .dashboard-filter { display:flex; flex-wrap:wrap; align-items:end; gap:12px; }
+    .dashboard-filter label { display:block; margin-bottom:5px; color:#475569; font-size:13px; }
+    .dashboard-filter select { min-width:240px; min-height:40px; padding:7px 10px; border:1px solid #cbd5e1; border-radius:6px; background:white; }
+    .dashboard-condo { margin-bottom:24px; padding:22px; border:1px solid #e2e8f0; border-radius:10px; background:white; }
+    .dashboard-condo h2 { margin:0; font-size:19px; }
+    .dashboard-kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(175px,1fr)); gap:14px; margin:22px 0; }
+    .dashboard-kpi { min-height:112px; padding:17px; border:1px solid #e2e8f0; border-radius:10px; background:#fff; box-shadow:0 2px 8px #0f172a08; }
+    .dashboard-kpi span { display:block; color:#64748b; font-size:12px; font-weight:600; letter-spacing:.02em; }
+    .dashboard-kpi strong { display:block; margin-top:8px; color:#172033; font-size:25px; line-height:1.15; }
+    .dashboard-kpi small { display:block; margin-top:6px; }
+    .dashboard-kpi-primary { border-top:3px solid #2563eb; }
+    .dashboard-kpi-alert { border-top:3px solid #dc2626; }
+    .dashboard-visuals { display:grid; grid-template-columns:minmax(0,1.4fr) minmax(240px,.8fr); gap:16px; margin-top:18px; }
+    .dashboard-visual-card { min-height:155px; padding:20px; border:1px solid #e2e8f0; border-radius:10px; background:#fff; }
+    .dashboard-visual-card h3 { margin:0 0 8px; font-size:15px; }
+    .dashboard-progress-label { display:flex; justify-content:space-between; gap:12px; margin:16px 0 8px; color:#475569; font-size:13px; }
+    .dashboard-progress-track { height:12px; overflow:hidden; border-radius:99px; background:#e2e8f0; }
+    .dashboard-progress-value { height:100%; width:var(--progress); border-radius:inherit; background:linear-gradient(90deg,#2563eb,#38bdf8); }
+    .dashboard-progress-legend { display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px; margin-top:10px; color:#475569; font-size:13px; }
+    .dashboard-mora-card { background:#fffafa; border-color:#fecaca; }
+    .dashboard-mora-value { display:block; margin:8px 0 2px; color:#b91c1c; font-size:25px; font-weight:700; }
+    .dashboard-mora-clear { color:#15803d; }
+    .dashboard-section-label { margin:0 0 5px; color:#167c69; font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; }
+    .work-queue-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(205px,1fr)); gap:14px; }
+    .work-queue-item { min-height:108px; }
+    .work-queue-copy { min-width:0; }
+    .resident-home-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+    .resident-feed { padding:0; margin:0; list-style:none; }
+    .resident-feed li { padding:11px 12px; border-bottom:1px solid #e5eee9; border-radius:7px; line-height:1.45; }
+    .resident-feed li:nth-child(even) { border-bottom-color:transparent; background:#f1f8f5; }
+    .resident-feed li:last-child { border-bottom-color:transparent; }
+    .resident-feed li.resident-notification { display:grid; grid-template-columns:8px minmax(0,1fr); gap:10px; align-items:start; }
+    .resident-feed li.resident-notification.is-unread,.resident-feed li.resident-notification.is-unread:nth-child(even) { border-left:3px solid #167c69; background:#eaf6f0; }
+    .resident-notification-dot { width:8px; height:8px; margin-top:6px; border-radius:50%; background:#cbd5d1; }
+    .resident-notification.is-unread .resident-notification-dot { background:#167c69; box-shadow:0 0 0 3px #d2ebdf; }
+    .resident-notification-body { min-width:0; }
+    .resident-notification-body > a { display:block; line-height:1.4; }
+    .resident-notification-meta { display:flex !important; align-items:center; justify-content:space-between; gap:8px; margin-top:6px !important; }
+    .resident-notification-status { display:inline-flex; align-items:center; padding:2px 7px; border-radius:999px; background:#edf1ef; color:#64746f; font-size:10px; font-weight:700; white-space:nowrap; }
+    .resident-notification.is-unread .resident-notification-status { background:#d8efe2; color:#14634f; }
+    .resident-feed a { color:#243b38; text-decoration:none; }
+    .resident-feed a:hover { color:#167c69; }
+    .resident-feed small { display:block; color:#64748b; margin-top:3px; }
+    .resident-welcome { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:22px; margin:0 0 18px; padding:24px 28px; border:1px solid #c9e6df; border-radius:14px; background:radial-gradient(circle at 92% 10%,#dff4e7 0,transparent 34%),linear-gradient(115deg,#fff 0%,#f0faf7 100%); }
+    .resident-welcome-copy { min-width:240px; }
+    .resident-welcome h2 { margin:0 0 6px; color:#153a36; font-size:26px; font-weight:700; }
+    .resident-welcome p { margin:0; color:#58716b; }
+    .resident-home-kpis { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; margin-bottom:18px; }
+    .resident-home-kpi { display:flex; align-items:flex-start; gap:13px; min-height:116px; padding:18px; border:1px solid #e2e8f0; border-radius:12px; background:white; color:#173735; text-decoration:none; box-shadow:0 3px 12px #0f172a08; }
+    .resident-home-kpi:hover { border-color:#a8d8cc; box-shadow:0 7px 18px #0f172a10; }
+    .resident-kpi-icon { display:grid; place-items:center; width:40px; height:40px; flex:0 0 40px; border-radius:11px; background:#e7f5ef; color:#167c69; }
+    .resident-kpi-icon svg { width:21px; height:21px; }
+    .resident-kpi-label { display:block; margin:1px 0 5px; color:#64748b; font-size:12px; font-weight:650; }
+    .resident-kpi-value { display:block; color:#172b2c; font-size:23px; font-weight:750; line-height:1.15; }
+    .resident-kpi-caption { display:block; margin-top:5px; color:#64748b; font-size:12px; line-height:1.35; }
+    .resident-home-panels { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin-bottom:18px; }
+    .resident-home-panel { min-width:0; padding:20px; border:1px solid #e2e8f0; border-radius:12px; background:#fff; }
+    .resident-panel-heading { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:8px; }
+    .resident-panel-heading h2 { margin:0; color:#172b2c; font-size:16px; font-weight:700; }
+    .resident-panel-heading p { margin:4px 0 0; color:#64748b; font-size:12px; }
+    .dashboard-action { display:inline-flex; align-items:center; justify-content:center; flex:0 0 auto; min-height:30px; padding:5px 10px; border:1px solid #d4e8e1; border-radius:7px; background:#f1f8f5; color:#167c69 !important; font-size:11px; font-weight:650; line-height:1.2; text-decoration:none !important; white-space:nowrap; }
+    .dashboard-action:hover { border-color:#a8d8cc; background:#e5f3ed; color:#105d50 !important; }
+    .gestor-dashboard-panels .resident-panel-heading { align-items:center; margin-bottom:4px; }
+    .gestor-dashboard-panels .resident-panel-heading p { display:none; }
+    .gestor-dashboard-panels .resident-home-panel { min-height:255px; padding:18px; }
+    .gestor-dashboard-panels .resident-activity-list { margin-top:4px; }
+    .gestor-dashboard-panels .resident-activity-list li { gap:8px; padding:10px 0; }
+    .gestor-dashboard-panels .resident-activity-meta { font-size:11px; line-height:1.35; }
+    .gestor-dashboard-panels time { white-space:nowrap; }
+    .resident-expand-link { color:#167c69; cursor:pointer; font-size:13px; font-weight:600; list-style:none; }
+    .resident-expand-link:hover { color:#105d50; }
+    .announcement-tabs { display:inline-flex; gap:4px; margin:13px 0 7px; padding:4px; border:1px solid #e0ebe6; border-radius:9px; background:#f5f8f6; }
+    .announcement-tab { padding:6px 11px; border:0; border-radius:6px; background:transparent; color:#526660; font:inherit; font-size:12px; font-weight:650; cursor:pointer; }
+    .announcement-tab[aria-selected="true"] { background:#167c69; color:#fff; box-shadow:0 1px 3px #0f172a1a; }
+    .announcement-tab:focus-visible { outline:2px solid #167c69; outline-offset:2px; }
+    .announcement-panel[hidden] { display:none; }
+    .resident-balance-progress { height:9px; overflow:hidden; margin:16px 0 9px; border-radius:99px; background:#e8eef0; }
+    .resident-balance-progress span { display:block; width:var(--progress); height:100%; border-radius:inherit; background:linear-gradient(90deg,#167c69,#79bf8c); }
+    .resident-balance-legend { display:flex; justify-content:space-between; gap:8px; color:#64748b; font-size:12px; }
+    .resident-unit-tags { display:flex; flex-wrap:wrap; gap:7px; margin-top:14px; }
+    .resident-unit-tag { padding:5px 9px; border:1px solid #dce9e5; border-radius:99px; background:#f6fbf9; color:#365b53; font-size:12px; }
+    .resident-activity-list { margin:12px 0 0; padding:0; list-style:none; }
+    .resident-activity-list li { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; padding:12px 0; border-bottom:1px solid #edf1f3; }
+    .resident-activity-list li:last-child { border-bottom:0; }
+    .resident-activity-title { display:block; color:#203b37; font-size:13px; font-weight:650; text-decoration:none; }
+    .resident-activity-meta { display:block; margin-top:3px; color:#64748b; font-size:12px; }
+    .resident-empty { padding:15px 0 4px; color:#64748b; font-size:13px; }
+    .gestor-home-kpis { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; margin-bottom:18px; }
+    .gestor-kpi-alert .resident-kpi-icon { background:#fff0ed; color:#c24132; }
+    .gestor-kpi-alert { border-color:#f0d4ce; }
+    .gestor-dashboard-panels { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; margin-bottom:18px; }
+    @media(max-width:760px) { .resident-home-grid { grid-template-columns:1fr; } }
+    @media(max-width:760px) { .dashboard-visuals { grid-template-columns:1fr; } }
+    @media(max-width:760px) { .resident-home-kpis,.resident-home-panels { grid-template-columns:1fr; } .resident-welcome { padding:20px; } }
+    @media(max-width:1000px) { .gestor-home-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); } .gestor-dashboard-panels { grid-template-columns:1fr; } }
+    @media(max-width:480px) { .gestor-home-kpis { grid-template-columns:1fr; } }
+    @media(max-width:600px) { .dashboard-filter select { width:100%; } }
+</style>
 {% endblock %}
 
 {% block content %}
-
-<div class="card">
-
-    <h1>
-        Bienvenido, {{ usuario.nombre }} {{ usuario.apellido }}
-    </h1>
-
-    <p>
-        Has iniciado sesión como
-        <strong>{{ usuario.rol.nombre }}</strong>.
-    </p>
-
-</div>
-
-
-{% if usuario.rol.nombre == "Super Administrador" %}
-
-<div class="card">
-
-    <h2>
-        Panel de Super Administrador
-    </h2>
-
-    <p>
-        Administración global del sistema.
-    </p>
-
-    <div class="grid">
-
-        <div class="stat">
-            <div class="stat-title">
-                Administración
-            </div>
-
-            <a class="button" href="{% url 'administracion' %}">
-                Gestionar usuarios
-            </a>
-        </div>
-
-        <div class="stat">
-            <div class="stat-title">
-                Condominios
-            </div>
-
-            <a class="button" href="{% url 'condominios_lista' %}">
-                Gestionar condominios
-            </a>
-        </div>
-
-    </div>
-
-</div>
-
-
-{% elif usuario.rol.nombre == "Administrador" %}
-
-<div class="card">
-
-    <h2>
-        Panel de Administrador
-    </h2>
-
-    <p>
-        Administración del condominio.
-    </p>
-
-    <div class="grid">
-
-        <div class="stat">
-            <div class="stat-title">
-                Administración
-            </div>
-
-            <a class="button" href="{% url 'administracion' %}">
-                Gestionar usuarios
-            </a>
-        </div>
-
-        <div class="stat">
-            <div class="stat-title">
-                Condominio
-            </div>
-
-            <a class="button" href="{% url 'condominios_lista' %}">
-                Gestionar condominio
-            </a>
-        </div>
-
-    </div>
-
-</div>
-
-
-{% elif usuario.rol.nombre == "Gestor" %}
-
-<div class="card">
-
-    <h2>
-        Panel de Gestor
-    </h2>
-
-    <p>
-        Gestión operativa del condominio.
-    </p>
-
-</div>
-
-
-{% elif usuario.rol.nombre == "Residente" %}
-
-<div class="card">
-
-    <h2>
-        Panel de Residente
-    </h2>
-
-    <p>
-        Acceso a los servicios del condominio.
-    </p>
-
-</div>
-
+{% if usuario.rol != "Residente" and usuario.rol != "Gestor" %}
+<header class="page-intro">
+    <h1>Hola, {{ usuario.nombre }}</h1>
+    <p>{{ usuario.get_rol_display }}{% if usuario.condominio %} · {{ usuario.condominio.nombre }}{% endif %}</p>
+</header>
 {% endif %}
+
+{% if usuario.rol == "Residente" %}
+<section class="resident-welcome" aria-labelledby="resident-welcome-title">
+    <div class="resident-welcome-copy">
+        <p class="dashboard-section-label">Tu comunidad</p>
+        <h2 id="resident-welcome-title">Hola, {{ usuario.nombre }}</h2>
+        <p>Revisa tus gastos, reservas y novedades en un solo lugar.</p>
+    </div>
+    <a class="button" href="{% url 'gastos_comunes:lista' %}">Ver mis gastos comunes</a>
+</section>
+
+<section class="resident-home-kpis" aria-label="Resumen de mi actividad">
+    <a class="resident-home-kpi" href="{% url 'gastos_comunes:lista' %}">
+        <span class="resident-kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="15" rx="2"/><path d="M3 10h18M7 15h4M7 3h10"/></svg></span>
+        <span><span class="resident-kpi-label">Saldo pendiente acumulado</span><strong class="resident-kpi-value">${{ saldo_acumulado_residente|floatformat:0 }}</strong><small class="resident-kpi-caption">Suma de tus unidades en períodos publicados.</small></span>
+    </a>
+    <a class="resident-home-kpi" href="{% url 'reservaciones_lista' %}">
+        <span class="resident-kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18M8 14h3m-3 3h6"/></svg></span>
+        <span><span class="resident-kpi-label">Reservas próximas</span><strong class="resident-kpi-value">{{ reservas_proximas }}</strong><small class="resident-kpi-caption">Reservas futuras confirmadas o pendientes.</small></span>
+    </a>
+    <a class="resident-home-kpi" href="{% url 'tickets:lista' %}">
+        <span class="resident-kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a3 3 0 0 0 0 6v4h18v-4a3 3 0 0 0 0-6V4H3z"/><path d="M13 4v2m0 4v2m0 4v2"/></svg></span>
+        <span><span class="resident-kpi-label">Solicitudes activas</span><strong class="resident-kpi-value">{{ tickets_pendientes }}</strong><small class="resident-kpi-caption">Tickets que todavía están en seguimiento.</small></span>
+    </a>
+</section>
+
+<div class="resident-home-panels">
+    <section class="resident-home-panel" aria-labelledby="resident-balance-title">
+        <div class="resident-panel-heading"><div><h2 id="resident-balance-title">Estado de tus últimos gastos publicados</h2><p>Importes de los períodos publicados más recientes de tus condominios.</p></div><a class="dashboard-action" href="{% url 'gastos_comunes:lista' %}">Ver detalle</a></div>
+        {% if ultimo_cobro_total_residente %}
+        <div class="resident-balance-progress" role="progressbar" aria-label="Avance de pago de los últimos gastos publicados" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ ultimo_cobro_porcentaje_residente }}"><span style="--progress:{{ ultimo_cobro_porcentaje_residente }}%"></span></div>
+        <div class="resident-balance-legend"><span>Pagado <strong>${{ ultimo_cobro_pagado_residente|floatformat:0 }}</strong></span><span>Liquidado <strong>${{ ultimo_cobro_total_residente|floatformat:0 }}</strong></span></div>
+        {% else %}<p class="resident-empty">Todavía no hay gastos comunes publicados para tus unidades.</p>{% endif %}
+        {% if unidades_residente %}<div class="resident-unit-tags" aria-label="Mis unidades">{% for unidad in unidades_residente_resumen %}<span class="resident-unit-tag">{{ unidad.edificio.condominio.nombre }} · Edificio {{ unidad.edificio.numero }} · {{ unidad.numero_unidad }}</span>{% endfor %}{% if unidades_residente_adicionales %}<span class="resident-unit-tag">+{{ unidades_residente_adicionales }} más</span>{% endif %}</div>{% endif %}
+    </section>
+    <section class="resident-home-panel" aria-labelledby="resident-reservations-title">
+        <div class="resident-panel-heading"><div><h2 id="resident-reservations-title">Próximas reservas</h2><p>Lo que tienes agendado en tu comunidad.</p></div><a class="dashboard-action" href="{% url 'reservaciones_lista' %}">Ver agenda</a></div>
+        <ul class="resident-activity-list">
+            {% for reserva in reservas_residente_recientes %}<li><span><a class="resident-activity-title" href="{% url 'reservaciones_lista' %}">{% if reserva.area_comun %}{{ reserva.area_comun.nombre }}{% else %}Visita: {{ reserva.nombre_invitado }}{% endif %}</a><small class="resident-activity-meta">{{ reserva.unidad.edificio.condominio.nombre }} · {{ reserva.unidad.numero_unidad }}</small></span><time class="resident-activity-meta" datetime="{{ reserva.fecha_reserva|date:'c' }}">{{ reserva.fecha_reserva|date:"d/m · H:i" }}</time></li>
+            {% empty %}<li class="resident-empty">No tienes reservas próximas.</li>{% endfor %}
+        </ul>
+    </section>
+    <section class="resident-home-panel" aria-labelledby="resident-tickets-title">
+        <div class="resident-panel-heading"><div><h2 id="resident-tickets-title">Tus solicitudes</h2><p>Últimos tickets que siguen abiertos.</p></div><a class="dashboard-action" href="{% url 'tickets:lista' %}">Ver tickets</a></div>
+        <ul class="resident-activity-list">
+            {% for ticket in tickets_residente_recientes %}<li><span><a class="resident-activity-title" href="{% url 'tickets:lista' %}">{{ ticket.titulo }}</a><small class="resident-activity-meta">{{ ticket.condominio.nombre }} · {{ ticket.get_estado_display }}</small></span><time class="resident-activity-meta" datetime="{{ ticket.actualizado|date:'c' }}">{{ ticket.actualizado|date:"d/m/Y" }}</time></li>
+            {% empty %}<li class="resident-empty">No tienes solicitudes activas.</li>{% endfor %}
+        </ul>
+    </section>
+    <section class="resident-home-panel" aria-labelledby="resident-community-title">
+        <div class="resident-panel-heading"><div><h2 id="resident-community-title">Tus unidades</h2><p>Viviendas vinculadas a tu cuenta.</p></div></div>
+        <ul class="resident-activity-list">
+            {% for unidad in unidades_residente_resumen %}<li><span><strong class="resident-activity-title">{{ unidad.edificio.condominio.nombre }}</strong><small class="resident-activity-meta">Edificio {{ unidad.edificio.numero }} · Unidad {{ unidad.numero_unidad }}</small></span></li>
+            {% empty %}<li class="resident-empty">Aún no hay unidades asociadas a tu cuenta.</li>{% endfor %}
+        </ul>
+        {% if unidades_residente_adicionales %}<small class="resident-activity-meta">Y {{ unidades_residente_adicionales }} unidad{% if unidades_residente_adicionales != 1 %}es{% endif %} más vinculada{% if unidades_residente_adicionales != 1 %}s{% endif %} a tu cuenta.</small>{% endif %}
+    </section>
+</div>
+{% endif %}
+
+{% if usuario.rol == "Gestor" and resumen_gestor %}
+<section class="resident-welcome" aria-labelledby="gestor-welcome-title">
+    <div class="resident-welcome-copy">
+        <p class="dashboard-section-label">Operación del condominio</p>
+        <h2 id="gestor-welcome-title">Hola, {{ usuario.nombre }}</h2>
+        <p>Un vistazo a lo que requiere atención y a lo que viene en los próximos días.</p>
+    </div>
+</section>
+
+<section class="gestor-home-kpis" aria-label="Resumen operativo">
+    <a class="resident-home-kpi" href="{% url 'visitas:lista' %}?todas=1&amp;fecha={{ resumen_gestor.fecha_hoy|date:'Y-m-d' }}">
+        <span class="resident-kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v16M2 21h20M9 21v-5h6v5M9 8h.01M15 8h.01M9 12h.01M15 12h.01"/></svg></span>
+        <span><span class="resident-kpi-label">Visitas de hoy</span><strong class="resident-kpi-value">{{ resumen_gestor.visitas_hoy }}</strong><small class="resident-kpi-caption">Registros programados o presentes.</small></span>
+    </a>
+    <a class="resident-home-kpi {% if resumen_gestor.tickets_sin_movimiento %}gestor-kpi-alert{% endif %}" href="{% url 'tickets:lista' %}">
+        <span class="resident-kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a3 3 0 0 0 0 6v4h18v-4a3 3 0 0 0 0-6V4H3z"/><path d="M13 4v2m0 4v2m0 4v2"/></svg></span>
+        <span><span class="resident-kpi-label">Solicitudes abiertas</span><strong class="resident-kpi-value">{{ resumen_gestor.tickets_abiertos }}</strong><small class="resident-kpi-caption">{{ resumen_gestor.tickets_sin_movimiento }} sin actualización hace más de 7 días.</small></span>
+    </a>
+    <a class="resident-home-kpi {% if resumen_gestor.mantenciones_vencidas %}gestor-kpi-alert{% endif %}" href="{% url 'mantenimientos:lista' %}?alerta=vencidos">
+        <span class="resident-kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m14.7 6.3 3 3M4 20l5.1-1.1L20 8a2.1 2.1 0 0 0-3-3L6.1 15.9 4 20Z"/><path d="m13 5 2-2 6 6-2 2"/></svg></span>
+        <span><span class="resident-kpi-label">Mantenciones vencidas</span><strong class="resident-kpi-value">{{ resumen_gestor.mantenciones_vencidas }}</strong><small class="resident-kpi-caption">{{ resumen_gestor.mantenciones_proximas }} vencen durante los próximos 7 días.</small></span>
+    </a>
+    <a class="resident-home-kpi" href="{% url 'reservaciones_lista' %}?filtro=proximas">
+        <span class="resident-kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18M8 14h3m-3 3h6"/></svg></span>
+        <span><span class="resident-kpi-label">Reservas esta semana</span><strong class="resident-kpi-value">{{ resumen_gestor.reservas_semana }}</strong><small class="resident-kpi-caption">Agenda de áreas comunes e invitados.</small></span>
+    </a>
+</section>
+
+<div class="gestor-dashboard-panels">
+    <section class="resident-home-panel" aria-labelledby="gestor-tickets-title">
+        <div class="resident-panel-heading"><div><h2 id="gestor-tickets-title">Actividad de tickets</h2></div><a class="dashboard-action" href="{% url 'tickets:lista' %}">Ver todo</a></div>
+        <ul class="resident-activity-list">
+            {% for ticket in tickets_gestor_recientes %}<li><span><strong class="resident-activity-title">{{ ticket.titulo|truncatechars:34 }}</strong><small class="resident-activity-meta">{% if ticket.unidad %}Unidad {{ ticket.unidad.numero_unidad }} · {% endif %}{{ ticket.get_estado_display }}</small></span><time class="resident-activity-meta" datetime="{{ ticket.actualizado|date:'c' }}">{{ ticket.actualizado|date:"d/m" }}</time></li>
+            {% empty %}<li class="resident-empty">Aún no hay actividad en los tickets.</li>{% endfor %}
+        </ul>
+    </section>
+    <section class="resident-home-panel" aria-labelledby="gestor-mantenciones-title">
+        <div class="resident-panel-heading"><div><h2 id="gestor-mantenciones-title">Mantenciones recientes</h2></div><a class="dashboard-action" href="{% url 'mantenimientos:lista' %}">Ver todo</a></div>
+        <ul class="resident-activity-list">
+            {% for registro in mantenciones_gestor_recientes %}<li><span><strong class="resident-activity-title">{{ registro.elemento.nombre|truncatechars:30 }}</strong><small class="resident-activity-meta">{% if registro.tipo_mantenimiento == "preventivo" %}Preventiva{% elif registro.tipo_mantenimiento == "correctivo" %}Correctiva{% else %}Historial anterior{% endif %} · {{ registro.get_estado_display }}</small></span><time class="resident-activity-meta" datetime="{{ registro.fecha|date:'Y-m-d' }}">{{ registro.fecha|date:"d/m" }}</time></li>
+            {% empty %}<li class="resident-empty">Aún no hay mantenciones en el historial.</li>{% endfor %}
+        </ul>
+    </section>
+    <section class="resident-home-panel" aria-labelledby="gestor-anuncios-title">
+        <div class="resident-panel-heading"><div><h2 id="gestor-anuncios-title">Comunicados</h2></div><a class="dashboard-action" href="{% url 'anuncios:lista' %}">Ver todo</a></div>
+        <ul class="resident-activity-list">
+            {% for anuncio in anuncios_gestor_recientes %}<li><span><strong class="resident-activity-title">{{ anuncio.titulo|truncatechars:34 }}</strong><small class="resident-activity-meta">{{ anuncio.condominio.nombre }}</small></span><time class="resident-activity-meta" datetime="{{ anuncio.creado|date:'c' }}">{{ anuncio.creado|date:"d/m" }}</time></li>
+            {% empty %}<li class="resident-empty">Todavía no hay anuncios publicados.</li>{% endfor %}
+        </ul>
+    </section>
+</div>
+{% endif %}
+
+{% if es_dashboard_administrador %}
+<section class="card" aria-labelledby="dashboard-heading">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+        <div>
+            <h2 class="h5 mb-1" id="dashboard-heading">Resumen de gestión</h2>
+            <p class="text-secondary mb-0">“Todos mis condominios” muestra el consolidado. Elige uno para ver solo su detalle.</p>
+        </div>
+        <form method="get" class="dashboard-filter">
+            <div>
+                <label for="condominio-dashboard">Condominio</label>
+                <select id="condominio-dashboard" name="condominio">
+                    <option value="">Todos mis condominios</option>
+                    {% for condominio in condominios %}
+                    <option value="{{ condominio.pk }}" {% if condominio_filtro == condominio.pk|stringformat:"s" %}selected{% endif %}>{{ condominio.nombre }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button class="button" type="submit">Ver resumen</button>
+        </form>
+    </div>
+</section>
+
+{% if tareas_operativas %}
+<section class="card mb-4" aria-labelledby="bandeja-trabajo-heading">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+        <div><p class="dashboard-section-label">Seguimiento operativo</p><h2 class="h5 mb-1" id="bandeja-trabajo-heading">Bandeja de trabajo</h2><p class="text-secondary mb-0">Pendientes y agenda de los próximos días.</p></div>
+    </div>
+    <div class="work-queue-grid">
+        {% for tarea in tareas_operativas %}
+            <a class="resident-home-kpi work-queue-item {% if tarea.alerta %}gestor-kpi-alert{% endif %}" href="{{ tarea.url }}">
+                <span class="resident-kpi-icon" aria-hidden="true">
+                    {% if tarea.icono == "visitas" %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v16M2 21h20M9 21v-5h6v5M9 8h.01M15 8h.01M9 12h.01M15 12h.01"/></svg>
+                    {% elif tarea.icono == "tickets" %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a3 3 0 0 0 0 6v4h18v-4a3 3 0 0 0 0-6V4H3z"/><path d="M13 4v2m0 4v2m0 4v2"/></svg>
+                    {% elif tarea.icono == "reservas" %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18M8 14h3m-3 3h6"/></svg>
+                    {% else %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m14.7 6.3 3 3M4 20l5.1-1.1L20 8a2.1 2.1 0 0 0-3-3L6.1 15.9 4 20Z"/><path d="m13 5 2-2 6 6-2 2"/></svg>{% endif %}
+                </span>
+                <span class="work-queue-copy"><span class="resident-kpi-label">{{ tarea.titulo }}</span><strong class="resident-kpi-value">{{ tarea.cantidad }}</strong><small class="resident-kpi-caption">{{ tarea.detalle }}</small></span>
+            </a>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+
+{% if resumen_todos %}
+<section class="dashboard-condo" aria-labelledby="resumen-total-heading">
+    <div>
+        <p class="dashboard-section-label">Panel ejecutivo</p>
+        <h2 id="resumen-total-heading">Consolidado de mis condominios</h2>
+        <p class="text-secondary mb-0">Incluye {{ resumen_todos.cantidad_condominios }} condominios. Los montos suman el período publicado más reciente de cada uno ({{ resumen_todos.periodos_con_datos }} con datos).</p>
+    </div>
+    <div class="dashboard-kpis">
+        <div class="dashboard-kpi dashboard-kpi-primary"><span>Total liquidado en los períodos publicados</span><strong>${{ resumen_todos.total_liquidado|floatformat:0 }}</strong><small class="text-secondary">Un período reciente por condominio</small></div>
+        <div class="dashboard-kpi dashboard-kpi-primary">
+            <span>Pagos confirmados</span><strong>${{ resumen_todos.total_pagado|floatformat:0 }}</strong>
+            <small class="text-secondary">{{ resumen_todos.porcentaje_pagado }}% recaudado</small>
+        </div>
+        <div class="dashboard-kpi"><span>Saldo pendiente</span><strong>${{ resumen_todos.total_pendiente|floatformat:0 }}</strong><small class="text-secondary">En los períodos incluidos arriba</small></div>
+        <a class="dashboard-kpi text-decoration-none" href="{% url 'reservaciones_lista' %}"><span>Reservas próximas</span><strong>{{ resumen_todos.reservas_proximas }}</strong><small class="text-secondary">La reserva queda confirmada automáticamente.</small></a>
+        <a class="dashboard-kpi text-decoration-none" href="{% url 'tickets:lista' %}"><span>Tickets abiertos</span><strong>{{ resumen_todos.tickets_abiertos }}</strong><small class="text-secondary">{{ resumen_todos.tickets_en_atencion }} en atención · {{ resumen_todos.tickets_resueltos }} resueltos o cerrados</small></a>
+    </div>
+    <div class="dashboard-visuals">
+        <div class="dashboard-visual-card">
+            <h3>Avance de recaudación</h3>
+            <div class="dashboard-progress-label"><span>Porcentaje recaudado</span><strong>{{ resumen_todos.porcentaje_pagado }}%</strong></div>
+            <div class="dashboard-progress-track" role="progressbar" aria-label="Avance de recaudación consolidado" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ resumen_todos.porcentaje_pagado }}"><div class="dashboard-progress-value" style="--progress:{{ resumen_todos.porcentaje_pagado }}%"></div></div>
+            <div class="dashboard-progress-legend"><span>Pagado <strong>${{ resumen_todos.total_pagado|floatformat:0 }}</strong></span><span>Pendiente <strong>${{ resumen_todos.total_pendiente|floatformat:0 }}</strong></span></div>
+            <div>
+                {% if resumen_todos.periodos_con_datos == 0 %}<small class="text-secondary">Aún no hay períodos publicados para comparar.</small>{% endif %}
+            </div>
+        </div>
+        <div class="dashboard-visual-card dashboard-mora-card">
+            <div>
+                <h3>Morosidad</h3>
+                {% if resumen_todos.morosidad_monto %}
+                <strong class="dashboard-mora-value">${{ resumen_todos.morosidad_monto|floatformat:0 }}</strong>
+                <p class="text-secondary mb-1">Saldo vencido en {{ resumen_todos.morosidad_unidades }} unidad{% if resumen_todos.morosidad_unidades != 1 %}es{% endif %}.</p>
+                {% else %}
+                <strong class="dashboard-mora-value dashboard-mora-clear">Sin morosidad</strong>
+                <p class="text-secondary mb-1">No hay saldos vencidos en los últimos períodos publicados.</p>
+                {% endif %}
+                <a href="{% url 'gastos_comunes:lista' %}" class="dashboard-action">Ver gastos</a>
+            </div>
+        </div>
+    </div>
+</section>
+{% endif %}
+
+{% if condominio_filtro %}
+{% for panel in paneles_condominio %}
+<section class="dashboard-condo" aria-labelledby="condominio-{{ panel.condominio.pk }}">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div>
+            <p class="dashboard-section-label">Detalle del condominio</p>
+            <h2 id="condominio-{{ panel.condominio.pk }}">{{ panel.condominio.nombre }}</h2>
+            {% if panel.periodo %}
+            <p class="text-secondary mb-0">Último período publicado: {{ panel.periodo.mes|stringformat:"02d" }}/{{ panel.periodo.anio }}</p>
+            {% else %}
+            <p class="text-secondary mb-0">Todavía no hay períodos de gastos comunes publicados.</p>
+            {% endif %}
+        </div>
+        <a class="button button-secondary" href="{% url 'reportes' %}?condominio={{ panel.condominio.pk }}">Ver reportes</a>
+    </div>
+
+    <div class="dashboard-kpis">
+        <div class="dashboard-kpi">
+            <span>Total liquidado{% if panel.periodo %} en el último período{% endif %}</span>
+            <strong>{% if panel.periodo %}${{ panel.total_liquidado|floatformat:0 }}{% else %}—{% endif %}</strong>
+        </div>
+        <div class="dashboard-kpi"><span>Saldo pendiente</span><strong>{% if panel.periodo %}${{ panel.total_pendiente|floatformat:0 }}{% else %}—{% endif %}</strong><small class="text-secondary">Saldo del período mostrado</small></div>
+        <div class="dashboard-kpi">
+            <span>Pagos confirmados</span>
+            <strong>{% if panel.periodo %}${{ panel.total_pagado|floatformat:0 }}{% else %}—{% endif %}</strong>
+            {% if panel.periodo %}<small class="text-secondary">{{ panel.porcentaje_pagado }}% recaudado</small>{% endif %}
+        </div>
+        <a class="dashboard-kpi text-decoration-none" href="{% url 'reservaciones_lista' %}">
+            <span>Reservas próximas</span><strong>{{ panel.reservas_proximas }}</strong><small class="text-secondary">La reserva queda confirmada automáticamente.</small>
+        </a>
+        <a class="dashboard-kpi text-decoration-none" href="{% url 'tickets:lista' %}">
+            <span>Tickets abiertos</span><strong>{{ panel.tickets_abiertos }}</strong><small class="text-secondary">{{ panel.tickets_en_atencion }} en atención · {{ panel.tickets_resueltos }} resueltos o cerrados</small>
+        </a>
+    </div>
+
+    <div class="dashboard-visuals">
+        <div class="dashboard-visual-card">
+            <h3>Avance de recaudación</h3>
+            {% if panel.periodo %}
+            <div class="dashboard-progress-label"><span>Porcentaje recaudado</span><strong>{{ panel.porcentaje_pagado }}%</strong></div>
+            <div class="dashboard-progress-track" role="progressbar" aria-label="Avance de recaudación de {{ panel.condominio.nombre }}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ panel.porcentaje_pagado }}"><div class="dashboard-progress-value" style="--progress:{{ panel.porcentaje_pagado }}%"></div></div>
+            <div class="dashboard-progress-legend"><span>Pagado <strong>${{ panel.total_pagado|floatformat:0 }}</strong></span><span>Pendiente <strong>${{ panel.total_pendiente|floatformat:0 }}</strong></span></div>
+            {% else %}<p class="text-secondary mb-0">Sin períodos publicados.</p>{% endif %}
+        </div>
+        <div class="dashboard-visual-card dashboard-mora-card">
+            <div><h3>Morosidad</h3>
+                {% if panel.periodo and panel.morosidad_monto %}
+                <strong class="dashboard-mora-value">${{ panel.morosidad_monto|floatformat:0 }}</strong><p class="text-secondary mb-1">Saldo vencido en {{ panel.morosidad_unidades }} unidad{% if panel.morosidad_unidades != 1 %}es{% endif %}.</p>
+                {% elif panel.periodo %}<strong class="dashboard-mora-value dashboard-mora-clear">Sin morosidad</strong><p class="text-secondary mb-1">No hay saldos vencidos.</p>
+                {% else %}<p class="text-secondary mb-1">Sin períodos publicados para calcularla.</p>{% endif %}
+                <a href="{% url 'gastos_comunes:lista' %}" class="dashboard-action">Ver gastos</a>
+            </div>
+        </div>
+    </div>
+</section>
+{% empty %}
+<section class="card"><p class="mb-0">No tienes condominios activos asignados para mostrar.</p></section>
+{% endfor %}
+{% endif %}
+{% endif %}
+
+{% if usuario.rol != "Super Administrador" and usuario.rol != "Residente" and usuario.rol != "Gestor" and not es_dashboard_administrador %}
+<section class="card mb-4" aria-labelledby="seguimiento-heading">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+        <div><h2 class="h5 mb-1" id="seguimiento-heading">Seguimiento</h2><p class="text-secondary mb-0">Actividad pendiente de reservas y solicitudes.</p></div>
+    </div>
+    <div class="row g-3">
+        <div class="col-md-6"><a class="d-flex justify-content-between align-items-center p-3 rounded border text-decoration-none" href="{% url 'reservaciones_lista' %}"><span>Reservas próximas</span><strong class="fs-4">{{ reservas_proximas }}</strong></a></div>
+        <div class="col-md-6"><a class="d-flex justify-content-between align-items-center p-3 rounded border text-decoration-none" href="{% url 'tickets:lista' %}"><span>Tickets pendientes</span><strong class="fs-4">{{ tickets_pendientes }}</strong></a></div>
+    </div>
+</section>
+{% endif %}
+
+{% if usuario.rol == "Residente" or es_dashboard_administrador %}
+<div class="resident-home-grid mb-4">
+    <section class="card mb-0" aria-labelledby="notificaciones-inicio-heading">
+        <div class="d-flex justify-content-between align-items-start gap-2">
+            <div><p class="dashboard-section-label">Al día</p><h2 class="h5 mb-1" id="notificaciones-inicio-heading">Notificaciones recientes</h2><p class="text-secondary small mb-0">{% if es_dashboard_administrador %}Avisos de tu cuenta.{% else %}Tus avisos más recientes.{% endif %}</p></div>
+            <a class="dashboard-action" href="{% url 'notifications_list' %}">Ver todas</a>
+        </div>
+        <ul class="resident-feed mt-2">
+            {% for notificacion in notificaciones_recientes %}<li class="resident-notification {% if notificacion.is_read %}is-read{% else %}is-unread{% endif %}"><span class="resident-notification-dot" aria-hidden="true"></span><div class="resident-notification-body"><a href="{{ notificacion.url|default:'/notificaciones/list/' }}">{{ notificacion.message|truncatechars:88 }}</a><small class="resident-notification-meta"><time datetime="{{ notificacion.created_at|date:'c' }}">{{ notificacion.created_at|date:"d/m/Y H:i" }}</time><span class="resident-notification-status">{% if notificacion.is_read %}Leída{% else %}Nueva{% endif %}</span></small></div></li>
+            {% empty %}<li class="text-secondary">No tienes notificaciones todavía.</li>{% endfor %}
+        </ul>
+    </section>
+    <section class="card mb-0" aria-labelledby="anuncios-inicio-heading">
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+            <div><p class="dashboard-section-label">Comunidad</p><h2 class="h5 mb-1" id="anuncios-inicio-heading">Anuncios recientes</h2></div>
+            <a class="dashboard-action" href="{% url 'anuncios:lista' %}">Ver todo</a>
+        </div>
+        <div class="announcement-tabs" role="tablist" aria-label="Tipo de anuncios">
+            <button type="button" class="announcement-tab" id="tab-anuncios-admin" role="tab" aria-selected="true" aria-controls="panel-anuncios-admin" tabindex="0">Administración</button>
+            <button type="button" class="announcement-tab" id="tab-anuncios-residentes" role="tab" aria-selected="false" aria-controls="panel-anuncios-residentes" tabindex="-1">Residentes</button>
+        </div>
+        <div class="announcement-panel" id="panel-anuncios-admin" role="tabpanel" aria-labelledby="tab-anuncios-admin" tabindex="0">
+            <ul class="resident-feed">
+                {% for anuncio in anuncios_oficiales_recientes %}<li><a href="{% url 'anuncios:lista' %}?tipo=oficial">{{ anuncio.titulo|truncatechars:58 }}</a><small>{{ anuncio.condominio.nombre }} · {{ anuncio.creado|date:"d/m/Y" }}</small></li>
+                {% empty %}<li class="text-secondary">No hay anuncios recientes de la administración.</li>{% endfor %}
+            </ul>
+        </div>
+        <div class="announcement-panel" id="panel-anuncios-residentes" role="tabpanel" aria-labelledby="tab-anuncios-residentes" tabindex="0" hidden>
+            <ul class="resident-feed">
+                {% for anuncio in anuncios_residentes_recientes %}<li><a href="{% url 'anuncios:lista' %}?tipo=residentes">{{ anuncio.titulo|truncatechars:58 }}</a><small>{{ anuncio.condominio.nombre }} · {{ anuncio.creado|date:"d/m/Y" }}</small></li>
+                {% empty %}<li class="text-secondary">No hay anuncios recientes de residentes.</li>{% endfor %}
+            </ul>
+        </div>
+    </section>
+</div>
+{% endif %}
+
+<script>
+(function () {
+    const tabs = [...document.querySelectorAll(".announcement-tab")];
+    if (!tabs.length) return;
+
+    function activate(tab, focus = false) {
+        tabs.forEach(item => {
+            const selected = item === tab;
+            item.setAttribute("aria-selected", selected ? "true" : "false");
+            item.tabIndex = selected ? 0 : -1;
+            document.getElementById(item.getAttribute("aria-controls")).hidden = !selected;
+        });
+        if (focus) tab.focus();
+    }
+
+    tabs.forEach((tab, index) => {
+        tab.addEventListener("click", () => activate(tab));
+        tab.addEventListener("keydown", event => {
+            let nextIndex = index;
+            if (event.key === "ArrowRight") nextIndex = (index + 1) % tabs.length;
+            else if (event.key === "ArrowLeft") nextIndex = (index - 1 + tabs.length) % tabs.length;
+            else if (event.key === "Home") nextIndex = 0;
+            else if (event.key === "End") nextIndex = tabs.length - 1;
+            else return;
+            event.preventDefault();
+            activate(tabs[nextIndex], true);
+        });
+    });
+})();
+</script>
 
 {% endblock %}

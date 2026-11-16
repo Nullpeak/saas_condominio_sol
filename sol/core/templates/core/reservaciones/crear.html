@@ -46,23 +46,58 @@
     height:30px;
     border-right:1px solid #e9ecef;
     border-bottom:1px solid #e9ecef;
-    cursor:pointer;
+    cursor:crosshair;
     position:relative;
-    transition:background-color .12s ease
+    transition:background-color .12s ease;
+    touch-action:none;
+    user-select:none
 }
 
 .bloque-horario:hover{background:#e9f2ff}
 .bloque-horario.disponible{background:#fff}
 .bloque-horario.fuera-horario{background:#f1f3f5;cursor:not-allowed}
-.bloque-horario.ocupado{background:#dc3545;cursor:not-allowed;opacity:.75}
+.bloque-horario.ocupado{background:#fd7e14;cursor:not-allowed}
 .bloque-horario.pasado{background:#e9ecef;cursor:not-allowed}
 
 .bloque-horario.seleccionado{
-    background:#bfdbfe!important;
-    border-left:2px solid #2563eb;
-    border-right:2px solid #2563eb;
-    z-index:2
+    background:#0d6efd!important;
+    border-left:2px solid #0a58ca;
+    border-right:2px solid #0a58ca;
+    z-index:2;
+    cursor:move
 }
+
+.resize-handle{
+    position:absolute;
+    left:50%;
+    width:32px;
+    height:7px;
+    z-index:8;
+    cursor:ns-resize;
+    transform:translateX(-50%);
+    background:linear-gradient(180deg,#334155 0%,#111827 100%);
+    border-radius:2px;
+    box-shadow:0 1px 2px rgba(15,23,42,.4);
+    opacity:.9
+}
+.resize-handle::after{
+    content:"";
+    position:absolute;
+    left:calc(50% - 8px);
+    top:2px;
+    width:3px;
+    height:3px;
+    border-radius:50%;
+    background:#e2e8f0;
+    box-shadow:6px 0 0 #e2e8f0,12px 0 0 #e2e8f0
+}
+.resize-handle:hover{
+    background:linear-gradient(180deg,#475569 0%,#1e293b 100%);
+    box-shadow:0 1px 3px rgba(15,23,42,.55),0 0 0 1px rgba(255,255,255,.55);
+    opacity:1
+}
+.resize-handle.top{top:0}
+.resize-handle.bottom{bottom:0}
 
 .bloque-horario.seleccionado-inicio{
     border-top:2px solid #2563eb;
@@ -79,7 +114,8 @@
 .bloque-reserva{
     position:absolute;
     inset:2px;
-    background:#dc3545;
+    background:#fd7e14;
+    border:1px solid #e8590c;
     border-radius:4px
 }
 
@@ -99,8 +135,8 @@
     bottom:2px;
     font-size:10px;
     font-weight:700;
-    color:#1d4ed8;
-    background:#eff6ff;
+    color:#fff;
+    background:#0a58ca;
     padding:1px 4px;
     border-radius:3px;
     z-index:6;
@@ -154,11 +190,11 @@
 
 .leyenda-disponible{background:#fff}
 .leyenda-fuera{background:#f1f3f5}
-.leyenda-ocupado{background:#dc3545}
+.leyenda-ocupado{background:#fd7e14}
 
 .leyenda-seleccionado{
-    background:#bfdbfe;
-    border:2px solid #2563eb
+    background:#0d6efd;
+    border:2px solid #0a58ca
 }
 
 .mensaje-agenda{
@@ -194,6 +230,13 @@
                 </button>
             </div>
         {% endfor %}
+    {% endif %}
+
+    {% if errores %}
+        <div class="alert alert-danger" role="alert" aria-live="assertive">
+            <strong>No se pudo completar la reserva.</strong>
+            {% for error in errores %}<div>{{ error }}</div>{% endfor %}
+        </div>
     {% endif %}
 
     {% if form.errors %}
@@ -243,7 +286,7 @@
                                 data-duracion="{{ area.duracion_maxima|default:'' }}"
                                 data-anticipacion="{{ area.dias_anticipacion_maxima|default:'' }}"
                                 data-consecutivas="{{ area.permite_reservas_consecutivas|yesno:'true,false' }}">
-                                {{ area.nombre }}
+                                {{ area.condominio.nombre }} · {{ area.nombre }}
                             </option>
                         {% endfor %}
 
@@ -271,8 +314,7 @@
                         {% for unidad in unidades %}
 
                             <div class="form-control bg-light">
-                                {{ unidad.edificio.nombre }} -
-                                Unidad {{ unidad.numero }}
+                                {{ unidad.edificio.nombre }} · Unidad {{ unidad.numero_unidad }}
                             </div>
 
                             <input type="hidden"
@@ -305,8 +347,7 @@
                             {% for unidad in unidades %}
 
                                 <option value="{{ unidad.id }}">
-                                    {{ unidad.edificio.nombre }} -
-                                    Unidad {{ unidad.numero }}
+                                    {{ unidad.edificio.nombre }} · Unidad {{ unidad.numero_unidad }}
                                 </option>
 
                             {% endfor %}
@@ -362,7 +403,7 @@
 
                         <div class="leyenda-item">
                             <span class="leyenda-color leyenda-disponible"></span>
-                            Disponible
+                            Horario disponible
                         </div>
 
                         <div class="leyenda-item">
@@ -497,7 +538,7 @@
 
                         <div id="mensaje-duracion"
                              class="form-text mt-2">
-                            Selecciona la duración de tu reserva.
+                            Arrastra sobre la agenda para elegir el horario. Puedes mover la selección o ajustar sus extremos.
                         </div>
 
                     </div>
@@ -534,6 +575,13 @@
                             </div>
                         </div>
 
+                        <div class="col-md-3">
+                            <div class="regla-card">
+                                <strong>Reservas por unidad al día</strong>
+                                <span id="regla-max-reservas-dia">-</span>
+                            </div>
+                        </div>
+
                     </div>
 
                 </div>
@@ -566,6 +614,12 @@
                                name="fin_reserva"
                                id="fin_reserva">
 
+
+                        <div class="mb-4">
+                            <label for="cantidad_personas" class="form-label">Personas que asistirán</label>
+                            <input type="number" id="cantidad_personas" name="cantidad_personas" class="form-control" min="1" max="1000" value="{{ datos.cantidad_personas|default:'1' }}" required>
+                            <small id="ayuda-capacidad" class="form-text text-muted">Indica cuántas personas asistirán. Se validará con la capacidad del área seleccionada.</small>
+                        </div>
 
                         <div class="mb-4">
 
@@ -698,7 +752,10 @@ const resumenFin=document.getElementById("resumen-fin");
 const reglaDuracion=document.getElementById("regla-duracion");
 const reglaAnticipacion=document.getElementById("regla-anticipacion");
 const reglaCapacidad=document.getElementById("regla-capacidad");
+const cantidadPersonas=document.getElementById("cantidad_personas");
+const ayudaCapacidad=document.getElementById("ayuda-capacidad");
 const reglaConsecutivas=document.getElementById("regla-consecutivas");
+const reglaMaxReservasDia=document.getElementById("regla-max-reservas-dia");
 const mensajeDuracion=document.getElementById("mensaje-duracion");
 const mensajeFormulario=document.getElementById("mensaje-formulario");
 const opcionesDuracion=document.querySelectorAll(".duracion-opcion");
@@ -708,6 +765,12 @@ let horarios=[];
 let reservaciones=[];
 let reglas={};
 let seleccion=null;
+let arrastreReserva=null;
+
+agenda.addEventListener("pointerdown", iniciarArrastreReserva);
+window.addEventListener("pointermove", moverArrastreReserva);
+window.addEventListener("pointerup", finalizarArrastreReserva);
+window.addEventListener("pointercancel", finalizarArrastreReserva);
 
 function obtenerLunes(fecha){
     const resultado=new Date(fecha);
@@ -789,6 +852,12 @@ areaSelect.addEventListener("change",function(){
     resumenArea.innerHTML=
         "<strong>Área seleccionada:</strong> "+
         opcion.textContent.trim();
+
+    const capacidad=Number(opcion.dataset.capacidad||0);
+    cantidadPersonas.max=capacidad>0?String(capacidad):"1000";
+    ayudaCapacidad.textContent=capacidad>0
+        ?"Esta área admite hasta "+capacidad+" personas por reserva."
+        :"El área no tiene una capacidad máxima configurada.";
 
     cargarDisponibilidad();
 });
@@ -917,6 +986,13 @@ function actualizarReglas(){
         reglas.permite_reservas_consecutivas
         ?"Permitidas"
         :"No permitidas";
+
+    reglaMaxReservasDia.textContent=
+        reglas.permite_multiples_reservas_por_unidad_dia
+        ?"Permitidas"
+        :"1 por unidad";
+
+    actualizarOpcionesDuracion();
 }
 
 function renderizarAgenda(){
@@ -1108,18 +1184,6 @@ function renderizarAgenda(){
                 );
             }
 
-            bloque.addEventListener(
-                "click",
-                function(){
-
-                    seleccionarBloque(
-                        dia,
-                        minutos,
-                        bloque
-                    );
-                }
-            );
-
             cuerpo.appendChild(bloque);
         });
     }
@@ -1179,54 +1243,126 @@ function bloqueEstaOcupado(
     });
 }
 
-function seleccionarBloque(
-    dia,
-    minutos,
-    bloque
-){
+function iniciarArrastreReserva(event){
+    const bloque=event.target.closest(".bloque-horario");
+    if(!bloque)return;
 
-    if(
-        bloque.classList.contains(
-            "fuera-horario"
-        ) ||
-        bloque.classList.contains(
-            "ocupado"
-        ) ||
-        bloque.classList.contains(
-            "pasado"
-        )
-    ){
+    const dia=Number(bloque.dataset.dia);
+    const minutos=Number(bloque.dataset.minutos);
+    const manilla=event.target.closest(".resize-handle");
+    const esDisponible=
+        bloque.classList.contains("disponible") &&
+        !bloque.classList.contains("ocupado") &&
+        !bloque.classList.contains("pasado");
+
+    if(manilla && seleccion){
+        event.preventDefault();
+        arrastreReserva={
+            tipo:manilla.classList.contains("top")?"inicio":"fin",
+            diaOriginal:obtenerIndiceDia(seleccion.fecha),
+            inicioOriginal:seleccion.inicioMinutos,
+            finOriginal:seleccion.inicioMinutos+seleccion.duracion,
+            anterior:{...seleccion},
+            movido:false
+        };
+        bloque.setPointerCapture(event.pointerId);
         return;
     }
 
-    const fecha=
-        crearFechaHora(
-            dia,
-            minutos
-        );
-
-    if(!fechaCumpleAnticipacion(fecha)){
-
-        mensajeFormulario.innerHTML=
-            '<div class="alert alert-warning">'+
-            'Este horario supera la anticipación máxima permitida para esta área.'+
-            '</div>';
-
+    if(seleccion && bloque.classList.contains("seleccionado")){
+        event.preventDefault();
+        arrastreReserva={
+            tipo:"mover",
+            diaOriginal:obtenerIndiceDia(seleccion.fecha),
+            inicioOriginal:seleccion.inicioMinutos,
+            finOriginal:seleccion.inicioMinutos+seleccion.duracion,
+            desfase:minutos-seleccion.inicioMinutos,
+            anterior:{...seleccion},
+            movido:false
+        };
+        bloque.setPointerCapture(event.pointerId);
         return;
     }
 
-    /*
-     * Al hacer clic en otro horario se reemplaza
-     * completamente la selección anterior.
-     */
+    if(!esDisponible)return;
 
-    seleccion={
-        fecha:fecha,
+    event.preventDefault();
+    arrastreReserva={
+        tipo:"crear",
+        diaOriginal:dia,
+        minutosOrigen:minutos,
+        anterior:seleccion?{...seleccion}:null,
+        movido:false
+    };
+    bloque.setPointerCapture(event.pointerId);
+    aplicarSeleccion({
+        fecha:agregarDias(semanaActual,dia),
         inicioMinutos:minutos,
         duracion:30
-    };
+    });
+}
 
-    actualizarSeleccion();
+function moverArrastreReserva(event){
+    if(!arrastreReserva)return;
+    const elemento=document.elementFromPoint(event.clientX,event.clientY);
+    const bloque=elemento&&elemento.closest(".bloque-horario");
+    if(!bloque)return;
+
+    const dia=Number(bloque.dataset.dia);
+    const minutos=Number(bloque.dataset.minutos);
+    let candidata=null;
+
+    if(arrastreReserva.tipo==="crear"){
+        if(dia!==arrastreReserva.diaOriginal)return;
+        const inicio=Math.min(arrastreReserva.minutosOrigen,minutos);
+        const fin=Math.max(arrastreReserva.minutosOrigen,minutos)+30;
+        candidata={
+            fecha:agregarDias(semanaActual,dia),
+            inicioMinutos:inicio,
+            duracion:fin-inicio
+        };
+    }else if(arrastreReserva.tipo==="mover"){
+        const inicio=minutos-arrastreReserva.desfase;
+        const duracion=arrastreReserva.finOriginal-arrastreReserva.inicioOriginal;
+        candidata={
+            fecha:agregarDias(semanaActual,dia),
+            inicioMinutos:inicio,
+            duracion:duracion
+        };
+    }else{
+        if(dia!==arrastreReserva.diaOriginal)return;
+        let inicio=arrastreReserva.inicioOriginal;
+        let fin=arrastreReserva.finOriginal;
+        if(arrastreReserva.tipo==="inicio")inicio=minutos;
+        else fin=minutos+30;
+        candidata={
+            fecha:agregarDias(semanaActual,dia),
+            inicioMinutos:inicio,
+            duracion:fin-inicio
+        };
+    }
+
+    if(candidata.duracion<=0)return;
+    arrastreReserva.movido=true;
+    aplicarSeleccion(candidata);
+}
+
+function finalizarArrastreReserva(){
+    if(!arrastreReserva)return;
+    arrastreReserva=null;
+    actualizarBotonConfirmar();
+}
+
+function aplicarSeleccion(candidata){
+    const anterior=seleccion?{...seleccion}:null;
+    seleccion=candidata;
+    if(!actualizarSeleccion()){
+        seleccion=anterior;
+        actualizarBotonDuracion();
+        actualizarBotonConfirmar();
+        return false;
+    }
+    return true;
 }
 
 function limpiarSeleccionVisual(){
@@ -1258,6 +1394,10 @@ function limpiarSeleccionVisual(){
         if(etiqueta){
             etiqueta.remove();
         }
+
+        elemento.querySelectorAll(".resize-handle").forEach(function(manilla){
+            manilla.remove();
+        });
     });
 
     fechaReserva.value="";
@@ -1266,14 +1406,7 @@ function limpiarSeleccionVisual(){
 
 function actualizarSeleccion(){
 
-    if(!seleccion)return;
-
-    /*
-     * Primero limpiamos absolutamente toda
-     * la selección anterior.
-     */
-
-    limpiarSeleccionVisual();
+    if(!seleccion)return false;
 
     const inicio=
         seleccion.inicioMinutos;
@@ -1286,6 +1419,24 @@ function actualizarSeleccion(){
         obtenerIndiceDia(
             seleccion.fecha
         );
+
+    if(seleccion.duracion>maximoDuracionMinutos()){
+        mensajeDuracion.textContent=
+            "La duración supera el máximo permitido para esta área.";
+        mensajeDuracion.className="form-text mt-2 text-danger";
+        return false;
+    }
+
+    const fechaInicioValidacion=crearFechaHora(
+        seleccion.fecha,
+        seleccion.inicioMinutos
+    );
+    if(!fechaCumpleAnticipacion(fechaInicioValidacion)){
+        mensajeDuracion.textContent=
+            "Este horario supera la anticipación máxima permitida.";
+        mensajeDuracion.className="form-text mt-2 text-danger";
+        return false;
+    }
 
     let puedeSeleccionarse=true;
 
@@ -1327,8 +1478,10 @@ function actualizarSeleccion(){
         mensajeDuracion.className=
             "form-text mt-2 text-danger";
 
-        return;
+        return false;
     }
+
+    limpiarSeleccionVisual();
 
     let primerBloque=null;
     let ultimoBloque=null;
@@ -1363,6 +1516,11 @@ function actualizarSeleccion(){
         primerBloque.classList.add(
             "seleccionado-inicio"
         );
+
+        const manillaInicio=document.createElement("span");
+        manillaInicio.className="resize-handle top";
+        manillaInicio.title="Arrastra para cambiar la hora de inicio";
+        primerBloque.appendChild(manillaInicio);
     }
 
     const fechaInicio=
@@ -1407,6 +1565,11 @@ function actualizarSeleccion(){
         ultimoBloque.appendChild(
             etiqueta
         );
+
+        const manillaFin=document.createElement("span");
+        manillaFin.className="resize-handle bottom";
+        manillaFin.title="Arrastra para cambiar la hora de término";
+        ultimoBloque.appendChild(manillaFin);
     }
 
     fechaReserva.value=
@@ -1449,6 +1612,8 @@ function actualizarSeleccion(){
     actualizarBotonDuracion();
 
     actualizarBotonConfirmar();
+
+    return true;
 }
 
 function obtenerBloque(
@@ -1487,26 +1652,11 @@ opcionesDuracion.forEach(function(boton){
                     this.dataset.minutos
                 );
 
-            if(
-                reglas.duracion_maxima &&
-                minutos>
-                Number(
-                    reglas.duracion_maxima
-                )*60
-            ){
-
-                mensajeDuracion.textContent=
-                    "La duración supera el máximo permitido para esta área.";
-
-                mensajeDuracion.className=
-                    "form-text mt-2 text-danger";
-
-                return;
-            }
-
-            seleccion.duracion=minutos;
-
-            actualizarSeleccion();
+            aplicarSeleccion({
+                fecha:seleccion.fecha,
+                inicioMinutos:seleccion.inicioMinutos,
+                duracion:minutos
+            });
         }
     );
 });
@@ -1526,6 +1676,20 @@ function actualizarBotonDuracion(){
             minutos===
             seleccion.duracion
         );
+    });
+}
+
+function maximoDuracionMinutos(){
+    const maximo=Number(reglas.duracion_maxima);
+    return maximo>0?maximo*60:Infinity;
+}
+
+function actualizarOpcionesDuracion(){
+    const maximo=maximoDuracionMinutos();
+    opcionesDuracion.forEach(function(boton){
+        const superaMaximo=Number(boton.dataset.minutos)>maximo;
+        boton.hidden=superaMaximo;
+        boton.disabled=superaMaximo;
     });
 }
 
@@ -1747,6 +1911,28 @@ document.getElementById(
                 '<div class="alert alert-danger">'+
                 'El horario seleccionado no es válido.'+
                 '</div>';
+            return;
+        }
+
+        if(reglas.permite_multiples_reservas_por_unidad_dia===false){
+            const fechaInicio=inicio.getFullYear()+"-"+
+                String(inicio.getMonth()+1).padStart(2,"0")+"-"+
+                String(inicio.getDate()).padStart(2,"0");
+            const reservasDeUnidadEseDia=reservaciones.filter(function(reserva){
+                const fechaExistente=new Date(reserva.inicio);
+                const fechaExistenteLocal=fechaExistente.getFullYear()+"-"+
+                    String(fechaExistente.getMonth()+1).padStart(2,"0")+"-"+
+                    String(fechaExistente.getDate()).padStart(2,"0");
+                return String(reserva.unidad_id)===String(unidadForm.value) &&
+                    fechaExistenteLocal===fechaInicio;
+            }).length;
+            if(reservasDeUnidadEseDia>=1){
+                event.preventDefault();
+                mensajeFormulario.innerHTML=
+                    '<div class="alert alert-warning">'+
+                    'Esta unidad ya tiene una reserva para esta área en ese día. Solo se permite una por día.'+
+                    '</div>';
+            }
         }
     }
 );

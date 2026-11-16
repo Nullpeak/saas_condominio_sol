@@ -1,0 +1,40 @@
+{% extends "core/base.html" %}
+
+{% block title %}Editar ticket #{{ ticket.pk }} · CondoGestión{% endblock %}
+{% block page_title %}🎫 Editar ticket #{{ ticket.pk }}{% endblock %}
+
+{% block extra_css %}
+{% include "tickets/_estilos.html" %}
+{% endblock %}
+
+{% block content %}
+
+<a href="{% url 'tickets:detalle' ticket.pk %}" class="tk-muted text-decoration-none">← Volver al ticket</a>
+
+<div class="card-custom tk-form mt-2" style="max-width: 680px;">
+
+    <p class="text-secondary">
+        Puedes corregir tu ticket mientras el equipo aún no lo toma. El cambio queda en el historial.
+    </p>
+
+    <form method="post">
+        {% csrf_token %}
+
+        {% for e in form.non_field_errors %}<div class="alert alert-danger">{{ e }}</div>{% endfor %}
+
+        {% for campo in form %}
+            <label for="{{ campo.id_for_label }}">{{ campo.label }}</label>
+            {{ campo }}
+            {% if campo.help_text %}<div class="help">{{ campo.help_text }}</div>{% endif %}
+            {% for e in campo.errors %}<div class="error">{{ e }}</div>{% endfor %}
+        {% endfor %}
+
+        <div class="d-flex gap-2 mt-4">
+            <button class="button" type="submit">Guardar cambios</button>
+            <a class="button button-secondary" href="{% url 'tickets:detalle' ticket.pk %}">Cancelar</a>
+        </div>
+    </form>
+
+</div>
+
+{% endblock %}

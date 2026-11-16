@@ -1,0 +1,40 @@
+{% extends "core/base.html" %}
+
+{% block title %}Nuevo ticket · CondoGestión{% endblock %}
+{% block page_title %}🎫 Nuevo ticket{% endblock %}
+
+{% block extra_css %}
+{% include "tickets/_estilos.html" %}
+{% endblock %}
+
+{% block content %}
+
+<a href="{% url 'tickets:lista' %}" class="tk-muted text-decoration-none">← Volver a la bandeja</a>
+
+<div class="card-custom tk-form mt-2" style="max-width: 680px;">
+
+    <p class="text-secondary">
+        Cuéntanos qué pasó. Mientras más detalle (y fotos), más rápido lo podemos resolver.
+    </p>
+
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+
+        {% for e in form.non_field_errors %}<div class="alert alert-danger">{{ e }}</div>{% endfor %}
+
+        {% for campo in form %}
+            <label for="{{ campo.id_for_label }}">{{ campo.label }}</label>
+            {{ campo }}
+            {% if campo.help_text %}<div class="help">{{ campo.help_text }}</div>{% endif %}
+            {% for e in campo.errors %}<div class="error">{{ e }}</div>{% endfor %}
+        {% endfor %}
+
+        <div class="d-flex gap-2 mt-4">
+            <button class="button" type="submit">Enviar ticket</button>
+            <a class="button button-secondary" href="{% url 'tickets:lista' %}">Cancelar</a>
+        </div>
+    </form>
+
+</div>
+
+{% endblock %}

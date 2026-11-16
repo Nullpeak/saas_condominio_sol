@@ -37,6 +37,8 @@ class Invitacion(models.Model):
     expira = models.DateTimeField()
     usada = models.DateTimeField(null=True, blank=True)
     revocada = models.BooleanField(default=False)
+    uso_notificado = models.BooleanField(default=False)
+    expiracion_notificada = models.BooleanField(default=False)
 
     class Meta:
         db_table = "invitacion"

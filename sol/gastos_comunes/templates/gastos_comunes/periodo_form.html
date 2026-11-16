@@ -1,0 +1,15 @@
+{% extends "core/base.html" %}
+{% block title %}Nuevo período | Gastos comunes{% endblock %}
+{% block page_title %}Nuevo período mensual{% endblock %}
+{% block content %}
+<div class="card" style="max-width:760px">
+    <h1 class="h4">Crear período de cobro</h1>
+    <p class="text-muted">Elige el condominio y el mes. El sistema preparará un borrador que podrás revisar antes de publicarlo.</p>
+    <form method="post">{% csrf_token %}
+        {{ form.non_field_errors }}
+        {% for field in form %}<div class="mb-3"><label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}{% if field.errors %}<div class="text-danger small">{{ field.errors }}</div>{% endif %}</div>{% endfor %}
+        <p class="small text-muted">El fondo de reserva parte en 5%, de acuerdo con el mínimo general de la Ley de Copropiedad. Confirma la regla vigente en el reglamento/acuerdo del condominio.</p>
+        <button class="button" type="submit">Crear borrador</button> <a class="button button-secondary" href="{% url 'gastos_comunes:lista' %}">Cancelar</a>
+    </form>
+</div>
+{% endblock %}

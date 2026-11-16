@@ -1,0 +1,21 @@
+<tr{% if not unidad.activo %} style="background:#f1f5f9; color:#64748b;"{% endif %}>
+    <td style="padding:12px; border-bottom:1px solid #e2e8f0;">
+        <span class="unit-code">{{ unidad.edificio.numero }}-{{ unidad.piso }}-{{ unidad.posicion|stringformat:"02d" }}</span>
+        {% if not unidad.activo %}<div style="margin-top:4px; font-size:12px;">Desactivada</div>{% endif %}
+    </td>
+    <td style="padding:12px; border-bottom:1px solid #e2e8f0;">{{ unidad.piso }}</td>
+    <td style="padding:12px; border-bottom:1px solid #e2e8f0;">{{ unidad.posicion }}</td>
+    <td style="padding:12px; border-bottom:1px solid #e2e8f0;">
+        {% if unidad.dueno %}
+            {{ unidad.dueno.nombre }} {{ unidad.dueno.apellido }}
+            <div style="margin-top:4px; font-size:12px;">{% if unidad.propietario_vive %}Vive en la unidad{% else %}No vive en la unidad{% endif %}</div>
+        {% else %}<span>Sin propietario</span>{% endif %}
+    </td>
+    <td style="padding:12px; border-bottom:1px solid #e2e8f0;">
+        {% if unidad.arrendatario %}{{ unidad.arrendatario.nombre }} {{ unidad.arrendatario.apellido }}{% else %}<span>Sin arrendatario</span>{% endif %}
+    </td>
+    <td style="padding:12px; border-bottom:1px solid #e2e8f0; white-space:nowrap;">
+        <a href="{% url 'unidad_editar' unidad.id %}" class="button">Editar</a>
+        <form method="post" action="{% url 'unidad_cambiar_estado' unidad.id %}" style="display:inline-block; margin-left:6px;">{% csrf_token %}<button class="button" type="submit">{% if unidad.activo %}Desactivar{% else %}Reactivar{% endif %}</button></form>
+    </td>
+</tr>

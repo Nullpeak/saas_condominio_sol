@@ -1,0 +1,35 @@
+{% extends "core/base.html" %}
+
+{% block title %}Administradores | Comunidad al Día{% endblock %}
+{% block page_title %}Administradores{% endblock %}
+
+{% block content %}
+<header class="page-intro">
+    <h1>Administradores</h1>
+    <p>Selecciona una cuenta para consultar sus datos y la información de sus condominios.</p>
+</header>
+
+<section class="card" aria-labelledby="lista-administradores">
+    <h2 class="h5 mb-3" id="lista-administradores">Cuentas de administrador</h2>
+    {% if administradores %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead><tr><th>Administrador</th><th>Correo</th><th>Usuario</th><th>Estado</th><th></th></tr></thead>
+                <tbody>
+                    {% for administrador in administradores %}
+                        <tr>
+                            <td class="fw-semibold">{{ administrador.nombre }} {{ administrador.nombre2 }} {{ administrador.apellido }} {{ administrador.apellido2 }}</td>
+                            <td>{{ administrador.email }}</td>
+                            <td>{% if administrador.user %}{{ administrador.user.username }}{% else %}Sin cuenta vinculada{% endif %}</td>
+                            <td>{% if administrador.activo %}<span class="badge text-bg-success">Activo</span>{% else %}<span class="badge text-bg-secondary">Inactivo</span>{% endif %}</td>
+                            <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{% url 'superadmin_administrador_detalle' administrador.id %}">Ver información</a></td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p class="text-secondary mb-0">Todavía no hay cuentas de administrador registradas.</p>
+    {% endif %}
+</section>
+{% endblock %}

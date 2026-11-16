@@ -1,7 +1,7 @@
 {% extends "core/base.html" %}
 
 {% block title %}
-Configurar edificio - CondoGestión
+Configurar edificio - Comunidad al Día
 {% endblock %}
 
 {% block page_title %}
@@ -73,6 +73,12 @@ Configurar edificio
     <form method="post">
 
         {% csrf_token %}
+
+        <div class="alert alert-info mt-3">
+            Al aumentar pisos o viviendas por piso se crearán las unidades que falten.
+            Las que queden fuera de la nueva configuración se desactivarán para conservar
+            pagos, asignaciones e historial; podrás revisar su estado en el listado de unidades.
+        </div>
 
 
         <!-- ============================== NOMBRE ============================== -->

@@ -1,7 +1,7 @@
 {% extends "core/base.html" %}
 
 {% block title %}
-Editar área común - CondoGestión
+Editar área común - Comunidad al Día
 {% endblock %}
 
 {% block page_title %}
@@ -10,30 +10,22 @@ Editar área común
 
 {% block content %}
 
-<div class="card">
+<header class="page-intro">
 
-    <h2>
+    <h1>
         Editar área común
-    </h2>
+    </h1>
 
     <p>
         Modifica la información de <strong>{{ area.nombre }}</strong>.
     </p>
 
-</div>
+</header>
 
 
 {% if errores %}
 
-<div class="card">
-
-    <div style="
-        background: #fef2f2;
-        border: 1px solid #fecaca;
-        color: #b91c1c;
-        padding: 14px;
-        border-radius: 7px;
-    ">
+<div class="alert alert-danger" role="alert">
 
         <strong>No se pudo guardar:</strong>
 
@@ -42,8 +34,6 @@ Editar área común
                 <li>{{ error }}</li>
             {% endfor %}
         </ul>
-
-    </div>
 
 </div>
 
@@ -188,6 +178,19 @@ Editar área común
         </div>
 
 
+        <div style="margin-bottom: 18px;">
+            <label>
+                <input
+                    type="checkbox"
+                    name="requiere_gastos_al_dia"
+                    {% if datos.requiere_gastos_al_dia or area.requiere_gastos_al_dia and not datos %}checked{% endif %}
+                >
+                <strong>Exigir gastos comunes al día para reservar</strong>
+            </label>
+            <div class="form-text">Actívalo solo si esta condición corresponde al reglamento del condominio.</div>
+        </div>
+
+
         <!-- ============================== REQUIERE RESERVA ============================== -->
 
         <div style="margin-bottom: 18px;">
@@ -248,6 +251,20 @@ Editar área común
                 Puede dejarse vacío si no existe un límite.
             </small>
 
+        </div>
+
+
+        <div style="margin-bottom: 18px;">
+            <label>
+                <input
+                    type="checkbox"
+                    name="permite_multiples_reservas_por_unidad_dia"
+                    {% if datos.permite_multiples_reservas_por_unidad_dia or area.permite_multiples_reservas_por_unidad_dia and not datos %}checked{% endif %}
+                >
+                <strong>Permitir más de una reserva por unidad al día</strong>
+            </label>
+            <br>
+            <small style="color:#64748b;">Si lo desmarcas, cada unidad podrá reservar esta área solo una vez al día.</small>
         </div>
 
 

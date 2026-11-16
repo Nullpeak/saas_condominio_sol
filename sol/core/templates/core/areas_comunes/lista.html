@@ -1,7 +1,7 @@
 {% extends "core/base.html" %}
 
 {% block title %}
-Áreas comunes - CondoGestión
+Áreas comunes - Comunidad al Día
 {% endblock %}
 
 {% block page_title %}
@@ -12,7 +12,7 @@
 
 <!-- ============================== ENCABEZADO ============================== -->
 
-<div class="card">
+<header class="page-intro">
 
     <div style="display: flex; justify-content: space-between; align-items: center; gap: 15px; flex-wrap: wrap;">
 
@@ -28,16 +28,14 @@
 
         </div>
 
-        <a
-            class="button"
-            href="{% url 'area_comun_crear' condominio.id %}"
-        >
-            + Nueva área común
-        </a>
+        <div class="d-flex flex-wrap gap-2">
+            <a class="button button-secondary" href="{% url 'areas_comunes_selector' %}">Cambiar condominio</a>
+            <a class="button" href="{% url 'area_comun_crear' condominio.id %}">+ Nueva área común</a>
+        </div>
 
     </div>
 
-</div>
+</header>
 
 
 <!-- ============================== LISTADO ============================== -->
@@ -47,6 +45,11 @@
     <h2>
         Áreas comunes registradas
     </h2>
+
+    <form method="get" class="row g-2 mt-2 mb-3">
+        <div class="col-md-8"><label class="form-label" for="q">Buscar área común</label><input class="form-control" type="search" id="q" name="q" value="{{ busqueda }}" placeholder="Nombre o descripción"></div>
+        <div class="col-md-4 d-flex align-items-end gap-2"><button class="button" type="submit">Buscar</button><a class="btn btn-outline-secondary" href="{% url 'areas_comunes_lista' condominio.id %}">Limpiar</a></div>
+    </form>
 
     {% if areas %}
 
@@ -75,6 +78,10 @@
                         </th>
 
                         <th style="padding: 12px 10px;">
+                            Estado
+                        </th>
+
+                        <th style="padding: 12px 10px;">
                             Horarios
                         </th>
 
@@ -99,7 +106,6 @@
                                 </strong>
 
                             </td>
-
 
                             <td style="padding: 12px 10px;">
 
@@ -159,6 +165,15 @@
 
 
                             <td style="padding: 12px 10px;">
+                                {% if area.activo %}
+                                    <span class="badge text-bg-success">Activa</span>
+                                {% else %}
+                                    <span class="badge text-bg-secondary">Desactivada</span>
+                                {% endif %}
+                            </td>
+
+
+                            <td style="padding: 12px 10px;">
 
                                 {{ area.horarios.count }}
 
@@ -180,6 +195,13 @@
                                 >
                                     Horarios
                                 </a>
+
+                                <form method="post" action="{% url 'area_comun_cambiar_estado' area.id %}" style="display:inline;">
+                                    {% csrf_token %}
+                                    <button class="button {% if area.activo %}button-secondary{% endif %}" type="submit">
+                                        {% if area.activo %}Desactivar{% else %}Reactivar{% endif %}
+                                    </button>
+                                </form>
 
                             </td>
 

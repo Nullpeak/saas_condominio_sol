@@ -31,19 +31,30 @@ def calcular_dv(cuerpo):
     return str(resto)
 
 
+# Los RUT reales parten en 1.000.000. Bajo eso solo hay valores de relleno como 0.000.000-0,
+# que igual "cuadran" con el módulo 11 (cuerpo 0 -> dígito verificador 0).
+RUT_MINIMO = 1_000_000
+
+
 def formatear_rut(rut):
-    """Formato de almacenamiento: 12345678-5."""
+    """Formato de almacenamiento: 12345678-5 (sin ceros a la izquierda)."""
     limpio = limpiar_rut(rut)
-    return f"{limpio[:-1]}-{limpio[-1]}"
+    cuerpo = limpio[:-1].lstrip("0") or "0"
+    return f"{cuerpo}-{limpio[-1]}"
 
 def validar_rut(valor):
-    """Valida el formato y dígito verificador del RUT."""
+    """Valida formato, rango y dígito verificador del RUT."""
     limpio = limpiar_rut(valor)
     if not re.fullmatch(r"\d{7,8}[\dK]", limpio):
         raise ValidationError(
             "El RUT no tiene un formato válido. Ejemplo: 12.345.678-5"
         )
-    if calcular_dv(limpio[:-1]) != limpio[-1]:
+    cuerpo = limpio[:-1]
+    # Cuerpo 0 o muy bajo (0.000.000-0, 0.000.001-9...) o un solo dígito repetido
+    # (11.111.111-1, 22.222.222-2...): son RUT de relleno, no de personas.
+    if int(cuerpo) < RUT_MINIMO or len(set(cuerpo.lstrip("0"))) == 1:
+        raise ValidationError("El RUT no es válido.")
+    if calcular_dv(cuerpo) != limpio[-1]:
         raise ValidationError(
             "El RUT no es válido: el dígito verificador no coincide."
         )

@@ -10,6 +10,7 @@ from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils import timezone
 
+from core.enlaces import url_publica
 from core.models import Unidad, Usuario
 from .cupos import cupo_ocupado
 from .forms import AceptarInvitacionForm, InvitarForm
@@ -20,15 +21,15 @@ logger = logging.getLogger("invitaciones")
 
 
 def _enviar(request, inv, token):
-    link = request.build_absolute_uri(reverse("invitaciones:aceptar", args=[token]))
+    link = url_publica(request, reverse("invitaciones:aceptar", args=[token]))
     unidad = ""
     if inv.unidad_id:
         unidad = f"Unidad asignada: {inv.unidad} ({inv.get_relacion_display().lower()}).\n\n"
     send_mail(
-        subject="Te invitaron a CondoGestión",
+        subject="Te invitaron a Comunidad al Día",
         message=(
             f"Hola,\n\n"
-            f"{inv.invitado_por} te invitó a CondoGestión como {inv.get_rol_display()} "
+            f"{inv.invitado_por} te invitó a Comunidad al Día como {inv.get_rol_display()} "
             f"del condominio {inv.condominio}.\n\n"
             f"{unidad}"
             f"Crea tu cuenta aquí (el link sirve una sola vez y vence en {VIGENCIA.days} días):\n{link}\n\n"
@@ -43,7 +44,7 @@ def _enviar(request, inv, token):
 def invitar(request):
     perfil = getattr(request.user, "usuario", None)
     if perfil is None or not perfil.activo or perfil.rol not in PUEDE_INVITAR:
-        raise PermissionDenied
+        return redirect("inicio")
 
     form = InvitarForm(request.POST or None, perfil=perfil)
     resultado = None

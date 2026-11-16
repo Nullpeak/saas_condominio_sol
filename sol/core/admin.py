@@ -13,8 +13,6 @@ from .models import (
     Pago,
     Reservacion,
     Invitado,
-    Ticket,
-    TicketArchivo,
     Anuncio,
     EspacioEstacionamiento,
 )
@@ -29,7 +27,5 @@ admin.site.register(AreaComun)
 admin.site.register(Pago)
 admin.site.register(Reservacion)
 admin.site.register(Invitado)
-admin.site.register(Ticket)
-admin.site.register(TicketArchivo)
 admin.site.register(Anuncio)
 admin.site.register(EspacioEstacionamiento)

@@ -1,0 +1,39 @@
+<div class="notif-header">
+    <strong>Notificaciones</strong>
+
+    {% if notifications %}
+        <form method="post" action="{% url 'mark_all_as_read' %}">
+            {% csrf_token %}
+            <button type="submit" class="notif-link">Marcar todas como leídas</button>
+        </form>
+    {% endif %}
+</div>
+
+<div class="notif-list">
+
+    {% for n in notifications %}
+
+        <form method="post" action="{% url 'mark_as_read' n.id %}">
+            {% csrf_token %}
+            <button type="submit" class="notif-item">
+                <span class="notif-dot"></span>
+                <span class="notif-text">
+                    <span class="notif-msg">{{ n.message }}</span>
+                    <span class="notif-time">Hace {{ n.created_at|timesince }}</span>
+                </span>
+            </button>
+        </form>
+
+    {% empty %}
+
+        <div class="notif-empty">
+            🎉 No tienes notificaciones nuevas
+        </div>
+
+    {% endfor %}
+
+</div>
+
+<a class="notif-footer" href="{% url 'notifications_list' %}">
+    Ver todas las notificaciones
+</a>

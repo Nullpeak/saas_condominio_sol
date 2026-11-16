@@ -15,6 +15,7 @@ from django.contrib import admin
 from django.urls import path, include
 
 from core.views import *
+from core.reportes import reportes
 
 
 urlpatterns = [
@@ -89,6 +90,15 @@ urlpatterns = [
         name="administracion"
     ),
 
+    path(
+        "administracion/administradores/<int:usuario_id>/",
+        superadmin_administrador_detalle,
+        name="superadmin_administrador_detalle",
+    ),
+
+    path("reportes/", reportes, name="reportes"),
+    path("historial-administrativo/", historial_administrativo, name="historial_administrativo"),
+
 
     #============== USUARIOS ==============
 
@@ -102,6 +112,12 @@ urlpatterns = [
         "usuarios/nuevo/",
         usuario_crear,
         name="usuario_crear"
+    ),
+
+    path(
+        "usuarios/unidades-disponibles/",
+        usuario_unidades_disponibles,
+        name="usuario_unidades_disponibles"
     ),
 
     path(
@@ -136,6 +152,7 @@ urlpatterns = [
         condominio_editar,
         name="condominio_editar"
     ),
+    path("condominios/<int:condominio_id>/eliminar/", condominio_eliminar, name="condominio_eliminar"),
 
 
     #============== EDIFICIOS ==============
@@ -151,6 +168,7 @@ urlpatterns = [
         edificio_editar,
         name="edificio_editar"
     ),
+    path("edificios/<int:edificio_id>/cambiar-estado/", edificio_cambiar_estado, name="edificio_cambiar_estado"),
 
 
     #============== UNIDADES ==============
@@ -166,9 +184,16 @@ urlpatterns = [
         unidad_editar,
         name="unidad_editar"
     ),
+    path("unidades/<int:unidad_id>/cambiar-estado/", unidad_cambiar_estado, name="unidad_cambiar_estado"),
 
 
     #============== ÁREAS COMUNES ==============
+
+    path(
+        "areas-comunes/",
+        areas_comunes_selector,
+        name="areas_comunes_selector"
+    ),
 
     path(
         "condominios/<int:condominio_id>/areas-comunes/",
@@ -186,6 +211,12 @@ urlpatterns = [
         "areas-comunes/<int:area_id>/editar/",
         area_comun_editar,
         name="area_comun_editar"
+    ),
+
+    path(
+        "areas-comunes/<int:area_id>/cambiar-estado/",
+        area_comun_cambiar_estado,
+        name="area_comun_cambiar_estado"
     ),
 
 
@@ -218,6 +249,12 @@ urlpatterns = [
         name="reservaciones_lista"
     ),
 
+    path("visitas/", include("visitas.urls")),
+    path("tickets/", include("tickets.urls")),
+    path("anuncios/", include("anuncios.urls")),
+    path("mantenimientos/", include("mantenimientos.urls")),
+    path("gastos-comunes/", include("gastos_comunes.urls")),
+
     path(
         "reservaciones/nueva/",
         reservacion_crear,
@@ -245,5 +282,6 @@ urlpatterns = [
         name="reservacion_cancelar"
     ),
     path("launch/", include("launch.urls")),
-    path("", include("invitaciones.urls"))
+    path("", include("invitaciones.urls")),
+    path("notificaciones/", include("notis.urls")),
 ]
