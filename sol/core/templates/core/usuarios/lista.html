@@ -32,11 +32,13 @@
                             <td>{{ usuario_item.condominio.nombre|default:"—" }}</td>
                             <td>{% if usuario_item.activo %}<span class="text-success">Activo</span>{% else %}<span class="text-secondary">Inactivo</span>{% endif %}</td>
                             <td class="text-end text-nowrap">
+                                {% if usuario_item.pk == usuario.pk %}<span class="badge text-bg-light border">Tu cuenta · protegida</span>{% else %}
                                 <a class="btn btn-sm btn-outline-secondary" href="{% url 'usuario_editar' usuario_item.id %}">Editar</a>
                                 {% if usuario_item.activo %}
                                     <a class="btn btn-sm btn-outline-danger" href="{% url 'usuario_cambiar_estado' usuario_item.id %}">Desactivar</a>
                                 {% else %}
                                     <a class="btn btn-sm btn-outline-success" href="{% url 'usuario_cambiar_estado' usuario_item.id %}">Activar</a>
+                                {% endif %}
                                 {% endif %}
                             </td>
                         </tr>

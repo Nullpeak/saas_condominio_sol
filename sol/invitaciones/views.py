@@ -44,7 +44,7 @@ def _enviar(request, inv, token):
 def invitar(request):
     perfil = getattr(request.user, "usuario", None)
     if perfil is None or not perfil.activo or perfil.rol not in PUEDE_INVITAR:
-        raise PermissionDenied
+        return redirect("inicio")
 
     form = InvitarForm(request.POST or None, perfil=perfil)
     resultado = None

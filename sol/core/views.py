@@ -17,9 +17,12 @@ from django.db.models import Count, OuterRef, Prefetch, Q, Subquery, Sum
 from django.core.exceptions import ValidationError
 from django.http import JsonResponse
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from launch.guards import setup_disponible
 from launch.ciudades import ciudades_chile
 from tickets.models import Ticket
+from notis.models import Notification
+from anuncios.models import AnuncioOficial, AnuncioResidente
 from gastos_comunes.models import Periodo, Liquidacion, PagoRegistrado
 from gastos_comunes.services import saldos_acumulados, resumen_mora
 from visitas.models import Visita
@@ -133,6 +136,15 @@ def login_view(request):
                 })
 
             login(request, usuario_django)
+            HistorialAdministrativo.objects.create(
+                actor=usuario,
+                condominio=usuario.condominio,
+                accion=HistorialAdministrativo.Accion.INICIO_SESION,
+                modelo="Acceso",
+                objeto_id=str(usuario.pk),
+                objeto="Inicio de sesión",
+                campos=[],
+            )
             return redirect("inicio")
 
         return render(request, "core/login.html", {
@@ -234,6 +246,96 @@ def inicio(request):
         "reservas_proximas": reservas.count(),
         "tickets_pendientes": tickets.count(),
     }
+    if usuario.rol == Usuario.Rol.RESIDENTE:
+        unidades_residente = Unidad.objects.filter(
+            Q(dueno=usuario) | Q(arrendatario=usuario), activo=True
+        ).select_related("edificio", "edificio__condominio").distinct().order_by(
+            "edificio__condominio__nombre", "edificio__numero", "piso", "posicion"
+        )
+        unidades_residente = list(unidades_residente)
+        ids_unidades_residente = [unidad.pk for unidad in unidades_residente]
+        ids_condominios_residente = {unidad.edificio.condominio_id for unidad in unidades_residente}
+        condominios_residente = Condominio.objects.filter(
+            pk__in=ids_condominios_residente, activo=True
+        ).order_by("nombre")
+        edificios_residente = Edificio.objects.filter(unidades__in=unidades_residente).values("pk")
+        periodos_recientes = list(Periodo.objects.filter(
+            condominio__in=condominios_residente,
+            estado=Periodo.Estado.PUBLICADO,
+        ).select_related("condominio").order_by("condominio_id", "-anio", "-mes"))
+        ultimo_periodo_por_condominio = {}
+        for periodo in periodos_recientes:
+            ultimo_periodo_por_condominio.setdefault(periodo.condominio_id, periodo)
+        periodos_vigentes = list(ultimo_periodo_por_condominio.values())
+        liquidaciones_recientes = list(Liquidacion.objects.filter(
+            periodo__in=periodos_vigentes,
+            unidad_id__in=ids_unidades_residente,
+        ).select_related("periodo", "periodo__condominio", "unidad", "unidad__edificio").annotate(
+            total_pagado=Sum("pagos__monto")
+        ).order_by(
+            "periodo__condominio__nombre", "unidad__edificio__numero", "unidad__piso", "unidad__posicion"
+        ))
+        total_ultimo_cobro = sum((liquidacion.total for liquidacion in liquidaciones_recientes), Decimal("0"))
+        total_pagado_ultimo_cobro = sum(
+            (liquidacion.total_pagado or Decimal("0") for liquidacion in liquidaciones_recientes), Decimal("0")
+        )
+        porcentaje_ultimo_cobro = min(
+            round(float(total_pagado_ultimo_cobro) * 100 / float(total_ultimo_cobro)), 100
+        ) if total_ultimo_cobro else 0
+        saldo_acumulado = Decimal("0")
+        unidades_por_condominio = {}
+        for unidad in unidades_residente:
+            unidades_por_condominio.setdefault(unidad.edificio.condominio_id, []).append(unidad.pk)
+        for condominio_id, periodo in ultimo_periodo_por_condominio.items():
+            saldos = saldos_acumulados(periodo.condominio, periodo)
+            saldo_acumulado += sum(
+                (max(saldos.get(unidad_id, Decimal("0")), Decimal("0"))
+                 for unidad_id in unidades_por_condominio.get(condominio_id, [])),
+                Decimal("0"),
+            )
+        reservas_residente = Reservacion.objects.filter(
+            usuario=usuario,
+            estado__in=(Reservacion.Estado.PENDIENTE, Reservacion.Estado.APROBADO),
+            fecha_reserva__gte=timezone.now(),
+        ).select_related("area_comun", "unidad", "unidad__edificio", "unidad__edificio__condominio").order_by("fecha_reserva")
+        tickets_residente = Ticket.objects.filter(
+            usuario=usuario,
+            estado__in=Ticket.ABIERTOS,
+        ).select_related("condominio", "unidad").order_by("-actualizado")
+        reservas_residente_count = reservas_residente.count()
+        tickets_residente_count = tickets_residente.count()
+        contexto.update({
+            "unidades_residente": unidades_residente,
+            "unidades_residente_resumen": unidades_residente[:4],
+            "unidades_residente_adicionales": max(len(unidades_residente) - 4, 0),
+            "condominios_residente": condominios_residente,
+            "saldo_acumulado_residente": saldo_acumulado,
+            "ultimo_cobro_total_residente": total_ultimo_cobro,
+            "ultimo_cobro_pagado_residente": total_pagado_ultimo_cobro,
+            "ultimo_cobro_porcentaje_residente": porcentaje_ultimo_cobro,
+            "periodos_residente": periodos_vigentes,
+            "reservas_residente_recientes": reservas_residente[:3],
+            "tickets_residente_recientes": tickets_residente[:3],
+            "tickets_pendientes": tickets_residente_count,
+            "reservas_proximas": reservas_residente_count,
+            "notificaciones_recientes": Notification.objects.filter(
+                recipient=request.user
+            ).order_by("-created_at", "-pk")[:5],
+            "anuncios_oficiales_recientes": AnuncioOficial.objects.filter(
+                estado=AnuncioOficial.Estado.PUBLICADO,
+                condominio__in=condominios_residente,
+            ).filter(
+                Q(alcance=AnuncioOficial.Alcance.TODOS)
+                | Q(alcance=AnuncioOficial.Alcance.EDIFICIOS, edificios__pk__in=edificios_residente)
+                | Q(alcance=AnuncioOficial.Alcance.UNIDADES, unidades__in=unidades_residente)
+            ).select_related("condominio", "autor").distinct().order_by("-creado", "-pk")[:5],
+            "anuncios_residentes_recientes": AnuncioResidente.objects.filter(
+                estado=AnuncioResidente.Estado.PUBLICADO,
+            ).filter(
+                Q(alcance=AnuncioResidente.Alcance.CONDOMINIO, condominio__in=condominios_residente)
+                | Q(alcance=AnuncioResidente.Alcance.EDIFICIO, unidad__edificio__pk__in=edificios_residente)
+            ).select_related("condominio", "autor").distinct().order_by("-creado", "-pk")[:5],
+        })
 
     condominios_operativos = condominios
     condominio_operativo_id = ""
@@ -253,11 +355,12 @@ def inicio(request):
             fecha_visita=hoy,
             estado__in=(Visita.Estado.PENDIENTE, Visita.Estado.PRESENTE),
         ).count()
-        tickets_sin_movimiento = Ticket.objects.filter(
+        tickets_sin_movimiento_qs = Ticket.objects.filter(
             condominio__in=condominios_operativos,
             estado__in=Ticket.ABIERTOS,
             actualizado__lte=ahora - timedelta(days=7),
-        ).count()
+        ).select_related("unidad", "unidad__edificio", "condominio").order_by("actualizado")
+        tickets_sin_movimiento = tickets_sin_movimiento_qs.count()
         registro_reciente = RegistroMantenimiento.objects.filter(
             elemento_id=OuterRef("pk")
         ).order_by("-fecha", "-pk")
@@ -270,51 +373,78 @@ def inicio(request):
         mantenciones_proximas = elementos_con_fecha.filter(
             fecha_proxima__gte=hoy, fecha_proxima__lte=siete_dias
         ).count()
-        reservas_semana = Reservacion.objects.filter(
+        reservas_semana_qs = Reservacion.objects.filter(
             unidad__edificio__condominio__in=condominios_operativos,
             estado__in=(Reservacion.Estado.PENDIENTE, Reservacion.Estado.APROBADO),
             fecha_reserva__date__gte=hoy,
             fecha_reserva__date__lte=siete_dias,
-        ).count()
+        ).select_related("area_comun", "unidad", "unidad__edificio", "unidad__edificio__condominio").order_by("fecha_reserva")
+        reservas_semana = reservas_semana_qs.count()
         sufijo_condominio = f"&condominio={condominio_operativo_id}" if condominio_operativo_id else ""
         tareas_operativas = [
             {
-                "titulo": "Visitas programadas hoy",
+                "titulo": "Visitas hoy",
+                "icono": "visitas",
                 "cantidad": visitas_hoy,
-                "detalle": "Registra llegadas y salidas del día.",
+                "detalle": "Registrar llegadas y salidas.",
                 "url": f"{reverse('visitas:lista')}?todas=1&fecha={hoy.isoformat()}{sufijo_condominio}",
                 "alerta": bool(visitas_hoy),
             },
             {
-                "titulo": "Tickets sin movimiento por 7 días",
+                "titulo": "Tickets sin actualización",
+                "icono": "tickets",
                 "cantidad": tickets_sin_movimiento,
-                "detalle": "Revisa solicitudes abiertas que llevan una semana sin actualización.",
+                "detalle": "Abiertos hace 7 días o más.",
                 "url": f"{reverse('tickets:lista')}?estado=abiertos&seguimiento=sin_movimiento{sufijo_condominio}",
                 "alerta": bool(tickets_sin_movimiento),
             },
             {
                 "titulo": "Mantenciones vencidas",
+                "icono": "mantencion",
                 "cantidad": mantenciones_vencidas,
-                "detalle": "Consulta el último plan de mantenimiento de cada equipo.",
+                "detalle": "Revisar equipos con fecha vencida.",
                 "url": f"{reverse('mantenimientos:lista')}?alerta=vencidos{sufijo_condominio}",
                 "alerta": bool(mantenciones_vencidas),
             },
             {
-                "titulo": "Mantenciones que vencen en 7 días",
+                "titulo": "Mantenciones próximas",
+                "icono": "herramientas",
                 "cantidad": mantenciones_proximas,
-                "detalle": "Anticípate a los servicios próximos.",
+                "detalle": "Programar servicios próximos.",
                 "url": f"{reverse('mantenimientos:lista')}?alerta=proximos{sufijo_condominio}",
                 "alerta": bool(mantenciones_proximas),
             },
             {
-                "titulo": "Reservas de los próximos 7 días",
+                "titulo": "Reservas esta semana",
+                "icono": "reservas",
                 "cantidad": reservas_semana,
-                "detalle": "Consulta la agenda de áreas comunes.",
+                "detalle": "Agenda de la próxima semana.",
                 "url": f"{reverse('reservaciones_lista')}?filtro=proximas&desde={hoy.isoformat()}&hasta={siete_dias.isoformat()}{sufijo_condominio}",
                 "alerta": False,
             },
         ]
         contexto["tareas_operativas"] = tareas_operativas
+        if usuario.rol == Usuario.Rol.GESTOR:
+            contexto["resumen_gestor"] = {
+                "visitas_hoy": visitas_hoy,
+                "tickets_abiertos": tickets.count(),
+                "tickets_sin_movimiento": tickets_sin_movimiento,
+                "mantenciones_vencidas": mantenciones_vencidas,
+                "mantenciones_proximas": mantenciones_proximas,
+                "reservas_semana": reservas_semana,
+                "condominios": condominios_operativos,
+                "fecha_hoy": hoy,
+            }
+            contexto["tickets_gestor_recientes"] = Ticket.objects.filter(
+                condominio__in=condominios_operativos,
+            ).select_related("condominio", "unidad").order_by("-actualizado", "-pk")[:4]
+            contexto["mantenciones_gestor_recientes"] = RegistroMantenimiento.objects.filter(
+                elemento__condominio__in=condominios_operativos,
+            ).select_related("elemento", "elemento__condominio").order_by("-fecha", "-pk")[:4]
+            contexto["anuncios_gestor_recientes"] = AnuncioOficial.objects.filter(
+                condominio__in=condominios_operativos,
+                estado=AnuncioOficial.Estado.PUBLICADO,
+            ).select_related("condominio", "autor").order_by("-creado", "-pk")[:4]
 
     # El superadministrador gestiona cuentas y condominios, pero no la operación diaria.
     # El dashboard de gestión corresponde al administrador de un condominio.
@@ -391,6 +521,17 @@ def inicio(request):
             "condominios": condominios,
             "condominio_filtro": str(condominio_seleccionado.pk) if condominio_seleccionado else "",
             "paneles_condominio": paneles,
+            "notificaciones_recientes": Notification.objects.filter(
+                recipient=request.user
+            ).order_by("-created_at", "-pk")[:5],
+            "anuncios_oficiales_recientes": AnuncioOficial.objects.filter(
+                condominio__in=condominios_vista,
+                estado=AnuncioOficial.Estado.PUBLICADO,
+            ).select_related("condominio", "autor").order_by("-creado", "-pk")[:5],
+            "anuncios_residentes_recientes": AnuncioResidente.objects.filter(
+                condominio__in=condominios_vista,
+                estado=AnuncioResidente.Estado.PUBLICADO,
+            ).select_related("condominio", "autor").order_by("-creado", "-pk")[:5],
         })
         if not condominio_seleccionado:
             # "Todos" resume la actividad de cada condominio asignado.
@@ -466,9 +607,8 @@ def administracion(request):
         activo=True,
     ).prefetch_related("condominios_administrados", "condominio").order_by("apellido", "nombre")
     if not es_super_administrador(usuario):
-        administradores = administradores.filter(
-            Q(condominio__in=condominios) | Q(condominios_administrados__in=condominios)
-        ).distinct()
+        administradores = Usuario.objects.none()
+        usuarios = usuarios.exclude(rol__in=(Usuario.Rol.ADMINISTRADOR, Usuario.Rol.SUPER))
 
     return render(request, "core/administracion.html", {
         "usuario": usuario,
@@ -586,6 +726,27 @@ def historial_administrativo(request):
             | Q(actor__apellido__icontains=busqueda)
         )
     paginacion = paginar(request, historial.order_by("-creado", "-pk"))
+    etiquetas_campo = {"activo": "Estado", "is_active": "Estado", "password": "Contraseña"}
+    for evento in paginacion["page_obj"].object_list:
+        for cambio in evento.campos:
+            if not isinstance(cambio, dict):
+                continue
+            campo = cambio.get("campo", "")
+            cambio["campo"] = etiquetas_campo.get(campo.lower(), campo.replace("_", " ").capitalize())
+            for clave in ("antes", "despues"):
+                valor = cambio.get(clave)
+                if valor == "True":
+                    cambio[clave] = "Sí"
+                elif valor == "False":
+                    cambio[clave] = "No"
+                elif valor in (None, "None", ""):
+                    cambio[clave] = "Sin asignar"
+                elif isinstance(valor, str):
+                    fecha_hora = parse_datetime(valor)
+                    if fecha_hora:
+                        if timezone.is_aware(fecha_hora):
+                            fecha_hora = timezone.localtime(fecha_hora)
+                        cambio[clave] = fecha_hora.strftime("%d/%m/%Y %H:%M")
     return render(request, "core/historial_administrativo.html", {
         "usuario_actual": actor,
         "historial": paginacion["page_obj"],
@@ -615,7 +776,7 @@ def usuarios_lista(request):
         condominios = usuario_actual.condominios_asignados()
         usuarios = Usuario.objects.select_related("user", "condominio").filter(
             Q(condominio__in=condominios) | Q(condominios_administrados__in=condominios)
-        ).distinct()
+        ).exclude(rol__in=(Usuario.Rol.ADMINISTRADOR, Usuario.Rol.SUPER)).distinct()
 
     busqueda = request.GET.get("q", "").strip()
     if busqueda:
@@ -4426,10 +4587,7 @@ def landing(request):
     if request.user.is_authenticated:
         return redirect("inicio")
 
-    return render(
-        request,
-        "core/landing.html"
-    )
+    return render(request, "core/landing.html")
 
 
 @login_required

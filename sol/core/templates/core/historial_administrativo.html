@@ -7,7 +7,7 @@
 <section class="card">
     <div class="mb-4">
         <h1 class="h4 mb-1">Historial administrativo</h1>
-        <p class="text-secondary mb-0">Registro cronológico de altas, cambios y eliminaciones realizadas desde la aplicación. Se muestran los campos afectados, nunca sus valores privados.</p>
+                <p class="text-secondary mb-0">Consulta quién realizó cada acción, cuándo ocurrió y qué cambió. Los cálculos masivos de gastos comunes se registran como un solo evento con período, alcance, unidades y total.</p>
     </div>
     <form method="get" class="row g-3 align-items-end mb-4">
         {% if condominios|length > 1 or usuario_actual.rol == "Super Administrador" %}
@@ -34,7 +34,7 @@
 
     <div class="table-responsive">
         <table class="table table-hover align-middle">
-            <thead><tr><th>Fecha y hora</th><th>Quién</th><th>Condominio</th><th>Acción</th><th>Registro</th><th>Campos afectados</th></tr></thead>
+            <thead><tr><th>Fecha y hora</th><th>Quién</th><th>Condominio</th><th>Acción</th><th>Registro y detalle</th></tr></thead>
             <tbody>
             {% for evento in historial %}
                 <tr>
@@ -42,10 +42,16 @@
                     <td>{{ evento.actor.nombre|default:"Cuenta eliminada" }}{% if evento.actor %} {{ evento.actor.apellido }}{% endif %}</td>
                     <td>{{ evento.condominio.nombre|default:"Sin condominio asociado" }}</td>
                     <td>{{ evento.get_accion_display }}</td>
-                    <td>{{ evento.objeto }} <small class="text-secondary">({{ evento.modelo }})</small></td>
-                    <td>{% for campo in evento.campos %}<span class="badge text-bg-light border">{{ campo }}</span>{% empty %}<span class="text-secondary">—</span>{% endfor %}</td>
+                    <td>
+                        <strong>{{ evento.objeto }}</strong> <small class="text-secondary">· {{ evento.modelo }}</small>
+                        {% if evento.campos %}<details class="mt-1"><summary class="text-primary">{% if evento.accion == 'calculo' %}Ver alcance y resumen{% else %}Ver cambios ({{ evento.campos|length }}){% endif %}</summary>
+                            <div class="table-responsive mt-2"><table class="table table-sm table-bordered mb-0"><thead><tr><th>Dato</th><th>Antes</th><th>Después</th></tr></thead><tbody>
+                                {% for cambio in evento.campos %}<tr><td>{{ cambio.campo|default:cambio }}</td><td>{{ cambio.antes|default:"—" }}</td><td>{{ cambio.despues|default:"—" }}</td></tr>{% endfor %}
+                            </tbody></table></div>
+                        </details>{% endif %}
+                    </td>
                 </tr>
-            {% empty %}<tr><td colspan="6" class="text-center text-secondary py-5">No hay movimientos que coincidan con los filtros.</td></tr>{% endfor %}
+            {% empty %}<tr><td colspan="5" class="text-center text-secondary py-5">No hay movimientos que coincidan con los filtros.</td></tr>{% endfor %}
             </tbody>
         </table>
     </div>

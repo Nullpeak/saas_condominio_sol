@@ -185,7 +185,6 @@ else:
     EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
     DEFAULT_FROM_EMAIL = "no-reply@saascondominio.local"
 
-
 # Dirección que usan los enlaces de los correos (ej. http://192.168.1.25:8000).
 # Si queda vacía y se entra por localhost, se usa la IP del equipo en la red (core/enlaces.py).
 SITIO_URL = os.environ.get("SITIO_URL", "").rstrip("/")

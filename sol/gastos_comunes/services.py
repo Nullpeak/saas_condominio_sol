@@ -5,6 +5,7 @@ from django.db import transaction
 from django.db.models import Sum, Q
 from django.utils import timezone
 from core.models import Unidad
+from core.audit import omitir_auditoria_liquidaciones, registrar_resumen_liquidacion
 from .models import Periodo, Liquidacion, DetalleCargo, ItemGasto, LecturaMedidor, PagoRegistrado, TasaInteresCorriente
 
 CENTAVO = Decimal("0.01")
@@ -185,6 +186,7 @@ def calcular_periodo(periodo: Periodo):
     ).select_related("edificio"))
     if not unidades:
         raise ValidationError("El condominio no tiene unidades.")
+    total_anterior = periodo.liquidaciones.aggregate(total=Sum("total"))["total"]
     if any(u.alicuota is None for u in unidades):
         raise ValidationError("Faltan alícuotas. Carga el porcentaje oficial de todas las unidades antes de calcular.")
     total_alicuotas = sum((u.alicuota for u in unidades), Decimal("0"))
@@ -199,11 +201,12 @@ def calcular_periodo(periodo: Periodo):
     liquidaciones = {}
     bases_reserva = {}
     for unidad in unidades:
-        liq, _ = Liquidacion.objects.update_or_create(periodo=periodo, unidad=unidad, defaults={
-            "alicuota_usada": unidad.alicuota, "total_ordinario": 0, "fondo_reserva": 0,
-            "total_extraordinario": 0, "consumos": 0, "saldo_anterior": anteriores.get(unidad.id, Decimal("0")),
-            "intereses": 0, "pagos_periodo": 0, "total": 0,
-        })
+        with omitir_auditoria_liquidaciones():
+            liq, _ = Liquidacion.objects.update_or_create(periodo=periodo, unidad=unidad, defaults={
+                "alicuota_usada": unidad.alicuota, "total_ordinario": 0, "fondo_reserva": 0,
+                "total_extraordinario": 0, "consumos": 0, "saldo_anterior": anteriores.get(unidad.id, Decimal("0")),
+                "intereses": 0, "pagos_periodo": 0, "total": 0,
+            })
         liq.detalles.all().delete()
         liquidaciones[unidad.id] = liq
         bases_reserva[unidad.id] = Decimal("0")
@@ -254,7 +257,10 @@ def calcular_periodo(periodo: Periodo):
                 monto=liq.intereses,
             )
         liq.total = dinero(liq.total_ordinario + liq.fondo_reserva + liq.total_extraordinario + liq.consumos + liq.saldo_anterior + liq.intereses)
-        liq.save()
+        with omitir_auditoria_liquidaciones():
+            liq.save()
+    total_nuevo = sum((liquidacion.total for liquidacion in liquidaciones.values()), Decimal("0"))
+    registrar_resumen_liquidacion(periodo, len(liquidaciones), total_anterior, total_nuevo)
     return len(liquidaciones)
 
 

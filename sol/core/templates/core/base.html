@@ -8,6 +8,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
 
     <style>
+        :root { --bs-primary:#167c69; --bs-primary-rgb:22,124,105; --cad-ink:#172b2c; --cad-green:#167c69; --cad-dark:#102a2a; --cad-lime:#c7ec8b; }
         * { box-sizing: border-box; }
 
         body {
@@ -30,7 +31,7 @@
             height: 100vh;
             overflow-y: auto;
             padding: 24px 16px;
-            background: #172033;
+            background: var(--cad-dark);
             color: white;
         }
 
@@ -40,38 +41,48 @@
             font-weight: bold;
         }
 
-        .logo span { color: #60a5fa; }
+        .logo span { color: var(--cad-lime); }
 
+        .menu { display:flex; flex-direction:column; }
         .menu-title {
-            margin: 18px 10px 8px;
-            color: #94a3b8;
-            font-size: 11px;
-            font-weight: bold;
+            margin: 15px 9px 5px;
+            color: #88aaa0;
+            font-size: 10px;
+            font-weight: 800;
             text-transform: uppercase;
-            letter-spacing: .5px;
+            letter-spacing: .12em;
         }
-
         .menu a {
-            display: block;
-            margin-bottom: 4px;
-            padding: 9px 11px;
-            border-radius: 5px;
-            color: #dbe3ee;
-            text-decoration: none;
-            font-size: 13px;
-            transition: background .2s;
+            display:flex;
+            align-items:center;
+            gap:10px;
+            min-height:39px;
+            margin:2px 0;
+            padding:8px 10px;
+            border-radius:7px;
+            border-left:2px solid transparent;
+            color:#dbe3ee;
+            text-decoration:none;
+            font-size:12px;
+            transition:background .16s ease,color .16s ease;
         }
+        .menu-icon { width:18px; height:18px; flex:0 0 18px; color:#a9c5bb; }
+        .menu-link-label { min-width:0; }
 
         .menu a:hover {
-            background: #26344d;
+            background: #1b3b39;
             color: white;
         }
+        .menu a:hover .menu-icon,.menu a.active .menu-icon { color:var(--cad-lime); }
 
         .menu a.active {
-            background: #26344d;
-            color: #fff;
-            box-shadow: inset 3px 0 #60a5fa;
+            border-left-color:var(--cad-lime);
+            background: #1b3b39;
+            color: var(--cad-lime);
+            font-weight:700;
         }
+        .menu a:focus-visible { outline:2px solid var(--cad-lime); outline-offset:2px; }
+        .menu [hidden] { display:none !important; }
 
         .menu-notice-dot {
             display: inline-block;
@@ -81,7 +92,7 @@
             border-radius: 50%;
             background: #ef4444;
             vertical-align: middle;
-            box-shadow: 0 0 0 2px #172033;
+            box-shadow: 0 0 0 2px var(--cad-dark);
         }
 
         /* Contenido */
@@ -176,7 +187,7 @@
             background: none;
             border: none;
             padding: 0;
-            color: #2563eb;
+            color: var(--cad-green);
             font-size: 12px;
             cursor: pointer;
         }
@@ -212,7 +223,7 @@
             width: 9px;
             height: 9px;
             margin-top: 5px;
-            background: #2563eb;
+            background: var(--cad-green);
             border-radius: 50%;
         }
 
@@ -250,7 +261,7 @@
             padding: 11px;
             text-align: center;
             font-size: 13px;
-            color: #2563eb;
+            color: var(--cad-green);
             text-decoration: none;
             background: #f8fafc;
             border-top: 1px solid #e5e7eb;
@@ -339,7 +350,7 @@
             padding: 8px 13px;
             border: 0;
             border-radius: 5px;
-            background: #2563eb;
+            background: var(--cad-green);
             color: white;
             text-decoration: none;
             cursor: pointer;
@@ -349,7 +360,7 @@
             white-space: normal;
         }
 
-        .button:hover { background: #1d4ed8; color: white; }
+        .button:hover { background: #106653; color: white; }
 
         .button-secondary { background: #f1f5f9; color: #334155; }
         .button-secondary:hover { background: #e2e8f0; color: #1f2937; }
@@ -367,9 +378,11 @@
             .app { display: block; }
             .sidebar { position: static; width: 100%; height: auto; overflow: visible; padding: 14px; }
             .logo { padding-bottom: 12px; }
-            .menu { display: flex; flex-wrap: wrap; gap: 3px; }
-            .menu-title { width: 100%; margin: 10px 8px 4px; }
-            .menu a { padding: 8px 10px; }
+            .menu { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:3px 7px; }
+            .menu-title { grid-column:1/-1; }
+            .menu-title { margin:10px 8px 4px; }
+            .menu a { min-width:0; min-height:44px; padding:8px; }
+            .menu-link-label { overflow-wrap:anywhere; }
             .topbar { min-height: 60px; padding: 12px 15px; }
             .page-title { font-size: 16px; }
             .user-area { gap: 8px; }
@@ -392,45 +405,36 @@
     <aside class="sidebar">
         <div class="logo">Comunidad <span>al Día</span></div>
 
-        <nav class="menu">
+        <nav class="menu" id="sideMenu" aria-label="Navegación principal">
             <div class="menu-title">Principal</div>
-            <a href="{% url 'inicio' %}" class="{% if request.resolver_match.url_name == 'inicio' %}active{% endif %}">Inicio</a>
-
+            <a href="{% url 'inicio' %}" data-menu-link class="{% if request.resolver_match.url_name == 'inicio' %}active{% endif %}" aria-label="Inicio, panel principal">
+                <svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="5" rx="1.5"/><rect x="13" y="10" width="8" height="11" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/></svg><span class="menu-link-label">Inicio</span>
+            </a>
             {% if perfil %}
                 {% if perfil.rol == "Super Administrador" or perfil.rol == "Administrador" %}
-                    <div class="menu-title">Administración</div>
-                    <a href="{% url 'administracion' %}" class="{% if request.resolver_match.url_name == 'administracion' %}active{% endif %}">Administración</a>
-                    <a href="{% url 'usuarios_lista' %}" class="{% if request.resolver_match.url_name == 'usuarios_lista' %}active{% endif %}">Usuarios</a>
-                    <a href="{% url 'condominios_lista' %}" class="{% if request.resolver_match.url_name == 'condominios_lista' %}active{% endif %}">Condominios</a>
-                    {% if perfil.rol == "Administrador" %}<a href="{% url 'reportes' %}" class="{% if request.resolver_match.url_name == 'reportes' %}active{% endif %}">Reportes</a>{% endif %}
+                <div class="menu-title">Administración</div>
+                <a href="{% url 'administracion' %}" data-menu-link class="{% if request.resolver_match.url_name == 'administracion' %}active{% endif %}"><svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-5h6v5M8 9h.01M12 9h.01M16 9h.01"/></svg><span class="menu-link-label">Administración</span></a>
+                <a href="{% url 'usuarios_lista' %}" data-menu-link class="{% if request.resolver_match.url_name == 'usuarios_lista' %}active{% endif %}"><svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M10 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM20 8v6m3-3h-6"/></svg><span class="menu-link-label">Usuarios</span></a>
+                <a href="{% url 'condominios_lista' %}" data-menu-link class="{% if request.resolver_match.url_name == 'condominios_lista' %}active{% endif %}"><svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18M5 21V5h9v16M14 9h5v12M8 8h3m-3 4h3m-3 4h3m7-3h.01m-0.01 4h.01"/></svg><span class="menu-link-label">Condominios y edificios</span></a>
+                {% if perfil.rol == "Administrador" %}<a href="{% url 'reportes' %}" data-menu-link class="{% if request.resolver_match.url_name == 'reportes' %}active{% endif %}"><svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19V5m0 14h17M8 15l4-4 3 2 5-6"/></svg><span class="menu-link-label">Reportes</span></a>{% endif %}
                 {% endif %}
-
-                {% if perfil.rol == "Super Administrador" or perfil.rol == "Administrador" or perfil.rol == "Gestor" %}
-                    <a href="{% url 'historial_administrativo' %}" class="{% if request.resolver_match.url_name == 'historial_administrativo' %}active{% endif %}">Historial administrativo</a>
-                {% endif %}
-
-                {% if perfil.rol == "Administrador" or perfil.rol == "Gestor" %}
-                    <a href="{% url 'areas_comunes_selector' %}" class="{% if request.resolver_match.url_name == 'areas_comunes_selector' or request.resolver_match.url_name == 'areas_comunes_lista' or request.resolver_match.url_name == 'area_comun_crear' %}active{% endif %}">Áreas comunes</a>
-                {% endif %}
-
-                {% if perfil.rol == "Super Administrador" or perfil.rol == "Administrador" or perfil.rol == "Gestor" %}
-                    <div class="menu-title">Accesos</div>
-                    <a href="{% url 'invitaciones:invitar' %}" class="{% if request.resolver_match.namespace == 'invitaciones' %}active{% endif %}">Invitar usuarios</a>
-                {% endif %}
-
                 {% if perfil.rol != "Super Administrador" %}
-                    <div class="menu-title">Módulos</div>
-                    <a href="{% url 'reservaciones_lista' %}" class="{% if request.resolver_match.url_name == 'reservaciones_lista' %}active{% endif %}">Reservas</a>
-                    <a href="{% url 'visitas:lista' %}" class="{% if request.resolver_match.namespace == 'visitas' %}active{% endif %}">Visitas</a>
-                    <a href="{% url 'tickets:lista' %}" class="{% if request.resolver_match.namespace == 'tickets' %}active{% endif %}">Tickets</a>
-                    <a href="{% url 'anuncios:lista' %}" class="{% if request.resolver_match.namespace == 'anuncios' %}active{% endif %}">Anuncios{% if anuncios_nuevos %}<span class="menu-notice-dot" aria-label="Hay anuncios nuevos"></span>{% endif %}</a>
-                    <a href="{% url 'gastos_comunes:lista' %}" class="{% if request.resolver_match.namespace == 'gastos_comunes' %}active{% endif %}">Gastos comunes</a>
-                    {% if perfil.rol == "Administrador" or perfil.rol == "Gestor" %}
-                        <a href="{% url 'mantenimientos:lista' %}" class="{% if request.resolver_match.namespace == 'mantenimientos' %}active{% endif %}">Mantenimientos</a>
-                    {% endif %}
+                <div class="menu-title">Operación</div>
+                {% if perfil.rol == "Administrador" or perfil.rol == "Gestor" %}<a href="{% url 'areas_comunes_selector' %}" data-menu-link class="{% if request.resolver_match.url_name == 'areas_comunes_selector' or request.resolver_match.url_name == 'areas_comunes_lista' or request.resolver_match.url_name == 'area_comun_crear' %}active{% endif %}"><svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18M5 21V8l7-4 7 4v13M9 21v-6h6v6M8 10h.01M16 10h.01"/></svg><span class="menu-link-label">Áreas comunes</span></a>{% endif %}
+                <a href="{% url 'gastos_comunes:lista' %}" data-menu-link class="{% if request.resolver_match.namespace == 'gastos_comunes' %}active{% endif %}"><svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="15" rx="2"/><path d="M3 10h18M7 15h4"/><path d="M7 3h10"/></svg><span class="menu-link-label">Gastos comunes</span></a>
+                <a href="{% url 'reservaciones_lista' %}" data-menu-link class="{% if request.resolver_match.url_name == 'reservaciones_lista' %}active{% endif %}"><svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18M8 14h3m-3 3h6"/></svg><span class="menu-link-label">Reservas</span></a>
+                <a href="{% url 'visitas:lista' %}" data-menu-link class="{% if request.resolver_match.namespace == 'visitas' %}active{% endif %}"><svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v16M2 21h20M9 21v-5h6v5M9 8h.01M15 8h.01M9 12h.01M15 12h.01"/></svg><span class="menu-link-label">Control de visitas</span></a>
+                <a href="{% url 'tickets:lista' %}" data-menu-link class="{% if request.resolver_match.namespace == 'tickets' %}active{% endif %}"><svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8a3 3 0 0 0 0 6v4h18v-4a3 3 0 0 0 0-6V4H3z"/><path d="M13 4v2m0 4v2m0 4v2"/></svg><span class="menu-link-label">Tickets y solicitudes</span></a>
+                {% if perfil.rol == "Administrador" or perfil.rol == "Gestor" %}<a href="{% url 'mantenimientos:lista' %}" data-menu-link class="{% if request.resolver_match.namespace == 'mantenimientos' %}active{% endif %}"><svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14.7 6.3 3 3M4 20l5.1-1.1L20 8a2.1 2.1 0 0 0-3-3L6.1 15.9 4 20Z"/><path d="m13 5 2-2 6 6-2 2"/></svg><span class="menu-link-label">Mantenciones</span></a>{% endif %}
+                <div class="menu-title">Comunicaciones</div>
+                <a href="{% url 'anuncios:lista' %}" data-menu-link class="{% if request.resolver_match.namespace == 'anuncios' %}active{% endif %}"><svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 11 18-5v12L3 13v-2ZM5 14l2 6h4l-2.5-5.2M21 10a2 2 0 0 1 0 4"/></svg><span class="menu-link-label">Anuncios</span>{% if anuncios_nuevos %}<span class="menu-notice-dot" aria-label="Hay anuncios nuevos"></span>{% endif %}</a>
+                {% endif %}
+                {% if perfil.rol == "Super Administrador" or perfil.rol == "Administrador" or perfil.rol == "Gestor" %}
+                <div class="menu-title">Acceso y seguimiento</div>
+                <a href="{% url 'invitaciones:invitar' %}" data-menu-link class="{% if request.resolver_match.namespace == 'invitaciones' %}active{% endif %}"><svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="4"/><path d="M3 21v-2a6 6 0 0 1 6-6h1m8-2v8m-4-4h8"/></svg><span class="menu-link-label">Invitar usuarios</span></a>
+                <a href="{% url 'historial_administrativo' %}" data-menu-link class="{% if request.resolver_match.url_name == 'historial_administrativo' %}active{% endif %}"><svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 2.6-6.4L3 8"/><path d="M3 3v5h5m4-1v5l3 2"/></svg><span class="menu-link-label">Historial administrativo</span></a>
                 {% endif %}
             {% endif %}
-
         </nav>
     </aside>
 

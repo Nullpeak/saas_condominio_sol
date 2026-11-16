@@ -587,6 +587,8 @@ class HistorialAdministrativo(models.Model):
         CREAR = "crear", "Creación"
         ACTUALIZAR = "actualizar", "Actualización"
         ELIMINAR = "eliminar", "Eliminación"
+        INICIO_SESION = "inicio_sesion", "Inicio de sesión"
+        CALCULO = "calculo", "Cálculo de liquidación"
 
     creado = models.DateTimeField(auto_now_add=True, db_index=True)
     actor = models.ForeignKey(
@@ -597,7 +599,7 @@ class HistorialAdministrativo(models.Model):
         "Condominio", null=True, blank=True, on_delete=models.SET_NULL,
         related_name="historial_administrativo",
     )
-    accion = models.CharField(max_length=12, choices=Accion.choices)
+    accion = models.CharField(max_length=20, choices=Accion.choices)
     modelo = models.CharField(max_length=80)
     objeto_id = models.CharField(max_length=80)
     objeto = models.CharField(max_length=180)

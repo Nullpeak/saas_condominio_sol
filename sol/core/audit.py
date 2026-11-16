@@ -1,7 +1,10 @@
+from contextlib import contextmanager
 from contextvars import ContextVar
+from datetime import date, datetime
 
 from django.db.models.signals import post_delete, post_save, pre_save
 from django.dispatch import receiver
+from django.utils import timezone
 
 from .models import (
     AreaComun, Condominio, Edificio, EspacioEstacionamiento,
@@ -10,11 +13,49 @@ from .models import (
 
 
 _actor_actual = ContextVar("actor_auditoria", default=None)
+_omitir_auditoria_liquidaciones = ContextVar("omitir_auditoria_liquidaciones", default=False)
 _MODELOS = {}
 _CAMPOS_EXCLUIDOS = {
     "password", "access_token", "refresh_token", "token", "secret",
     "client_secret", "clave", "contrasena", "webhook_secret",
 }
+
+
+def _normalizar_valor(campo, valor, instancia=None):
+    if valor is None or valor == "":
+        return "—"
+    if isinstance(valor, bool):
+        return "Sí" if valor else "No"
+    if campo.is_relation:
+        try:
+            if instancia is not None and getattr(instancia, campo.attname, None) == valor:
+                return str(getattr(instancia, campo.name))
+            relacionado = campo.related_model.objects.filter(pk=valor).first()
+            return str(relacionado) if relacionado else "Sin asignar"
+        except Exception:
+            return str(valor)
+    if campo.choices:
+        return str(dict(campo.choices).get(valor, valor))
+    if isinstance(valor, datetime):
+        if timezone.is_aware(valor):
+            valor = timezone.localtime(valor)
+        return valor.strftime("%d/%m/%Y %H:%M")
+    if isinstance(valor, date):
+        return valor.strftime("%d/%m/%Y")
+    return str(valor)
+
+
+def _valor_legible(campo, instancia):
+    """Return a JSON-safe, human-readable field value without exposing secrets."""
+    return _normalizar_valor(campo, getattr(instancia, campo.attname, None), instancia)
+
+
+def _capturar(instancia, nombres):
+    resultado = {}
+    for campo in instancia._meta.concrete_fields:
+        if campo.attname in nombres:
+            resultado[campo.attname] = _valor_legible(campo, instancia)
+    return resultado
 
 
 def asignar_actor(actor):
@@ -23,6 +64,44 @@ def asignar_actor(actor):
 
 def limpiar_actor(token):
     _actor_actual.reset(token)
+
+
+@contextmanager
+def omitir_auditoria_liquidaciones():
+    """Collapse per-unit Liquidacion saves into one administrative event."""
+    token = _omitir_auditoria_liquidaciones.set(True)
+    try:
+        yield
+    finally:
+        _omitir_auditoria_liquidaciones.reset(token)
+
+
+def registrar_resumen_liquidacion(periodo, unidades, total_anterior, total_nuevo):
+    actor = _actor_actual.get()
+    if actor is None or not actor.pk:
+        return
+    periodo_texto = f"{periodo.mes:02d}/{periodo.anio}"
+    nombre = f"Liquidación {periodo_texto} · {periodo.condominio.nombre}"
+    peso = lambda valor: f"${valor:,.0f}".replace(",", ".")
+    cambios = [
+        {"campo": "Alcance", "antes": "—", "despues": f"Todo el condominio · {unidades} unidades"},
+        {"campo": "Período", "antes": "—", "despues": periodo_texto},
+        {"campo": "Unidades incluidas", "antes": "—", "despues": str(unidades)},
+        {
+            "campo": "Total liquidado",
+            "antes": peso(total_anterior) if total_anterior is not None else "—",
+            "despues": peso(total_nuevo),
+        },
+    ]
+    HistorialAdministrativo.objects.create(
+        actor=actor,
+        condominio_id=periodo.condominio_id,
+        accion=HistorialAdministrativo.Accion.CALCULO,
+        modelo="Gastos comunes",
+        objeto_id=str(periodo.pk),
+        objeto=nombre,
+        campos=cambios,
+    )
 
 
 def _nombres_campos(modelo):
@@ -60,7 +139,7 @@ def _condominio_id(instancia):
     return None
 
 
-def _registrar(instancia, accion, campos):
+def _registrar(instancia, accion, cambios):
     actor = _actor_actual.get()
     if actor is None or not actor.pk:
         return
@@ -69,10 +148,10 @@ def _registrar(instancia, accion, campos):
         actor=actor,
         condominio_id=_condominio_id(instancia),
         accion=accion,
-        modelo=f"{modelo.app_label}.{modelo.verbose_name}",
+        modelo=str(modelo.verbose_name).replace("_", " ").title(),
         objeto_id=str(instancia.pk),
         objeto=f"{modelo.verbose_name} #{instancia.pk}",
-        campos=sorted(set(campos)),
+        campos=cambios,
     )
 
 
@@ -108,31 +187,57 @@ def conectar_senales():
 
 
 def _antes_de_guardar(sender, instance, raw=False, **kwargs):
+    if sender._meta.label_lower == "gastos_comunes.liquidacion" and _omitir_auditoria_liquidaciones.get():
+        instance._audit_cambios = []
+        return
     if raw or _actor_actual.get() is None:
-        instance._audit_campos = []
+        instance._audit_cambios = []
         return
     campos = _nombres_campos(sender)
+    etiquetas = {
+        campo.attname: str(campo.verbose_name).replace("_", " ").capitalize()
+        for campo in sender._meta.concrete_fields
+    }
     if instance._state.adding:
-        instance._audit_campos = campos
+        instance._audit_cambios = [
+            {"campo": etiquetas.get(nombre, nombre), "antes": "—", "despues": _valor_legible(
+                sender._meta.get_field(nombre.removesuffix("_id")) if nombre.endswith("_id") else sender._meta.get_field(nombre), instance
+            )}
+            for nombre in campos
+        ]
         return
     valores = sender.objects.filter(pk=instance.pk).values(*campos).first()
-    instance._audit_campos = [
-        campo for campo in campos
-        if valores is not None and valores.get(campo) != getattr(instance, campo)
-    ]
+    instance._audit_cambios = []
+    if valores is not None:
+        for nombre in campos:
+            if valores.get(nombre) != getattr(instance, nombre):
+                campo = sender._meta.get_field(nombre.removesuffix("_id") if nombre.endswith("_id") else nombre)
+                instance._audit_cambios.append({
+                    "campo": etiquetas.get(nombre, nombre),
+                    "antes": _normalizar_valor(campo, valores.get(nombre)),
+                    "despues": _valor_legible(campo, instance),
+                })
 
 
 def _despues_de_guardar(sender, instance, created=False, raw=False, **kwargs):
     if raw:
         return
-    campos = getattr(instance, "_audit_campos", [])
-    if created or campos:
+    if sender._meta.label_lower == "gastos_comunes.liquidacion" and _omitir_auditoria_liquidaciones.get():
+        return
+    cambios = getattr(instance, "_audit_cambios", [])
+    if created or cambios:
         _registrar(
             instance,
             HistorialAdministrativo.Accion.CREAR if created else HistorialAdministrativo.Accion.ACTUALIZAR,
-            campos,
+            cambios,
         )
 
 
 def _despues_de_eliminar(sender, instance, **kwargs):
-    _registrar(instance, HistorialAdministrativo.Accion.ELIMINAR, ())
+    campos = _nombres_campos(sender)
+    etiquetas = {campo.attname: str(campo.verbose_name).replace("_", " ").capitalize() for campo in sender._meta.concrete_fields}
+    cambios = [
+        {"campo": etiquetas.get(nombre, nombre), "antes": _capturar(instance, [nombre]).get(nombre, "—"), "despues": "—"}
+        for nombre in campos
+    ]
+    _registrar(instance, HistorialAdministrativo.Accion.ELIMINAR, cambios)

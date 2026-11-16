@@ -1,84 +1,33 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Crear cuenta · Comunidad al Día</title>
-    <style>
-        * { box-sizing: border-box; }
-        body { margin: 0; font-family: Arial, sans-serif; color: #0f172a; background: #f8fafc; }
-        .navbar { height: 70px; background: white; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; padding: 0 7%; }
-        .logo { font-size: 21px; font-weight: 700; }
-        .logo span { color: #64748b; }
-        main { max-width: 560px; margin: 40px auto; padding: 0 20px; }
-        .card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 28px; }
-        h1 { margin: 0 0 8px; font-size: 26px; }
-        .sub { color: #64748b; margin: 0 0 22px; line-height: 1.5; }
-        label { display: block; font-weight: 600; margin: 16px 0 6px; font-size: 14px; }
-        input { width: 100%; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font: inherit; background: white; }
-        input:focus, .button:focus-visible { outline: 2px solid #0f172a; outline-offset: 1px; }
-        .help { color: #64748b; font-size: 13px; margin-top: 4px; }
-        .error { color: #b91c1c; font-size: 13px; margin-top: 4px; }
-        .campos { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
-        .button { margin-top: 24px; width: 100%; padding: 12px 18px; border: 0; border-radius: 8px; background: #0f172a; color: white; font: inherit; font-weight: 600; cursor: pointer; }
-        .button:hover { opacity: .9; }
-        .aviso { border-radius: 8px; padding: 12px 14px; margin-bottom: 18px; font-size: 14px; line-height: 1.5; background: #fef2f2; color: #991b1b; }
-        .aviso ul { margin: 6px 0 0; padding-left: 18px; }
-        @media (max-width: 520px) { .campos { grid-template-columns: 1fr; } }
-    </style>
-</head>
-<body>
-    <nav class="navbar"><div class="logo">Comunidad <span>al Día</span></div></nav>
-    <main>
-    <div class="card">
-    {% if invalida %}
-        <h1>Este link ya no sirve</h1>
-        <p class="sub">Puede haber vencido o haberse usado antes. Pide a quien te invitó que te envíe otro.</p>
-    {% else %}
-        <h1>Crea tu cuenta</h1>
-        <p class="sub">Entrarás a {{ inv.condominio }} como {{ inv.get_rol_display }} con el correo <strong>{{ inv.email }}</strong>.{% if inv.unidad %} Tu unidad: <strong>{{ inv.unidad.edificio.nombre }} · Unidad {{ inv.unidad.numero_unidad }}</strong> ({{ inv.get_relacion_display }}).{% endif %}</p>
-
-        <form method="post">
-            {% csrf_token %}
-
-            {% if form.errors %}
-            <div class="aviso" role="alert">
-                No se pudo crear la cuenta. Corrige lo siguiente:
-                <ul>
-                    {% for e in form.non_field_errors %}<li>{{ e }}</li>{% endfor %}
-                    {% for campo in form %}{% for e in campo.errors %}<li><strong>{{ campo.label }}:</strong> {{ e }}</li>{% endfor %}{% endfor %}
-                </ul>
-            </div>
-            {% endif %}
-
-            <label for="{{ form.username.id_for_label }}">Nombre de usuario</label>{{ form.username }}
-            <div class="help">{{ form.username.help_text }}</div>
-
-            <div class="campos">
-                <div><label for="{{ form.nombre.id_for_label }}">Nombre</label>{{ form.nombre }}</div>
-                <div><label for="{{ form.nombre2.id_for_label }}">Segundo nombre</label>{{ form.nombre2 }}</div>
-                <div><label for="{{ form.apellido.id_for_label }}">Apellido</label>{{ form.apellido }}</div>
-                <div><label for="{{ form.apellido2.id_for_label }}">Segundo apellido</label>{{ form.apellido2 }}</div>
-            </div>
-
-            <label for="{{ form.rut.id_for_label }}">RUT</label>{{ form.rut }}
-            <div class="help">Ejemplo: 12.345.678-5</div>
-
-            <label for="{{ form.telefono.id_for_label }}">Teléfono celular (opcional)</label>{{ form.telefono }}
-            <div class="help">Ejemplo: +56 9 1234 5678</div>
-
-            {% if form.cantidad_residentes %}
-            <label for="{{ form.cantidad_residentes.id_for_label }}">{{ form.cantidad_residentes.label }}</label>{{ form.cantidad_residentes }}
-            <div class="help">{{ form.cantidad_residentes.help_text }}</div>
-            {% endif %}
-
-            <label for="{{ form.password1.id_for_label }}">Contraseña</label>{{ form.password1 }}
-            <label for="{{ form.password2.id_for_label }}">Repite la contraseña</label>{{ form.password2 }}
-
-            <button class="button" type="submit">Crear cuenta</button>
-        </form>
-    {% endif %}
-    </div>
-    </main>
-</body>
-</html>
+{% extends "core/public_access_base.html" %}
+{% block title %}{% if invalida %}Invitación no disponible{% else %}Crear cuenta{% endif %} | Comunidad al Día{% endblock %}
+{% block story_title %}{% if invalida %}Tu comunidad puede enviarte una invitación nueva.{% else %}Tu cuenta te conecta con tu comunidad.{% endif %}{% endblock %}
+{% block story_text %}Accede a la información y herramientas de tu condominio desde un espacio ordenado y seguro.{% endblock %}
+{% block panel %}
+{% if invalida %}
+    <p class="access-kicker">Invitación no disponible</p>
+    <h2>Este enlace ya no sirve</h2>
+    <p class="access-description">Puede haber vencido o haberse usado antes. Pide a quien te invitó que te envíe uno nuevo.</p>
+    <a class="access-button" style="display:flex;align-items:center;justify-content:center;text-decoration:none" href="{% url 'login' %}">Ir al inicio de sesión</a>
+{% else %}
+    <p class="access-kicker">Completa tu registro</p>
+    <h2>Crea tu cuenta</h2>
+    <p class="access-description">Te incorporarás a <strong>{{ inv.condominio }}</strong> como <strong>{{ inv.get_rol_display }}</strong> con {{ inv.email }}.{% if inv.unidad %} Unidad: {{ inv.unidad.edificio.nombre }} · {{ inv.unidad.numero_unidad }}.{% endif %}</p>
+    <form method="post" novalidate>
+        {% csrf_token %}
+        {% if form.errors %}<div class="notice" role="alert">No se pudo crear la cuenta. Revisa los datos indicados.{% if form.non_field_errors %}<ul>{{ form.non_field_errors }}</ul>{% endif %}</div>{% endif %}
+        <div class="form-field"><label for="{{ form.username.id_for_label }}">Nombre de usuario</label>{{ form.username }}{% if form.username.help_text %}<span class="form-help">{{ form.username.help_text }}</span>{% endif %}{% if form.username.errors %}<div class="form-error">{{ form.username.errors }}</div>{% endif %}</div>
+        <div class="form-grid">
+            <div class="form-field"><label for="{{ form.nombre.id_for_label }}">Nombre</label>{{ form.nombre }}{% if form.nombre.errors %}<div class="form-error">{{ form.nombre.errors }}</div>{% endif %}</div>
+            <div class="form-field"><label for="{{ form.nombre2.id_for_label }}">Segundo nombre</label>{{ form.nombre2 }}{% if form.nombre2.errors %}<div class="form-error">{{ form.nombre2.errors }}</div>{% endif %}</div>
+            <div class="form-field"><label for="{{ form.apellido.id_for_label }}">Apellido</label>{{ form.apellido }}{% if form.apellido.errors %}<div class="form-error">{{ form.apellido.errors }}</div>{% endif %}</div>
+            <div class="form-field"><label for="{{ form.apellido2.id_for_label }}">Segundo apellido</label>{{ form.apellido2 }}{% if form.apellido2.errors %}<div class="form-error">{{ form.apellido2.errors }}</div>{% endif %}</div>
+        </div>
+        <div class="form-field"><label for="{{ form.rut.id_for_label }}">RUT</label>{{ form.rut }}<span class="form-help">Ejemplo: 12.345.678-5</span>{% if form.rut.errors %}<div class="form-error">{{ form.rut.errors }}</div>{% endif %}</div>
+        <div class="form-field"><label for="{{ form.telefono.id_for_label }}">Teléfono celular (opcional)</label>{{ form.telefono }}<span class="form-help">Ejemplo: +56 9 1234 5678</span>{% if form.telefono.errors %}<div class="form-error">{{ form.telefono.errors }}</div>{% endif %}</div>
+        {% if form.cantidad_residentes %}<div class="form-field"><label for="{{ form.cantidad_residentes.id_for_label }}">{{ form.cantidad_residentes.label }}</label>{{ form.cantidad_residentes }}{% if form.cantidad_residentes.help_text %}<span class="form-help">{{ form.cantidad_residentes.help_text }}</span>{% endif %}{% if form.cantidad_residentes.errors %}<div class="form-error">{{ form.cantidad_residentes.errors }}</div>{% endif %}</div>{% endif %}
+        <div class="form-field"><label for="{{ form.password1.id_for_label }}">Contraseña</label>{{ form.password1 }}{% if form.password1.help_text %}<span class="form-help">{{ form.password1.help_text|safe }}</span>{% endif %}{% if form.password1.errors %}<div class="form-error">{{ form.password1.errors }}</div>{% endif %}</div>
+        <div class="form-field"><label for="{{ form.password2.id_for_label }}">Repite la contraseña</label>{{ form.password2 }}{% if form.password2.errors %}<div class="form-error">{{ form.password2.errors }}</div>{% endif %}</div>
+        <button class="access-button" type="submit">Crear cuenta y continuar <span aria-hidden="true">→</span></button>
+    </form>
+{% endif %}
+{% endblock %}
