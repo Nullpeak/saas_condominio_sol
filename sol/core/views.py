@@ -3218,12 +3218,9 @@ def reservacion_disponibilidad(request):
     usuario_actual = obtener_usuario(request)
 
     if not usuario_actual:
-        return JsonResponse(
-            {
-                "error": "No se encontró el usuario actual."
-            },
-            status=403,
-        )
+        return JsonResponse({"error": "No se encontró el usuario actual."}, status=403)
+
+    condominios = usuario_actual.condominios_asignados()   # <-- agregar
 
     area_id = request.GET.get("area_id")
     fecha_parametro = request.GET.get("fecha")
