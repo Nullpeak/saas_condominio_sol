@@ -8,7 +8,7 @@
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
         <div>
             <h1 class="h4 mb-1">Condominios</h1>
-            <p class="text-secondary mb-0">Información general y configuración de edificios.</p>
+            <p class="text-secondary mb-0">Selecciona una comunidad para revisar sus edificios y unidades.</p>
         </div>
         {% if usuario.rol == "Super Administrador" or usuario.rol == "Administrador" %}<a class="button" href="{% url 'condominio_crear' %}">Crear condominio</a>{% endif %}
     </div>
@@ -16,34 +16,35 @@
     <form method="get" class="row g-2 mb-4">
         <div class="col-md-6"><label class="form-label" for="q">Buscar condominio</label><input class="form-control" type="search" id="q" name="q" value="{{ busqueda }}" placeholder="Nombre, dirección o ciudad"></div>
         <div class="col-md-3"><label class="form-label" for="estado">Mostrar</label><select class="form-select" id="estado" name="estado"><option value="activos" {% if estado_filtro == 'activos' %}selected{% endif %}>Activos</option><option value="inactivos" {% if estado_filtro == 'inactivos' %}selected{% endif %}>Inactivos</option><option value="todos" {% if estado_filtro == 'todos' %}selected{% endif %}>Todos</option></select></div>
-        <div class="col-md-3 d-flex align-items-end gap-2"><button class="button" type="submit">Buscar</button><a class="btn btn-outline-secondary" href="{% url 'condominios_lista' %}">Limpiar</a></div>
+        <div class="col-md-3 d-flex align-items-end gap-2"><button class="button" type="submit">Filtrar</button><a class="btn btn-outline-secondary" href="{% url 'condominios_lista' %}">Limpiar</a></div>
     </form>
 
     {% if condominios %}
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead><tr><th>Condominio</th><th>Dirección</th><th>Ciudad</th><th>Edificios</th><th>Estado</th><th class="text-end">Acciones</th></tr></thead>
-                <tbody>
-                    {% for condominio in condominios %}
-                        <tr>
-                            <td class="fw-semibold">{{ condominio.nombre }}</td>
-                            <td>{{ condominio.direccion }}</td>
-                            <td>{{ condominio.ciudad.nombre }}</td>
-                            <td>{{ condominio.edificios_set.count }}</td>
-                            <td>{% if condominio.activo %}<span class="text-success">Activo</span>{% else %}<span class="text-secondary">Inactivo</span>{% endif %}</td>
-                            <td class="text-end text-nowrap">
-                                <a class="btn btn-sm btn-outline-secondary" href="{% url 'edificios_lista' condominio.id %}">Ver edificios</a>
-                                <a class="btn btn-sm btn-outline-primary" href="{% url 'condominio_editar' condominio.id %}">Editar</a>
-                                {% if usuario.rol == "Super Administrador" %}<form method="post" action="{% url 'condominio_eliminar' condominio.id %}" class="d-inline" onsubmit="return confirm('Se eliminará solo si no tiene información asociada. ¿Continuar?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger" type="submit">Eliminar</button></form>{% endif %}
-                            </td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+        <div class="row g-3">
+            {% for condominio in condominios %}
+                <div class="col-12 col-md-6 col-xl-4">
+                    <article class="card h-100 border shadow-sm">
+                        {% if condominio.portada %}<img src="{{ condominio.portada.url }}" class="card-img-top" alt="Imagen de {{ condominio.nombre }}" style="height: 150px; object-fit: cover;">{% else %}<div class="d-flex align-items-center justify-content-center bg-success-subtle text-success" style="height: 110px;" aria-hidden="true"><span class="fs-1">⌂</span></div>{% endif %}
+                        <div class="card-body d-flex flex-column">
+                            <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+                                <h2 class="h5 mb-0">{{ condominio.nombre }}</h2>
+                                {% if condominio.activo %}<span class="badge text-bg-success">Activo</span>{% else %}<span class="badge text-bg-secondary">Inactivo</span>{% endif %}
+                            </div>
+                            <p class="text-secondary mb-3">{{ condominio.direccion }}<br>{{ condominio.ciudad.nombre }}</p>
+                            <div class="d-flex gap-3 small text-secondary mb-3"><span>{{ condominio.total_edificios }} edificio{{ condominio.total_edificios|pluralize }}</span><span>{{ condominio.total_unidades }} unidad{{ condominio.total_unidades|pluralize }}</span></div>
+                            <div class="d-flex flex-wrap gap-2 mt-auto">
+                                <a class="button" href="{% url 'edificios_lista' condominio.id %}">Abrir edificios</a>
+                                <a class="btn btn-outline-secondary" href="{% url 'condominio_editar' condominio.id %}">Editar</a>
+                                <form method="post" action="{% url 'condominio_cambiar_estado' condominio.id %}" class="d-inline" onsubmit="return confirm('{% if condominio.activo %}¿Desactivar este condominio? Se conservarán sus datos e historial.{% else %}¿Reactivar este condominio?{% endif %}');">{% csrf_token %}<button class="btn {% if condominio.activo %}btn-outline-danger{% else %}btn-outline-success{% endif %}" type="submit">{% if condominio.activo %}Desactivar{% else %}Reactivar{% endif %}</button></form>
+                            </div>
+                        </div>
+                    </article>
+                </div>
+            {% endfor %}
         </div>
         {% include "core/_paginacion.html" %}
     {% else %}
-        <p class="text-secondary mb-0">No hay condominios registrados.</p>
+        <p class="text-secondary mb-0">No hay condominios que coincidan con estos filtros.</p>
     {% endif %}
 </section>
 {% endblock %}
