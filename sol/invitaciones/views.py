@@ -71,6 +71,7 @@ def invitar(request):
                     _enviar(request, inv, token)
                     enviados.append(email)
                 except Exception:
+                    logger.exception("No se pudo preparar o enviar la invitación a %s", email)
                     transaction.set_rollback(True)  # no dejar invitaciones que nadie recibió
                     fallidos.append(email)
 

@@ -4,38 +4,39 @@
 {% block page_title %}Edificios{% endblock %}
 
 {% block content %}
-<header class="page-intro">
-    <h1>{{ condominio.nombre }}</h1>
-    <p>{{ condominio.direccion }} · {{ edificios|length }} edificio{{ edificios|length|pluralize }}</p>
+<header class="page-intro d-flex flex-wrap justify-content-between align-items-end gap-3">
+    <div><a class="btn btn-link px-0 py-0 mb-2" href="{% url 'condominios_lista' %}">← Volver a condominios</a><h1>{{ condominio.nombre }}</h1><p>{{ condominio.direccion }} · {{ edificios|length }} edificio{{ edificios|length|pluralize }}</p></div>
+    <a class="btn btn-outline-secondary" href="{% url 'condominio_editar' condominio.id %}">Configurar condominio</a>
 </header>
 
 <section class="card">
     {% if edificios %}
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead><tr><th>Edificio</th><th>Pisos</th><th>Unidades</th><th>Subterráneo</th><th>Estado</th><th class="text-end">Acciones</th></tr></thead>
-                <tbody>
-                    {% for edificio in edificios %}
-                        <tr>
-                            <td><div class="fw-semibold">{{ edificio.nombre }}</div><small class="text-secondary">N.º {{ edificio.numero }}</small></td>
-                            <td>{{ edificio.numero_pisos|default:"Sin configurar" }}</td>
-                            <td>{{ edificio.unidades.count }}</td>
-                            <td>{% if edificio.subterraneo %}Sí{% else %}No{% endif %}</td>
-                            <td>{% if edificio.activo %}<span class="text-success">Activo</span>{% else %}<span class="text-secondary">Inactivo</span>{% endif %}</td>
-                            <td class="text-end text-nowrap">
-                                <a class="btn btn-sm btn-outline-secondary" href="{% url 'unidades_lista' edificio.id %}">Unidades</a>
-                                <a class="btn btn-sm btn-outline-primary" href="{% url 'edificio_editar' edificio.id %}">Configurar</a>
-                                <form method="post" action="{% url 'edificio_cambiar_estado' edificio.id %}" class="d-inline">{% csrf_token %}<button class="btn btn-sm {% if edificio.activo %}btn-outline-danger{% else %}btn-outline-success{% endif %}" type="submit">{% if edificio.activo %}Desactivar{% else %}Reactivar{% endif %}</button></form>
-                            </td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+        <div class="row g-3">
+            {% for edificio in edificios %}
+                <div class="col-12 col-md-6 col-xl-4">
+                    <article class="card h-100 border shadow-sm">
+                        <div class="card-body d-flex flex-column">
+                            <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
+                                <div><span class="small text-uppercase text-secondary">Edificio {{ edificio.numero }}</span><h2 class="h5 mb-0">{{ edificio.nombre }}</h2></div>
+                                {% if edificio.activo %}<span class="badge text-bg-success">Activo</span>{% else %}<span class="badge text-bg-secondary">Inactivo</span>{% endif %}
+                            </div>
+                            <div class="row g-2 mb-3">
+                                <div class="col-6"><div class="rounded bg-light p-3 h-100"><div class="h4 mb-0">{{ edificio.numero_pisos|default:"—" }}</div><small class="text-secondary">Pisos</small></div></div>
+                                <div class="col-6"><div class="rounded bg-light p-3 h-100"><div class="h4 mb-0">{{ edificio.total_unidades }}</div><small class="text-secondary">Unidades</small></div></div>
+                            </div>
+                            <p class="small text-secondary mb-3">{% if edificio.subterraneo %}Incluye subterráneo{% else %}Sin subterráneo{% endif %}{% if edificio.viviendas_por_piso %} · {{ edificio.viviendas_por_piso }} unidades por piso{% endif %}</p>
+                            <div class="d-flex flex-wrap gap-2 mt-auto">
+                                <a class="button" href="{% url 'unidades_lista' edificio.id %}">Ver unidades</a>
+                                <a class="btn btn-outline-secondary" href="{% url 'edificio_editar' edificio.id %}">Configurar</a>
+                                <form method="post" action="{% url 'edificio_cambiar_estado' edificio.id %}" class="d-inline">{% csrf_token %}<button class="btn {% if edificio.activo %}btn-outline-danger{% else %}btn-outline-success{% endif %}" type="submit">{% if edificio.activo %}Desactivar{% else %}Reactivar{% endif %}</button></form>
+                            </div>
+                        </div>
+                    </article>
+                </div>
+            {% endfor %}
         </div>
     {% else %}
-        <p class="text-secondary mb-3">Este condominio todavía no tiene edificios configurados.</p>
-        <a class="btn btn-outline-secondary" href="{% url 'condominio_editar' condominio.id %}">Revisar cantidad de edificios</a>
+        <div class="text-center py-4"><h2 class="h5">Aún no hay edificios</h2><p class="text-secondary">Configura la cantidad de edificios de este condominio para comenzar.</p><a class="button" href="{% url 'condominio_editar' condominio.id %}">Configurar edificios</a></div>
     {% endif %}
 </section>
-<a class="btn btn-link px-0" href="{% url 'condominios_lista' %}">Volver a condominios</a>
 {% endblock %}
