@@ -153,7 +153,7 @@ urlpatterns = [
         condominio_editar,
         name="condominio_editar"
     ),
-    path("condominios/<int:condominio_id>/eliminar/", condominio_eliminar, name="condominio_eliminar"),
+    path("condominios/<int:condominio_id>/cambiar-estado/", condominio_cambiar_estado, name="condominio_cambiar_estado"),
 
 
     #============== EDIFICIOS ==============

@@ -13,15 +13,19 @@
         <a class="button" href="{% url 'usuario_crear' %}">Crear usuario</a>
     </div>
 
-    <form method="get" class="row g-2 mb-4" role="search">
-        <div class="col-md-8"><label class="form-label" for="q">Buscar usuario</label><input class="form-control" type="search" id="q" name="q" value="{{ busqueda }}" placeholder="Nombre, correo, RUT o usuario"></div>
-        <div class="col-md-4 d-flex align-items-end gap-2"><button class="button" type="submit">Buscar</button><a class="btn btn-outline-secondary" href="{% url 'usuarios_lista' %}">Limpiar</a></div>
+    <form method="get" class="row g-3 mb-4" role="search">
+        <div class="col-12 col-lg-4"><label class="form-label" for="q">Buscar persona o ubicación</label><input class="form-control" type="search" id="q" name="q" value="{{ busqueda }}" placeholder="Nombre, RUT, correo, condominio, edificio o unidad"></div>
+        <div class="col-12 col-sm-6 col-lg-2"><label class="form-label" for="condominio">Condominio</label><select class="form-select" id="condominio" name="condominio"><option value="">Todos</option>{% for condominio_item in condominios_filtro %}<option value="{{ condominio_item.pk }}" {% if condominio_filtro == condominio_item.pk|stringformat:'s' %}selected{% endif %}>{{ condominio_item.nombre }}</option>{% endfor %}</select></div>
+        <div class="col-12 col-sm-6 col-lg-2"><label class="form-label" for="edificio">Edificio</label><select class="form-select" id="edificio" name="edificio" {% if not condominio_filtro %}disabled{% endif %}><option value="">Todos</option>{% for edificio_item in edificios_filtro %}<option value="{{ edificio_item.pk }}" {% if edificio_filtro == edificio_item.pk|stringformat:'s' %}selected{% endif %}>{{ edificio_item.nombre }}</option>{% endfor %}</select></div>
+        <div class="col-6 col-lg-2"><label class="form-label" for="rol">Rol</label><select class="form-select" id="rol" name="rol"><option value="">Todos</option>{% for valor, etiqueta in roles_filtro %}<option value="{{ valor }}" {% if rol_filtro == valor %}selected{% endif %}>{{ etiqueta|capfirst }}</option>{% endfor %}</select></div>
+        <div class="col-6 col-lg-2"><label class="form-label" for="estado">Estado</label><select class="form-select" id="estado" name="estado"><option value="todos" {% if estado_filtro == 'todos' %}selected{% endif %}>Todos</option><option value="activos" {% if estado_filtro == 'activos' %}selected{% endif %}>Activos</option><option value="inactivos" {% if estado_filtro == 'inactivos' %}selected{% endif %}>Inactivos</option></select></div>
+        <div class="col-12 d-flex align-items-end gap-2"><button class="button" type="submit">Aplicar filtros</button><a class="btn btn-outline-secondary" href="{% url 'usuarios_lista' %}">Limpiar</a></div>
     </form>
 
     {% if usuarios %}
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
-                <thead><tr><th>Nombre</th><th>RUT</th><th>Correo</th><th>Rol</th><th>Condominio</th><th>Estado</th><th class="text-end">Acciones</th></tr></thead>
+                <thead><tr><th>Nombre</th><th>RUT</th><th>Correo</th><th>Rol</th><th>Condominio, edificio y unidad</th><th>Estado</th><th class="text-end">Acciones</th></tr></thead>
                 <tbody>
                     {% for usuario_item in usuarios %}
                         <tr>
@@ -29,7 +33,13 @@
                             <td>{{ usuario_item.rut|default:"—" }}</td>
                             <td>{{ usuario_item.email }}</td>
                             <td>{{ usuario_item.get_rol_display }}</td>
-                            <td>{{ usuario_item.condominio.nombre|default:"—" }}</td>
+                            <td>
+                                {% if usuario_item.condominio %}<div>{{ usuario_item.condominio.nombre }}</div>{% endif %}
+                                {% for condominio_admin in usuario_item.condominios_administrados.all %}<div>{{ condominio_admin.nombre }} <small class="text-secondary">· administración</small></div>{% endfor %}
+                                {% for unidad_item in usuario_item.unidades_propias.all %}<div>{{ unidad_item.edificio.condominio.nombre }} · {{ unidad_item.edificio.nombre }} · Unidad {{ unidad_item.numero_unidad }} <small class="text-secondary">· propietario</small></div>{% endfor %}
+                                {% for unidad_item in usuario_item.unidades_arrendadas.all %}<div>{{ unidad_item.edificio.condominio.nombre }} · {{ unidad_item.edificio.nombre }} · Unidad {{ unidad_item.numero_unidad }} <small class="text-secondary">· residente</small></div>{% endfor %}
+                                {% if not usuario_item.condominio and not usuario_item.condominios_administrados.all and not usuario_item.unidades_propias.all and not usuario_item.unidades_arrendadas.all %}—{% endif %}
+                            </td>
                             <td>{% if usuario_item.activo %}<span class="text-success">Activo</span>{% else %}<span class="text-secondary">Inactivo</span>{% endif %}</td>
                             <td class="text-end text-nowrap">
                                 {% if usuario_item.pk == usuario.pk %}<span class="badge text-bg-light border">Tu cuenta · protegida</span>{% else %}
@@ -51,4 +61,11 @@
         <p class="text-secondary mb-0">Todavía no hay usuarios registrados.</p>
     {% endif %}
 </section>
+<script>
+    document.getElementById("condominio")?.addEventListener("change", function () {
+        const edificio = document.getElementById("edificio");
+        edificio.value = "";
+        edificio.disabled = !this.value;
+    });
+</script>
 {% endblock %}

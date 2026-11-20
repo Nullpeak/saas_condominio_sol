@@ -28,6 +28,7 @@ from gastos_comunes.services import saldos_acumulados, resumen_mora
 from visitas.models import Visita
 from mantenimientos.models import ElementoMantenimiento, RegistroMantenimiento
 from .paginacion import paginar
+from invitaciones.models import Invitacion
 
 from .validators import *
 from .models import *
@@ -246,6 +247,100 @@ def inicio(request):
         "reservas_proximas": reservas.count(),
         "tickets_pendientes": tickets.count(),
     }
+    if usuario.rol == Usuario.Rol.SUPER:
+        ahora = timezone.now()
+        desde_30_dias = ahora - timedelta(days=30)
+        condominios_activos = Condominio.objects.filter(activo=True)
+        administradores_activos = Usuario.objects.filter(
+            rol=Usuario.Rol.ADMINISTRADOR,
+            activo=True,
+        )
+        condominios_con_admin = set(
+            administradores_activos.filter(condominio__activo=True)
+            .values_list("condominio_id", flat=True)
+        )
+        condominios_con_admin.update(
+            administradores_activos.filter(condominios_administrados__activo=True)
+            .values_list("condominios_administrados__pk", flat=True)
+        )
+        condominios_con_edificios = set(
+            Edificio.objects.filter(condominio__activo=True, activo=True)
+            .values_list("condominio_id", flat=True)
+            .distinct()
+        )
+        sin_administrador = condominios_activos.exclude(pk__in=condominios_con_admin)
+        sin_edificios = condominios_activos.exclude(pk__in=condominios_con_edificios)
+        edificios_sin_configurar = Edificio.objects.filter(
+            condominio__activo=True,
+            activo=True,
+        ).filter(Q(numero_pisos__isnull=True) | Q(viviendas_por_piso__isnull=True))
+        usuarios_sin_condominio = Usuario.objects.filter(
+            activo=True,
+            rol__in=(Usuario.Rol.ADMINISTRADOR, Usuario.Rol.GESTOR),
+            condominio__isnull=True,
+            condominios_administrados__isnull=True,
+        ).distinct()
+
+        condominios_con_uso = list(condominios_activos.select_related("ciudad").annotate(
+            tickets_30_dias=Count("tickets", filter=Q(tickets__creado__gte=desde_30_dias, tickets__creado__lte=ahora), distinct=True),
+            anuncios_30_dias=Count("anuncios_oficiales", filter=Q(anuncios_oficiales__creado__gte=desde_30_dias, anuncios_oficiales__creado__lte=ahora), distinct=True),
+            visitas_30_dias=Count("visitas", filter=Q(visitas__fecha_visita__gte=desde_30_dias.date(), visitas__fecha_visita__lte=timezone.localdate()), distinct=True),
+        ).order_by("nombre", "pk"))
+        for condominio in condominios_con_uso:
+            condominio.actividad_30_dias = (
+                condominio.tickets_30_dias
+                + condominio.anuncios_30_dias
+                + condominio.visitas_30_dias
+            )
+        condominios_con_uso.sort(key=lambda item: (-item.actividad_30_dias, item.nombre.casefold()))
+
+        alertas_superadmin = []
+        if sin_administrador.exists():
+            alertas_superadmin.append({
+                "titulo": "Condominios sin administrador activo",
+                "cantidad": sin_administrador.count(),
+                "detalle": "Revisa la asignación de administradores.",
+                "url": reverse("administracion"),
+            })
+        if sin_edificios.exists():
+            alertas_superadmin.append({
+                "titulo": "Condominios sin edificios activos",
+                "cantidad": sin_edificios.count(),
+                "detalle": "No tienen edificios disponibles para operar.",
+                "url": reverse("condominios_lista") + "?estado=activos",
+            })
+        if edificios_sin_configurar.exists():
+            alertas_superadmin.append({
+                "titulo": "Edificios por configurar",
+                "cantidad": edificios_sin_configurar.count(),
+                "detalle": "Falta indicar pisos o unidades por piso.",
+                "url": reverse("condominios_lista") + "?estado=activos",
+            })
+        if usuarios_sin_condominio.exists():
+            alertas_superadmin.append({
+                "titulo": "Cuentas de gestión sin condominio",
+                "cantidad": usuarios_sin_condominio.count(),
+                "detalle": "Administradores o gestores sin comunidad asignada.",
+                "url": reverse("usuarios_lista") + "?estado=activos",
+            })
+
+        contexto["es_dashboard_superadmin"] = True
+        contexto["resumen_superadmin"] = {
+            "condominios_activos": condominios_activos.count(),
+            "condominios_inactivos": Condominio.objects.filter(activo=False).count(),
+            "usuarios_activos": Usuario.objects.filter(activo=True).count(),
+            "usuarios_inactivos": Usuario.objects.filter(activo=False).count(),
+            "administradores_activos": administradores_activos.count(),
+            "edificios_activos": Edificio.objects.filter(condominio__activo=True, activo=True).count(),
+            "unidades_activas": Unidad.objects.filter(edificio__condominio__activo=True, edificio__activo=True, activo=True).count(),
+            "invitaciones_pendientes": Invitacion.vigentes().filter(condominio__activo=True).count(),
+            "desde_30_dias": desde_30_dias,
+        }
+        contexto["alertas_superadmin"] = alertas_superadmin
+        contexto["actividad_superadmin"] = HistorialAdministrativo.objects.select_related(
+            "actor", "condominio"
+        ).order_by("-creado", "-pk")[:8]
+        contexto["condominios_uso_superadmin"] = condominios_con_uso[:8]
     if usuario.rol == Usuario.Rol.RESIDENTE:
         unidades_residente = Unidad.objects.filter(
             Q(dueno=usuario) | Q(arrendatario=usuario), activo=True
@@ -771,28 +866,88 @@ def usuarios_lista(request):
         return redirect("inicio")
 
     if es_super_administrador(usuario_actual):
-        usuarios = Usuario.objects.select_related("user", "condominio").all()
+        condominios = Condominio.objects.all()
+        usuarios = Usuario.objects.all()
     else:
         condominios = usuario_actual.condominios_asignados()
         usuarios = Usuario.objects.select_related("user", "condominio").filter(
-            Q(condominio__in=condominios) | Q(condominios_administrados__in=condominios)
+            Q(condominio__in=condominios)
+            | Q(condominios_administrados__in=condominios)
+            | Q(unidades_propias__edificio__condominio__in=condominios)
+            | Q(unidades_arrendadas__edificio__condominio__in=condominios)
         ).exclude(rol__in=(Usuario.Rol.ADMINISTRADOR, Usuario.Rol.SUPER)).distinct()
 
     busqueda = request.GET.get("q", "").strip()
+    condominio_id = request.GET.get("condominio", "").strip()
+    edificio_id = request.GET.get("edificio", "").strip()
+    rol_filtro = request.GET.get("rol", "").strip()
+    estado_filtro = request.GET.get("estado", "todos").strip()
+
+    condominios = condominios.order_by("nombre", "pk")
+    edificios = Edificio.objects.filter(condominio__in=condominios).select_related("condominio")
+    condominio_seleccionado = condominios.filter(pk=condominio_id).first() if condominio_id.isdigit() else None
+    edificios = edificios.filter(condominio=condominio_seleccionado) if condominio_seleccionado else edificios.none()
+
+    if condominio_seleccionado:
+        usuarios = usuarios.filter(
+            Q(condominio=condominio_seleccionado)
+            | Q(condominios_administrados=condominio_seleccionado)
+            | Q(unidades_propias__edificio__condominio=condominio_seleccionado)
+            | Q(unidades_arrendadas__edificio__condominio=condominio_seleccionado)
+        )
+    edificio_seleccionado = edificios.filter(pk=edificio_id).first() if edificio_id.isdigit() else None
+    if edificio_seleccionado:
+        usuarios = usuarios.filter(
+            Q(condominio_id=edificio_seleccionado.condominio_id)
+            | Q(condominios_administrados=edificio_seleccionado.condominio_id)
+            | Q(unidades_propias__edificio=edificio_seleccionado)
+            | Q(unidades_arrendadas__edificio=edificio_seleccionado)
+        )
+    if rol_filtro in Usuario.Rol.values:
+        usuarios = usuarios.filter(rol=rol_filtro)
+    else:
+        rol_filtro = ""
+    if estado_filtro == "activos":
+        usuarios = usuarios.filter(activo=True)
+    elif estado_filtro == "inactivos":
+        usuarios = usuarios.filter(activo=False)
+    else:
+        estado_filtro = "todos"
+
     if busqueda:
         usuarios = usuarios.filter(
             Q(nombre__icontains=busqueda)
             | Q(apellido__icontains=busqueda)
+            | Q(nombre2__icontains=busqueda)
+            | Q(apellido2__icontains=busqueda)
             | Q(email__icontains=busqueda)
             | Q(user__username__icontains=busqueda)
             | Q(rut__icontains=busqueda)
+            | Q(condominio__nombre__icontains=busqueda)
+            | Q(condominios_administrados__nombre__icontains=busqueda)
+            | Q(unidades_propias__numero_unidad__icontains=busqueda)
+            | Q(unidades_propias__edificio__nombre__icontains=busqueda)
+            | Q(unidades_arrendadas__numero_unidad__icontains=busqueda)
+            | Q(unidades_arrendadas__edificio__nombre__icontains=busqueda)
         )
 
+    usuarios = usuarios.select_related("user", "condominio").prefetch_related(
+        "condominios_administrados",
+        "unidades_propias__edificio__condominio",
+        "unidades_arrendadas__edificio__condominio",
+    ).distinct()
     paginacion = paginar(request, usuarios.order_by("apellido", "nombre", "pk"))
     return render(request, "core/usuarios/lista.html", {
         "usuario": usuario_actual,
         "usuarios": paginacion["page_obj"],
         "busqueda": busqueda,
+        "condominios_filtro": condominios,
+        "edificios_filtro": edificios,
+        "condominio_filtro": str(condominio_seleccionado.pk) if condominio_seleccionado else "",
+        "edificio_filtro": str(edificio_seleccionado.pk) if edificio_seleccionado else "",
+        "rol_filtro": rol_filtro,
+        "estado_filtro": estado_filtro,
+        "roles_filtro": Usuario.Rol.choices,
         **paginacion,
     })
 
@@ -1429,7 +1584,10 @@ def condominios_lista(request):
             | Q(direccion__icontains=busqueda)
             | Q(ciudad__nombre__icontains=busqueda)
         )
-    condominios = condominios.select_related("ciudad").order_by("nombre", "pk")
+    condominios = condominios.select_related("ciudad").annotate(
+        total_edificios=Count("edificios_set", distinct=True),
+        total_unidades=Count("edificios_set__unidades", distinct=True),
+    ).order_by("nombre", "pk")
     paginacion = paginar(request, condominios)
 
     return render(request, "core/condominios/lista.html", {
@@ -1695,9 +1853,9 @@ def edificios_lista(request, condominio_id):
         if not usuario_actual.puede_acceder_condominio(condominio.id):
             return redirect("condominios_lista")
 
-    edificios = condominio.edificios_set.all().prefetch_related(
-        "unidades"
-    )
+    edificios = condominio.edificios_set.annotate(
+        total_unidades=Count("unidades", distinct=True),
+    ).order_by("numero", "pk")
 
     return render(request, "core/condominios/edificios.html", {
         "usuario_actual": usuario_actual,
@@ -3239,7 +3397,7 @@ def reservacion_disponibilidad(request):
     if not usuario_actual:
         return JsonResponse({"error": "No se encontró el usuario actual."}, status=403)
 
-    condominios = usuario_actual.condominios_asignados()   # <-- agregar
+    condominios = usuario_actual.condominios_asignados()
 
     area_id = request.GET.get("area_id")
     fecha_parametro = request.GET.get("fecha")
@@ -3270,7 +3428,7 @@ def reservacion_disponibilidad(request):
     # VERIFICAR QUE EL USUARIO PERTENEZCA AL CONDOMINIO
     # =========================================================
 
-    if not usuario_actual.puede_acceder_condominio(area.condominio_id):
+    if not condominios.filter(pk=area.condominio_id).exists():
         return JsonResponse(
             {
                 "error": "No tienes acceso a esta área común."
@@ -4607,32 +4765,19 @@ def landing(request):
 
 
 @login_required
-def condominio_eliminar(request, condominio_id):
+def condominio_cambiar_estado(request, condominio_id):
     usuario = obtener_usuario(request)
-    if request.method != "POST" or not es_super_administrador(usuario):
+    if request.method != "POST" or not puede_gestionar_condominio(usuario):
         return redirect("condominios_lista")
     condominio = get_object_or_404(Condominio, pk=condominio_id)
-    dependencias = []
-    for relacion in condominio._meta.related_objects:
-        acceso = relacion.get_accessor_name()
-        if not acceso or acceso.endswith("+"):
-            continue
-        relacionado = getattr(condominio, acceso, None)
-        if relacionado is None:
-            continue
-        existe = relacionado.exists() if hasattr(relacionado, "exists") else bool(relacionado)
-        if existe:
-            dependencias.append(relacion.related_model._meta.verbose_name_plural)
-    if dependencias:
-        messages.error(
-            request,
-            "No se puede eliminar porque todavía tiene información relacionada. "
-            "Desactiva el condominio para conservar su historial.",
-        )
-    else:
-        nombre = condominio.nombre
-        condominio.delete()
-        messages.success(request, f"Se eliminó el condominio {nombre}.")
+    if not usuario.puede_acceder_condominio(condominio.pk):
+        return redirect("condominios_lista")
+    condominio.activo = not condominio.activo
+    condominio.save(update_fields=["activo"])
+    messages.success(
+        request,
+        f"Condominio {'reactivado' if condominio.activo else 'desactivado'}. Sus datos e historial se conservaron.",
+    )
     return redirect("condominios_lista")
 
 
