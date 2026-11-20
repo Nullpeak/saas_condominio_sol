@@ -82,6 +82,7 @@
         <div class="field">
           <label for="{{ field.id_for_label }}">{{ field.label }}</label>
           {{ field }}
+          {% if field.help_text %}<p class="note" style="text-align:left">{{ field.help_text }}</p>{% endif %}
           {% for e in field.errors %}<p class="error">{{ e }}</p>{% endfor %}
         </div>
       {% endfor %}

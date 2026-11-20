@@ -4,7 +4,17 @@ import uuid
 from django.core.exceptions import ValidationError
 from django.db import models
 
+from core.validators import normalizar_email, normalizar_espacios, normalizar_telefono_opcional
+
 from .validators import validar_documento
+
+
+def _telefono_normalizado(instancia, campo):
+    """Valida y normaliza un teléfono opcional; deja el error asociado al campo."""
+    try:
+        setattr(instancia, campo, normalizar_telefono_opcional(getattr(instancia, campo)))
+    except ValidationError as error:
+        raise ValidationError({campo: error.messages})
 
 
 def documento_mantenimiento_path(instance, filename):
@@ -48,8 +58,11 @@ class ElementoMantenimiento(models.Model):
 
     def clean(self):
         super().clean()
-        self.categoria = self.categoria.strip()
-        self.nombre = self.nombre.strip()
+        self.categoria = normalizar_espacios(self.categoria)
+        self.nombre = normalizar_espacios(self.nombre)
+        self.empresa_actual = normalizar_espacios(self.empresa_actual)
+        self.correo_actual = normalizar_email(self.correo_actual)
+        _telefono_normalizado(self, "telefono_actual")
         if not self.categoria:
             raise ValidationError({"categoria": "Indica una categoría, por ejemplo piscina o ascensor."})
 
@@ -97,6 +110,8 @@ class RegistroMantenimiento(models.Model):
 
     def clean(self):
         super().clean()
+        self.empresa = normalizar_espacios(self.empresa)
+        _telefono_normalizado(self, "telefono_empresa")
         if self.proximo_mantenimiento and self.proximo_mantenimiento < self.fecha:
             raise ValidationError({
                 "proximo_mantenimiento": "La próxima fecha debe ser igual o posterior a la fecha del servicio."

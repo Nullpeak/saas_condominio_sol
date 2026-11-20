@@ -1,14 +1,18 @@
+{% load tickets_extras %}
 {% url 'tickets:archivo' a.pk as url_adj %}
+{# Imágenes y videos se abren en el visor (_visor.html) sin salir de la página; el href queda como respaldo #}
 {% if a.es_imagen %}
-    <a class="tk-adj" href="{{ url_adj }}" target="_blank" rel="noopener" title="{{ a.nombre }}">
-        <img src="{{ url_adj }}" alt="{{ a.nombre }}" loading="lazy">
+    <a class="tk-adj" href="{{ url_adj }}" data-visor="imagen" data-nombre="{{ a.nombre|default:'Imagen' }}"
+       data-descargar="{{ url_adj }}?descargar=1" title="Ver {{ a.nombre|default:'imagen' }}">
+        <img src="{{ url_adj }}" alt="{{ a.nombre|default:'Imagen adjunta' }}" loading="lazy">
     </a>
 {% elif a.es_video %}
-    <a class="tk-adj" href="{{ url_adj }}" target="_blank" rel="noopener" title="{{ a.nombre }}">
-        <div class="doc">🎬</div><span>{{ a.nombre|default:"Video" }}</span>
+    <a class="tk-adj" href="{{ url_adj }}" data-visor="video" data-nombre="{{ a.nombre|default:'Video' }}"
+       data-descargar="{{ url_adj }}?descargar=1" title="Ver {{ a.nombre|default:'video' }}">
+        <div class="doc">{% icono "video" 18 %}</div><span>{{ a.nombre|default:"Video" }}</span>
     </a>
 {% else %}
-    <a class="tk-adj" href="{{ url_adj }}" title="{{ a.nombre }}">
-        <div class="doc">📄</div><span>{{ a.nombre|default:"Documento" }}</span>
+    <a class="tk-adj" href="{{ url_adj }}" title="Descargar {{ a.nombre|default:'documento' }}">
+        <div class="doc">{% icono "documento" 18 %}</div><span>{{ a.nombre|default:"Documento" }}</span>
     </a>
 {% endif %}

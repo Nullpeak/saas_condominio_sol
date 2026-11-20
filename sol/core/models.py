@@ -10,7 +10,9 @@ from django.core.files.base import ContentFile
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
 from django.utils import timezone
-from .validators import formatear_rut, validar_rut
+from .validators import (
+    formatear_rut, normalizar_email, normalizar_espacios, normalizar_nombre_propio, normalizar_patente, validar_rut,
+)
 
 # Create your models here.
 class Condominio(models.Model):
@@ -36,6 +38,12 @@ class Condominio(models.Model):
         help_text="Porcentaje anual indicado en el reglamento propio del condominio.",
     )
     fundamento_tasa_mora = models.CharField(max_length=180, blank=True)
+    # Referencia, no un límite: sirve para avisar cuando una unidad informa muchas más personas.
+    estimado_personas_departamento = models.PositiveSmallIntegerField(
+        "Estimado de personas por departamento",
+        null=True, blank=True,
+        validators=[MinValueValidator(1), MaxValueValidator(20)],
+    )
 
     class Meta:
         db_table = "condominio"
@@ -44,6 +52,8 @@ class Condominio(models.Model):
         return self.nombre
 
     def save(self, *args, **kwargs):
+        self.nombre = normalizar_espacios(self.nombre)
+        self.direccion = normalizar_espacios(self.direccion)
         es_nuevo = self._state.adding
         with transaction.atomic():
             super().save(*args, **kwargs)
@@ -174,6 +184,16 @@ class Unidad(models.Model):
         # El primer estacionamiento va incluido, desde el segundo se cobra
         return max(self.estacionamientos.count() - 1, 0)
 
+    @property
+    def estimado_personas(self):
+        return self.edificio.condominio.estimado_personas_departamento
+
+    @property
+    def excede_estimado(self):
+        """True si informa más personas que el estimado del condominio (solo es un aviso)."""
+        estimado = self.estimado_personas
+        return bool(estimado and self.cantidad_residentes and self.cantidad_residentes > estimado)
+
     class Meta:
         db_table = "unidad"
         constraints = [
@@ -279,8 +299,8 @@ class Usuario(models.Model):
 
     def save(self, *args, **kwargs):
         for campo in ("nombre", "nombre2", "apellido", "apellido2"):
-            valor = " ".join((getattr(self, campo) or "").split())
-            setattr(self, campo, valor.title())
+            setattr(self, campo, normalizar_nombre_propio(getattr(self, campo)))
+        self.email = normalizar_email(self.email)
         self._normalizar_rut()
         if not self.slug:
             self.slug = self._generar_slug()
@@ -477,6 +497,7 @@ class Reservacion(models.Model):
                 raise ValidationError("Una reserva de invitado no lleva área común.")
 
     def save(self, *args, **kwargs):
+        self.nombre_invitado = normalizar_nombre_propio(self.nombre_invitado)
         crear_invitado = (
             self.tipo_reserva == self.Tipo.INVITADO
             and self.nombre_invitado
@@ -513,6 +534,11 @@ class Invitado(models.Model):
 
     def __str__(self):
         return f"{self.nombre} - {self.unidad}"
+
+    def save(self, *args, **kwargs):
+        self.nombre = normalizar_nombre_propio(self.nombre)
+        self.patente_vehiculo = normalizar_patente(self.patente_vehiculo)
+        super().save(*args, **kwargs)
 #
 # Ticket y TicketArchivo se movieron a la app "tickets" (tickets/models.py).
 # Esta función se queda aquí solo porque la referencia core/migrations/0001_initial.py.
@@ -614,3 +640,43 @@ class HistorialAdministrativo(models.Model):
 
     def __str__(self):
         return f"{self.get_accion_display()} · {self.modelo} #{self.objeto_id}"
+
+
+class SolicitudBajaArrendatario(models.Model):
+    """
+    El dueño de una unidad pide dar de baja a su arrendatario.
+    La baja solo se aplica cuando un Administrador la aprueba, después de conversar con ambas partes.
+    """
+    class Estado(models.TextChoices):
+        PENDIENTE = "pendiente", "Pendiente"
+        APROBADA = "aprobada", "Aprobada"
+        RECHAZADA = "rechazada", "Rechazada"
+        CANCELADA = "cancelada", "Cancelada por el dueño"
+
+    unidad = models.ForeignKey(Unidad, on_delete=models.CASCADE, related_name="solicitudes_baja")
+    arrendatario = models.ForeignKey(Usuario, on_delete=models.PROTECT, related_name="bajas_recibidas")
+    solicitante = models.ForeignKey(Usuario, on_delete=models.PROTECT, related_name="bajas_solicitadas")
+    motivo = models.TextField(max_length=1000)
+    estado = models.CharField(max_length=10, choices=Estado.choices, default=Estado.PENDIENTE)
+    creado = models.DateTimeField(auto_now_add=True)
+    resuelto_por = models.ForeignKey(
+        Usuario, on_delete=models.SET_NULL, null=True, blank=True, related_name="bajas_resueltas",
+    )
+    resuelto_en = models.DateTimeField(null=True, blank=True)
+    comentario_admin = models.TextField(max_length=1000, blank=True)
+
+    class Meta:
+        db_table = "solicitud_baja_arrendatario"
+        ordering = ["-creado", "-id"]
+        verbose_name = "solicitud de baja de arrendatario"
+        verbose_name_plural = "solicitudes de baja de arrendatario"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["unidad"],
+                condition=Q(estado="pendiente"),
+                name="baja_pendiente_unica_por_unidad",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Baja de {self.arrendatario} en {self.unidad}"

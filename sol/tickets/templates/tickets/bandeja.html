@@ -1,191 +1,256 @@
 {% extends "core/base.html" %}
 {% load tickets_extras %}
 
-{% block title %}{% if ticket %}#{{ ticket.pk }} {{ ticket.titulo }}{% else %}Tickets{% endif %} · CondoGestión{% endblock %}
-{% block page_title %}🎫 Tickets{% endblock %}
+{% block title %}{% if ticket %}#{{ ticket.pk }} {{ ticket.titulo }}{% else %}Tickets y solicitudes{% endif %} | Comunidad al Día{% endblock %}
+{% block page_title %}Tickets y solicitudes{% endblock %}
 
 {% block extra_css %}
 {% include "tickets/_estilos.html" %}
 <style>
-    /* La bandeja usa todo el alto disponible: sin márgenes del contenedor general */
-    .main:has(.tkx) { max-width: none; padding: 0; }
+    /* ===== Tickets: mismo contenedor y paleta que el resto de la app ===== */
     .main:has(.tkx) .messages {
         position: fixed; z-index: 1080; right: 20px; bottom: 20px; width: min(380px, calc(100vw - 40px)); margin: 0;
     }
     .main:has(.tkx) .messages .alert { box-shadow: 0 8px 24px rgb(15 23 42 / 15%); }
 
+    .tkx-intro { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+    .tkx-intro h1 { margin: 0 0 6px; font-size: 26px; font-weight: 650; }
+    .tkx-intro p { margin: 0; color: #64748b; }
+    .tkx-intro .button { display: inline-flex; align-items: center; gap: 7px; font-weight: 600; }
+
     .tkx {
-        --borde: #e5e7eb; --suave: #f8fafc; --texto2: #64748b; --acento: #2563eb;
-        display: grid; grid-template-columns: 340px minmax(0, 1fr) 300px;
-        height: calc(100vh - 66px); background: #fff;
+        --borde: #e5e7eb; --suave: #f8fafc; --texto2: #64748b; --acento: #167c69; --acento-osc: #106653; --acento-suave: #e8f5f1;
+        display: grid; grid-template-columns: 370px minmax(0, 1fr) 330px;
+        height: calc(100vh - 200px); min-height: 560px; background: #fff;
+        border: 1px solid var(--borde); border-radius: 12px; overflow: hidden; box-shadow: 0 1px 2px rgb(15 23 42 / 4%);
     }
+    .tkx-ico { flex-shrink: 0; }
     .tkx-col { min-height: 0; display: flex; flex-direction: column; }
     .tkx-scroll { flex: 1; min-height: 0; overflow-y: auto; }
 
     /* ---------------- bandeja (izquierda) ---------------- */
     .tkx-lista { border-right: 1px solid var(--borde); background: var(--suave); }
-    .tkx-lista-head { padding: 16px 16px 10px; border-bottom: 1px solid var(--borde); background: #fff; }
-    .tkx-titulo { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
-    .tkx-titulo h2 { font-size: 17px; font-weight: 700; margin: 0; }
-    .tkx-nuevo { font-size: 13px; padding: 6px 11px; min-height: 0; border-radius: 7px; }
+    .tkx-lista-head { padding: 18px 18px 14px; border-bottom: 1px solid var(--borde); background: #fff; }
+    .tkx-titulo { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+    .tkx-titulo h2 { font-size: 16px; font-weight: 650; margin: 0; }
     .tkx-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
     .tkx-chip {
-        display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border: 1px solid var(--borde);
-        border-radius: 999px; font-size: 12px; color: #334155; text-decoration: none; background: #fff; white-space: nowrap;
+        display: inline-flex; align-items: center; gap: 5px; padding: 4px 11px; border: 1px solid #dfe5e3;
+        border-radius: 999px; font-size: 12.5px; color: #334155; text-decoration: none; background: #fff; white-space: nowrap;
     }
-    .tkx-chip:hover { border-color: #93c5fd; color: #1e3a8a; }
-    .tkx-chip.on { background: #172033; border-color: #172033; color: #fff; }
-    .tkx-chip .n { font-size: 11px; font-weight: 700; color: var(--texto2); }
-    .tkx-chip.on .n { color: #93c5fd; }
-    .tkx-chip.alerta .n { color: #dc2626; }
-    .tkx-buscar { display: flex; gap: 6px; }
-    .tkx-buscar input[type=search] {
-        flex: 1; min-width: 0; padding: 7px 11px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px;
-    }
-    .tkx-mas summary { cursor: pointer; font-size: 12px; color: var(--texto2); margin-top: 8px; list-style: none; }
+    .tkx-chip:hover { border-color: var(--acento); color: var(--acento-osc); }
+    .tkx-chip.on { background: var(--acento); border-color: var(--acento); color: #fff; }
+    .tkx-chip .n { font-size: 11.5px; font-weight: 700; color: var(--texto2); }
+    .tkx-chip.on .n { color: #d7f3ea; }
+    .tkx-chip.alerta .n { color: #b45309; }
+    .tkx-chip.on.alerta .n { color: #fde68a; }
+    .tkx-buscar { display: flex; align-items: center; gap: 8px; border: 1px solid #d1d5db; border-radius: 7px; padding: 0 10px; background: #fff; color: var(--texto2); }
+    .tkx-buscar:focus-within { border-color: var(--acento); box-shadow: 0 0 0 3px rgb(22 124 105 / 12%); }
+    .tkx-buscar input[type=search] { flex: 1; min-width: 0; height: 36px; border: 0; outline: none; font-size: 13.5px; background: transparent; }
+    .tkx-mas summary { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px; color: var(--acento); margin-top: 10px; list-style: none; }
     .tkx-mas summary::-webkit-details-marker { display: none; }
-    .tkx-mas-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
-    .tkx-mas-grid select, .tkx-mas-grid input { width: 100%; padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 7px; font-size: 12px; background: #fff; }
+    .tkx-mas-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+    .tkx-mas-grid select, .tkx-mas-grid input { width: 100%; padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 7px; font-size: 12.5px; background: #fff; }
     .tkx-mas-grid .ancho { grid-column: 1 / -1; }
-    .tkx-mas-grid label { font-size: 11px; color: var(--texto2); display: block; }
+    .tkx-mas-grid label { font-size: 12px; color: var(--texto2); display: block; margin-bottom: 2px; }
 
-    .tkx-items { padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+    .tkx-items { padding: 12px; display: flex; flex-direction: column; gap: 9px; }
     .tkx-item {
-        position: relative; display: flex; gap: 10px; padding: 11px 12px 11px 14px; border: 1px solid var(--borde);
-        border-radius: 10px; background: #fff; color: inherit; text-decoration: none;
+        position: relative; display: flex; gap: 11px; padding: 12px 13px 12px 15px; border: 1px solid var(--borde);
+        border-radius: 9px; background: #fff; color: inherit; text-decoration: none;
     }
-    .tkx-item:hover { border-color: #bfdbfe; color: inherit; }
-    .tkx-item.on { border-color: var(--acento); box-shadow: 0 0 0 1px var(--acento); }
-    .tkx-item::before { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 0 3px 3px 0; background: #cbd5e1; }
+    .tkx-item:hover { border-color: #a9d3c8; color: inherit; }
+    .tkx-item.on { border-color: var(--acento); box-shadow: 0 0 0 3px rgb(22 124 105 / 12%); }
+    .tkx-item::before { content: ""; position: absolute; left: 0; top: 11px; bottom: 11px; width: 3px; border-radius: 0 3px 3px 0; background: transparent; }
     .tkx-item.p-alta::before { background: #dc2626; }
     .tkx-item.p-media::before { background: #f59e0b; }
     .tkx-item.p-baja::before { background: #94a3b8; }
-    .tkx-item.e-cerrado, .tkx-item.e-resuelto { opacity: .78; }
+    .tkx-item.e-cerrado, .tkx-item.e-resuelto { opacity: .8; }
     .tkx-item-cuerpo { flex: 1; min-width: 0; }
-    .tkx-item-top { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+    .tkx-item-top { display: flex; justify-content: space-between; gap: 8px; font-size: 13.5px; }
     .tkx-item-top strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .tkx-item-top .num { color: var(--texto2); font-weight: 400; font-size: 12px; }
+    .tkx-item-top .num { color: var(--texto2); font-weight: 500; }
     .tkx-item-top time { color: var(--texto2); font-size: 12px; white-space: nowrap; }
-    .tkx-item-asunto { font-size: 13px; color: #334155; margin: 2px 0 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .tkx-item-tags { display: flex; flex-wrap: wrap; gap: 4px; }
-    .tkx-tag { font-size: 11px; padding: 1px 7px; border-radius: 5px; background: #f1f5f9; color: #475569; white-space: nowrap; }
-    .tkx-tag.cat { background: #eff6ff; color: #1d4ed8; }
-    .tkx-tag.resp { background: #f0fdf4; color: #15803d; }
-    .tkx-vacio { text-align: center; color: var(--texto2); font-size: 13px; padding: 40px 16px; }
-    .tkx-pag { display: flex; justify-content: space-between; align-items: center; padding: 4px 6px 12px; font-size: 12px; color: var(--texto2); }
+    .tkx-item-asunto { font-size: 13.5px; color: #334155; margin: 3px 0 7px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tkx-item-tags { display: flex; flex-wrap: wrap; gap: 5px; }
+    .tkx-tag { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; padding: 2px 9px; border-radius: 999px; background: #f1f5f9; color: #475569; white-space: nowrap; }
+    .tkx-tag.resp { background: var(--acento-suave); color: #0f5f4f; }
+    .tkx-vacio { text-align: center; color: var(--texto2); font-size: 13.5px; padding: 40px 16px; }
+    .tkx-pag { display: flex; justify-content: space-between; align-items: center; padding: 4px 6px 12px; font-size: 12.5px; color: var(--texto2); }
 
-    /* avatares */
+    /* avatares: tonos de la paleta (texto blanco con buen contraste) */
     .tkx-av {
         flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
-        font-size: 13px; font-weight: 700; color: #fff; background: #64748b; overflow: hidden;
+        font-size: 13px; font-weight: 700; color: #fff; background: #167c69; overflow: hidden;
     }
     .tkx-av img { width: 100%; height: 100%; object-fit: cover; }
-    .tkx-av.sm { width: 28px; height: 28px; font-size: 11px; }
+    .tkx-av.sm { width: 32px; height: 32px; font-size: 12px; }
     .tkx-av.lg { width: 48px; height: 48px; font-size: 17px; }
-    .tkx-av.c0 { background: #2563eb; } .tkx-av.c1 { background: #7c3aed; } .tkx-av.c2 { background: #db2777; }
-    .tkx-av.c3 { background: #059669; } .tkx-av.c4 { background: #d97706; } .tkx-av.c5 { background: #0891b2; }
-    .tkx-av.c6 { background: #4f46e5; } .tkx-av.c7 { background: #be123c; }
+    .tkx-av.c0 { background: #167c69; } .tkx-av.c1 { background: #0e5e63; } .tkx-av.c2 { background: #4d7c0f; }
+    .tkx-av.c3 { background: #1f4e5f; } .tkx-av.c4 { background: #8a5a00; } .tkx-av.c5 { background: #3f6212; }
+    .tkx-av.c6 { background: #2f5d50; } .tkx-av.c7 { background: #5b4b8a; }
+    .tkx-av-btn { border: 0; padding: 0; cursor: pointer; transition: box-shadow .15s; }
+    .tkx-av-btn:hover, .tkx-av-btn:focus-visible { box-shadow: 0 0 0 3px rgb(22 124 105 / 35%); outline: none; }
+    .tkx-link-ficha { display: block; border: 0; padding: 0; background: none; color: inherit; text-align: left; cursor: pointer; }
+    .tkx-link-ficha:hover strong { text-decoration: underline; }
 
     /* ---------------- conversación (centro) ---------------- */
-    .tkx-conv { background: #fff; }
-    .tkx-conv-head { padding: 14px 22px 12px; border-bottom: 1px solid var(--borde); }
-    .tkx-conv-head h1 { font-size: 19px; font-weight: 700; margin: 0; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
-    .tkx-conv-head h1 .num { color: var(--texto2); font-weight: 500; font-size: 15px; }
-    .tkx-conv-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 7px 0 4px; }
-    .tkx-conv-sub { font-size: 12px; color: var(--texto2); }
-    .tkx-acciones { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+    .tkx-conv { background: #fbfcfc; }
+    /* Ancho de lectura cómodo: el contenido se centra en ~780 px aunque la columna sea más ancha */
+    .tkx-conv-head, .tkx-mensajes, .tkx-composer { padding-left: max(28px, calc((100% - 780px) / 2)); padding-right: max(28px, calc((100% - 780px) / 2)); }
+    .tkx-conv-head { padding-top: 18px; padding-bottom: 16px; border-bottom: 1px solid var(--borde); background: #fff; }
+    .tkx-conv-head h1 { font-size: 21px; font-weight: 650; margin: 0; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+    .tkx-conv-head h1 .num { color: var(--texto2); font-weight: 500; font-size: 16px; }
+    .tkx-conv-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 9px 0 4px; }
+    .tkx-conv-sub { font-size: 13px; color: var(--texto2); }
+    .tkx-acciones { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
     .tkx-acciones form { margin: 0; }
     .tkx-btn {
-        display: inline-flex; align-items: center; gap: 5px; padding: 5px 11px; border: 1px solid var(--borde); border-radius: 7px;
-        background: #fff; color: #1f2937; font-size: 13px; font-weight: 500; text-decoration: none; cursor: pointer; line-height: 1.4;
+        display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 7px 12px; border: 1px solid #d6dedb; border-radius: 7px;
+        background: #fff; color: #1f2937; font-size: 13.5px; font-weight: 500; text-decoration: none; cursor: pointer; line-height: 1.3;
     }
     .tkx-btn:hover { background: #f1f5f9; color: #0f172a; }
-    .tkx-btn.prim { background: var(--acento); border-color: var(--acento); color: #fff; }
-    .tkx-btn.prim:hover { background: #1d4ed8; }
-    .tkx-btn.peligro { color: #b91c1c; }
+    .tkx-btn.prim { background: var(--acento); border-color: var(--acento); color: #fff; font-weight: 600; }
+    .tkx-btn.prim:hover { background: var(--acento-osc); }
+    .tkx-btn.peligro { color: #b91c1c; border-color: #f3c9c9; }
+    .tkx-btn.peligro:hover { background: #fef2f2; }
+    .tkx-btn.icono { padding: 7px 9px; }
     .tkx-volver, .tkx-ver-panel, .tkx-cerrar-panel { display: none; }
-    .tkx-cerrar-panel { justify-content: flex-end; margin-bottom: 8px; }
+    .tkx-cerrar-panel { justify-content: flex-end; padding: 12px 18px 0; }
     .tkx-lista-head, .tkx-conv-head, .tkx-composer { flex-shrink: 0; }
 
-    .tkx-mensajes { padding: 18px 22px; display: flex; flex-direction: column; gap: 12px; background: #fbfcfd; }
-    .tkx-msg { display: flex; gap: 10px; max-width: 760px; }
+    .tkx-mensajes { padding-top: 24px; padding-bottom: 24px; display: flex; flex-direction: column; gap: 16px; }
+    .tkx-msg { display: flex; gap: 10px; max-width: 620px; align-items: flex-start; }
     .tkx-msg.staff { align-self: flex-end; flex-direction: row-reverse; }
-    .tkx-burbuja { min-width: 0; padding: 10px 14px; border: 1px solid var(--borde); border-radius: 12px; background: #fff; }
-    .tkx-msg.staff .tkx-burbuja { background: #eff6ff; border-color: #bfdbfe; }
-    .tkx-msg.interno .tkx-burbuja { background: #fffbeb; border-color: #fcd34d; }
-    .tkx-burbuja-head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; font-size: 13px; margin-bottom: 3px; }
-    .tkx-burbuja-head .rol { font-size: 11px; color: var(--texto2); }
-    .tkx-burbuja-head time { font-size: 11px; color: var(--texto2); margin-left: auto; }
-    .tkx-burbuja-texto { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.5; }
-    .tkx-nota-tag { font-size: 10px; font-weight: 700; text-transform: uppercase; background: #fde68a; color: #78350f; padding: 1px 6px; border-radius: 4px; }
-    .tkx-evento { align-self: center; font-size: 12px; color: var(--texto2); background: #f1f5f9; padding: 3px 12px; border-radius: 999px; text-align: center; }
-    .tkx-aviso { align-self: stretch; text-align: center; font-size: 13px; color: var(--texto2); padding: 6px; }
+    .tkx-burbuja { min-width: 0; padding: 11px 14px; border: 1px solid var(--borde); border-radius: 4px 12px 12px 12px; background: #fff; }
+    .tkx-msg.staff .tkx-burbuja { background: var(--acento-suave); border-color: #cfe8e0; border-radius: 12px 4px 12px 12px; }
+    .tkx-msg.interno .tkx-burbuja { background: #fffbeb; border: 1px dashed #e5c46a; }
+    .tkx-burbuja-head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; font-size: 13.5px; margin-bottom: 5px; }
+    .tkx-burbuja-head .rol { font-size: 12px; color: var(--texto2); }
+    .tkx-burbuja-head time { font-size: 12px; color: var(--texto2); }
+    .tkx-burbuja-texto { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14.5px; line-height: 1.55; color: #1f2937; }
+    .tkx-nota-tag { font-size: 11.5px; font-weight: 600; background: #fdf3dc; color: #8a5a00; padding: 1px 8px; border-radius: 999px; }
+    .tkx-evento { align-self: center; font-size: 12.5px; color: var(--texto2); background: #f1f5f9; padding: 4px 12px; border-radius: 999px; text-align: center; }
+    .tkx-aviso { align-self: stretch; display: flex; align-items: center; justify-content: center; gap: 6px; text-align: center; font-size: 13.5px; color: var(--texto2); padding: 6px; }
 
     .tk-adjuntos { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
     .tk-adj { display: flex; align-items: center; gap: 8px; border: 1px solid var(--borde); border-radius: 8px; padding: 5px; text-decoration: none; color: #1f2937; font-size: 12px; max-width: 220px; background: #fff; }
-    .tk-adj:hover { border-color: #93c5fd; }
+    .tk-adj:hover { border-color: #a9d3c8; }
     .tk-adj img { width: 84px; height: 84px; object-fit: cover; border-radius: 6px; }
     .tk-adj .doc { width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; background: #f1f5f9; border-radius: 6px; font-size: 16px; }
     .tk-adj span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
     /* compositor */
-    .tkx-composer { border-top: 1px solid var(--borde); padding: 12px 22px 14px; background: #fff; }
+    .tkx-composer { border-top: 1px solid var(--borde); padding-top: 14px; padding-bottom: 16px; background: #fff; }
     .tkx-composer textarea {
-        width: 100%; min-height: 64px; max-height: 240px; resize: vertical; padding: 10px 12px; border: 1px solid #cbd5e1;
-        border-radius: 10px; font: inherit; font-size: 14px; outline: none;
+        width: 100%; min-height: 72px; max-height: 240px; resize: vertical; padding: 11px 13px; border: 1px solid #d1d5db;
+        border-radius: 9px; font: inherit; font-size: 14.5px; outline: none;
     }
-    .tkx-composer textarea:focus { border-color: var(--acento); box-shadow: 0 0 0 3px rgb(37 99 235 / 12%); }
-    .tkx-composer.interno textarea { background: #fffbeb; border-color: #f59e0b; }
+    .tkx-composer textarea:focus { border-color: var(--acento); box-shadow: 0 0 0 3px rgb(22 124 105 / 12%); }
+    .tkx-composer.interno textarea { background: #fffbeb; border-color: #e5c46a; }
     .tkx-composer.interno textarea:focus { box-shadow: 0 0 0 3px rgb(245 158 11 / 18%); }
-    .tkx-composer-bar { display: flex; align-items: center; gap: 14px; margin-top: 8px; flex-wrap: wrap; font-size: 13px; }
-    .tkx-composer-bar label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; color: #334155; margin: 0; }
+    .tkx-composer-bar { display: flex; align-items: center; gap: 16px; margin-top: 10px; flex-wrap: wrap; font-size: 13.5px; }
+    .tkx-composer-bar label { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; color: #334155; margin: 0; }
     .tkx-composer-bar input[type=file] { display: none; }
-    .tkx-archivos-elegidos { color: var(--texto2); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 260px; }
-    .tkx-composer-bar .der { margin-left: auto; display: flex; align-items: center; gap: 10px; }
-    .tkx-atajo { font-size: 11px; color: #94a3b8; }
+    .tkx-archivos-elegidos { color: var(--texto2); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 260px; }
+    .tkx-composer-bar .der { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+    .tkx-composer-bar .button { display: inline-flex; align-items: center; gap: 7px; font-weight: 600; }
+    .tkx-atajo { font-size: 12px; color: var(--texto2); }
     .tkx-composer .error { color: #b91c1c; font-size: 13px; margin-top: 4px; }
-    .tkx-resuelto { border: 1px solid #bbf7d0; background: #f0fdf4; border-radius: 10px; padding: 10px 14px; margin-bottom: 10px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 14px; }
+    .tkx-resuelto { border: 1px solid #cfe8e0; background: var(--acento-suave); border-radius: 10px; padding: 10px 14px; margin-bottom: 10px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 14px; }
     .tkx-resuelto form { margin: 0; }
 
-    .tkx-vacio-conv { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--texto2); text-align: center; padding: 30px; }
-    .tkx-vacio-conv .ico { font-size: 44px; margin-bottom: 8px; }
+    /* ---------------- resumen (sin ticket abierto) ---------------- */
+    .tkx-resumen { grid-column: span 2; padding: 30px 36px; display: flex; flex-direction: column; gap: 22px; overflow-y: auto; }
+    .tkx-resumen h2 { margin: 0 0 4px; font-size: 19px; font-weight: 650; }
+    .tkx-resumen > div > p { margin: 0; color: var(--texto2); font-size: 14px; }
+    .tkx-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; }
+    .tkx-stat { display: flex; flex-direction: column; gap: 4px; padding: 18px; border: 1px solid var(--borde); border-radius: 10px; background: #fff; text-decoration: none; color: inherit; }
+    .tkx-stat:hover { border-color: #a9d3c8; color: inherit; }
+    .tkx-stat .etq { font-size: 13px; color: #475569; }
+    .tkx-stat .val { font-size: 30px; font-weight: 700; line-height: 1.15; }
+    .tkx-stat .ayuda { font-size: 12.5px; color: var(--texto2); }
+    .tkx-stat.verde .val { color: var(--acento); } .tkx-stat.ambar .val { color: #b45309; }
+    .tkx-stat.neutro .val { color: #334155; } .tkx-stat.rojo .val { color: #b91c1c; }
+    .tkx-resumen-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 18px; }
+    .tkx-bloque { padding: 18px 20px; border: 1px solid var(--borde); border-radius: 10px; background: #fff; }
+    .tkx-bloque h3 { margin: 0 0 6px; font-size: 15px; font-weight: 650; }
+    .tkx-recientes { list-style: none; margin: 0; padding: 0; }
+    .tkx-recientes a { display: flex; justify-content: space-between; gap: 14px; padding: 11px 0; border-top: 1px solid #eef1f4; text-decoration: none; color: inherit; }
+    .tkx-recientes li:first-child a { border-top: 0; }
+    .tkx-recientes a:hover strong { color: var(--acento); }
+    .tkx-recientes strong { display: block; font-size: 14px; font-weight: 600; }
+    .tkx-recientes .sub { font-size: 13px; color: var(--texto2); }
+    .tkx-recientes time { font-size: 12.5px; color: var(--texto2); white-space: nowrap; }
+    .tkx-barra { display: flex; flex-direction: column; gap: 5px; margin-top: 12px; }
+    .tkx-barra .fila { display: flex; justify-content: space-between; font-size: 13.5px; color: #334155; }
+    .tkx-barra .pista { height: 6px; border-radius: 3px; background: #eef1f4; overflow: hidden; }
+    .tkx-barra .pista span { display: block; height: 6px; background: var(--acento); }
 
     /* ---------------- panel (derecha) ---------------- */
-    .tkx-panel { border-left: 1px solid var(--borde); background: var(--suave); }
-    .tkx-panel .tkx-scroll { padding: 14px; }
-    .tkx-caja { background: #fff; border: 1px solid var(--borde); border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
-    .tkx-caja h3 { font-size: 11px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: var(--texto2); margin: 0 0 10px; }
-    .tkx-persona { display: flex; gap: 10px; align-items: center; }
-    .tkx-persona strong { display: block; font-size: 14px; }
-    .tkx-persona span { font-size: 12px; color: var(--texto2); }
-    .tkx-dl { display: grid; grid-template-columns: auto 1fr; gap: 5px 10px; font-size: 13px; margin: 10px 0 0; }
+    .tkx-panel { border-left: 1px solid var(--borde); background: #fff; }
+    .tkx-caja { padding: 16px 18px; border-bottom: 1px solid var(--borde); }
+    .tkx-caja:last-child { border-bottom: 0; }
+    .tkx-caja h3 { font-size: 11.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--texto2); margin: 0 0 12px; }
+    .tkx-persona { display: flex; gap: 12px; align-items: center; }
+    .tkx-persona strong { display: block; font-size: 15px; }
+    .tkx-persona span { font-size: 12.5px; color: var(--texto2); }
+    .tkx-dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 7px 14px; font-size: 13.5px; margin: 14px 0 0; }
     .tkx-dl dt { color: var(--texto2); font-weight: 400; }
     .tkx-dl dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
-    .tkx-caja.tk-form label { font-size: 12px; margin: 8px 0 3px; }
-    .tkx-caja.tk-form select { padding: 6px 9px; font-size: 13px; }
-    .tkx-otro { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; padding: 6px 0; border-top: 1px solid #f1f5f9; text-decoration: none; color: inherit; }
+    .tkx-caja.tk-form label { font-size: 13px; margin: 10px 0 4px; font-weight: 500; }
+    .tkx-caja.tk-form select { padding: 7px 9px; font-size: 13.5px; border-color: #d1d5db; border-radius: 7px; }
+    .tkx-otro { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 13.5px; padding: 7px 0; border-top: 1px solid #f1f5f9; text-decoration: none; color: inherit; }
     .tkx-otro:first-of-type { border-top: 0; }
     .tkx-otro:hover span:first-child { color: var(--acento); }
     .tkx-otro span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .tkx-panel .tk-adj img { width: 76px; height: 76px; }
 
+    /* ficha del residente (modal) */
+    .ficha .modal-content { border: 0; border-radius: 14px; overflow: hidden; }
+    .ficha-top { display: flex; gap: 16px; align-items: center; padding: 22px 24px 18px; background: var(--acento-suave, #e8f5f1); }
+    .ficha-top .tkx-av { width: 72px; height: 72px; font-size: 24px; }
+    .ficha-nombre { font-size: 19px; font-weight: 700; color: #172b2c; line-height: 1.25; }
+    .ficha-sub { font-size: 13.5px; color: #475569; margin-top: 2px; }
+    .ficha-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .ficha-cuerpo { padding: 6px 24px 8px; }
+    .ficha-seccion { padding: 14px 0; border-bottom: 1px solid #eef1f4; }
+    .ficha-seccion:last-child { border-bottom: 0; }
+    .ficha-seccion h3 { font-size: 11.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: #64748b; margin: 0 0 10px; }
+    .ficha-dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 16px; margin: 0; font-size: 14px; }
+    .ficha-dl dt { color: #64748b; font-weight: 400; }
+    .ficha-dl dd { margin: 0; overflow-wrap: anywhere; }
+    .ficha-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .ficha-stats div { padding: 10px 12px; border: 1px solid #e5e7eb; border-radius: 9px; }
+    .ficha-stats strong { display: block; font-size: 20px; color: #172b2c; }
+    .ficha-stats span { font-size: 12px; color: #64748b; }
+    .ficha-acciones { display: flex; flex-wrap: wrap; gap: 8px; padding: 14px 24px 20px; border-top: 1px solid #eef1f4; }
+    .ficha-acciones .tkx-btn { --acento: #167c69; --acento-osc: #106653; }
+
     /* ---------------- responsive ---------------- */
-    @media (max-width: 1280px) {
-        .tkx { grid-template-columns: 300px minmax(0, 1fr); }
-        .tkx-panel { display: none; position: fixed; z-index: 1050; top: 0; right: 0; bottom: 0; width: min(340px, 92vw); box-shadow: -10px 0 30px rgb(15 23 42 / 18%); }
+    @media (max-width: 1640px) {
+        .tkx { grid-template-columns: 340px minmax(0, 1fr) 310px; }
+    }
+    @media (max-width: 1500px) {
+        .tkx { grid-template-columns: 340px minmax(0, 1fr); }
+        .tkx-panel { display: none; position: fixed; z-index: 1050; top: 0; right: 0; bottom: 0; width: min(350px, 92vw); box-shadow: -10px 0 30px rgb(15 23 42 / 18%); }
         .tkx.panel-abierto .tkx-panel { display: flex; }
         .tkx-ver-panel { display: inline-flex; }
         .tkx-cerrar-panel { display: flex; }
+        .tkx-resumen { grid-column: auto; }
+        .tkx-resumen-grid { grid-template-columns: minmax(0, 1fr); }
     }
     @media (max-width: 900px) {
-        .tkx { display: block; height: auto; }
+        .tkx-intro { margin-bottom: 14px; }
+        .tkx-intro h1 { font-size: 22px; }
+        .tkx { display: block; height: auto; min-height: 0; }
         .tkx-col { min-height: 60vh; }
         .tkx-scroll { flex: none; overflow: visible; }
         .tkx-chips { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
         .tkx-chips::-webkit-scrollbar { display: none; }
         .tkx.con-ticket .tkx-lista { display: none; }
-        .tkx:not(.con-ticket) .tkx-conv { display: none; }
-        .tkx-volver { display: inline-flex; }
+        .tkx:not(.con-ticket) .tkx-conv, .tkx:not(.con-ticket) .tkx-resumen { display: none; }
+        .tkx-volver { display: inline-flex; margin-bottom: 10px; }
         .tkx-conv-head, .tkx-mensajes, .tkx-composer { padding-left: 14px; padding-right: 14px; }
         .tkx-composer { position: sticky; bottom: 0; }
         .tkx-msg { max-width: 100%; }
@@ -195,6 +260,13 @@
 {% endblock %}
 
 {% block content %}
+<div class="tkx-intro">
+    <div>
+        <h1>Tickets y solicitudes</h1>
+        <p>{% if staff %}Atiende las solicitudes de los residentes y sigue cada caso hasta resolverlo.{% else %}Reporta un problema y sigue la respuesta de la administración.{% endif %}</p>
+    </div>
+    <a class="button" href="{% url 'tickets:crear' %}">{% icono "mas" %}Nuevo ticket</a>
+</div>
 <div class="tkx {% if ticket %}con-ticket{% endif %}" id="tkx">
 
     <!-- ============================== BANDEJA ============================== -->
@@ -202,10 +274,7 @@
         <div class="tkx-lista-head">
             <div class="tkx-titulo">
                 <h2>{{ carpeta_nombre }}</h2>
-                <div class="d-flex gap-1">
-                    <a class="tkx-btn" href="{% con_param qs %}" title="Actualizar" aria-label="Actualizar">↻</a>
-                    <a class="button tkx-nuevo" href="{% url 'tickets:crear' %}">＋ Nuevo</a>
-                </div>
+                <a class="tkx-btn icono" href="{% con_param qs %}" title="Actualizar" aria-label="Actualizar la bandeja">{% icono "actualizar" %}</a>
             </div>
 
             <nav class="tkx-chips" aria-label="Carpetas">
@@ -228,10 +297,11 @@
                 <input type="hidden" name="carpeta" value="{{ f.carpeta }}">
                 {% if f.categoria %}<input type="hidden" name="categoria" value="{{ f.categoria }}">{% endif %}
                 <div class="tkx-buscar">
-                    <input type="search" name="q" value="{{ f.q }}" placeholder="Buscar por #, asunto, residente o unidad…" aria-label="Buscar tickets">
+                    {% icono "lupa" %}
+                    <input type="search" name="q" value="{{ f.q }}" placeholder="Buscar por número, asunto, residente o unidad" aria-label="Buscar tickets">
                 </div>
                 <details class="tkx-mas" {% if filtros_extra %}open{% endif %}>
-                    <summary>⚙ Más filtros{% if filtros_extra %} · activos{% endif %}</summary>
+                    <summary>{% icono "filtro" 14 %}Más filtros{% if filtros_extra %} · activos{% endif %}</summary>
                     <div class="tkx-mas-grid">
                         <div>
                             <label for="f-prio">Prioridad</label>
@@ -277,7 +347,7 @@
                             </div>
                         {% endif %}
                         {% if filtros_extra or f.q %}
-                            <div class="ancho"><a class="tkx-chip" href="?carpeta={{ f.carpeta }}">✕ Limpiar filtros</a></div>
+                            <div class="ancho"><a class="tkx-chip" href="?carpeta={{ f.carpeta }}">{% icono "cerrar" 12 %}Limpiar filtros</a></div>
                         {% endif %}
                     </div>
                 </details>
@@ -291,7 +361,7 @@
                        href="{% url 'tickets:detalle' t.pk %}{% if qs %}?{{ qs }}{% endif %}"
                        {% if ticket and ticket.pk == t.pk %}aria-current="true"{% endif %}>
                         <div class="tkx-av c{{ t.usuario_id|color_av }}">
-                            {% if t.usuario.avatar %}<img src="{{ t.usuario.avatar.url }}" alt="">{% else %}{{ t.usuario|iniciales }}{% endif %}
+                            {% if t.usuario.avatar %}<img src="{% url 'avatar_usuario' t.usuario.id %}" alt="">{% else %}{{ t.usuario|iniciales }}{% endif %}
                         </div>
                         <div class="tkx-item-cuerpo">
                             <div class="tkx-item-top">
@@ -300,11 +370,11 @@
                             </div>
                             <div class="tkx-item-asunto">{{ t.titulo }}</div>
                             <div class="tkx-item-tags">
-                                <span class="tkx-tag cat">{{ t.get_categoria_display }}</span>
-                                {% if staff or t.estado != "abierto" %}<span class="tk-badge tk-estado-{{ t.estado }}" style="font-size:11px;padding:1px 7px;border-radius:5px">{{ t.get_estado_display }}</span>{% endif %}
-                                {% if t.unidad %}<span class="tkx-tag">{{ t.unidad.numero_unidad }}</span>{% endif %}
-                                {% if t.asignado and staff %}<span class="tkx-tag resp">👤 {{ t.asignado.nombre }}</span>{% endif %}
-                                {% if t.n_comentarios %}<span class="tkx-tag">💬 {{ t.n_comentarios }}</span>{% endif %}
+                                <span class="tkx-tag">{{ t.get_categoria_display }}</span>
+                                {% if staff or t.estado != "abierto" %}<span class="tk-badge tk-estado-{{ t.estado }}">{{ t.get_estado_display }}</span>{% endif %}
+                                {% if t.unidad %}<span class="tkx-tag">Unidad {{ t.unidad.numero_unidad }}</span>{% endif %}
+                                {% if t.asignado and staff %}<span class="tkx-tag resp">{% icono "usuario" 12 %}{{ t.asignado.nombre }}</span>{% endif %}
+                                {% if t.n_comentarios %}<span class="tkx-tag" title="Mensajes">{% icono "comentario" 12 %}{{ t.n_comentarios }}</span>{% endif %}
                             </div>
                         </div>
                     </a>
@@ -325,19 +395,19 @@
     </section>
 
     <!-- ============================== CONVERSACIÓN ============================== -->
-    <section class="tkx-col tkx-conv" aria-label="Conversación">
     {% if ticket %}
+    <section class="tkx-col tkx-conv" aria-label="Conversación">
         <header class="tkx-conv-head">
-            <a class="tkx-btn tkx-volver mb-2" href="{% url 'tickets:lista' %}{% if qs %}?{{ qs }}{% endif %}">← Bandeja</a>
+            <a class="tkx-btn tkx-volver mb-2" href="{% url 'tickets:lista' %}{% if qs %}?{{ qs }}{% endif %}">{% icono "volver" %}Bandeja</a>
             <h1><span class="num">#{{ ticket.pk }}</span> {{ ticket.titulo }}</h1>
             <div class="tkx-conv-meta">
-                <span class="tkx-tag cat">{{ ticket.get_categoria_display }}</span>
+                <span class="tkx-tag">{{ ticket.get_categoria_display }}</span>
                 <span class="tk-badge tk-estado-{{ ticket.estado }}">{{ ticket.get_estado_display }}</span>
                 {% if ticket.prioridad %}<span class="tk-badge tk-prio-{{ ticket.prioridad }}">Prioridad {{ ticket.get_prioridad_display|lower }}</span>{% endif %}
-                {% if ticket.asignado %}<span class="tkx-tag resp">👤 {{ ticket.asignado }}</span>{% endif %}
+                {% if ticket.asignado %}<span class="tkx-tag resp">{% icono "usuario" 12 %}{{ ticket.asignado }}</span>{% endif %}
             </div>
             <div class="tkx-conv-sub">
-                Abierto hace {{ ticket.creado|hace_corto }} por <strong>{{ ticket.usuario }}</strong>{% if ticket.unidad %} · {{ ticket.unidad.edificio.nombre }} {{ ticket.unidad.numero_unidad }}{% endif %}
+                Abierto hace {{ ticket.creado|hace_corto }} por <strong>{{ ticket.usuario }}</strong>{% if ticket.unidad %} · {{ ticket.unidad.edificio.nombre }} · Unidad {{ ticket.unidad.numero_unidad }}{% endif %}
             </div>
 
             <div class="tkx-acciones">
@@ -349,7 +419,7 @@
                         <input type="hidden" name="prioridad" value="{{ ticket.prioridad }}">
                         <input type="hidden" name="categoria" value="{{ ticket.categoria }}">
                         <input type="hidden" name="asignado" value="{{ request.user.usuario.pk }}">
-                        <button class="tkx-btn prim" type="submit">👤 Me lo asigno</button>
+                        <button class="tkx-btn prim" type="submit">{% icono "usuario" %}Asignármelo</button>
                     </form>
                 {% endif %}
                 {% for estado, texto in botones_estado %}
@@ -362,30 +432,30 @@
                             <input type="hidden" name="categoria" value="{{ ticket.categoria }}">
                             <input type="hidden" name="asignado" value="{{ ticket.asignado_id|default:'' }}">
                             <button class="tkx-btn {% if estado == 'cerrado' %}peligro{% endif %}" type="submit">
-                                {% if estado == "resuelto" %}✔{% elif estado == "cerrado" %}⏻{% elif estado == "esperando" %}⏳{% else %}↺{% endif %} {{ texto }}
+                                {% if estado == "resuelto" %}{% icono "check" %}{% elif estado == "cerrado" %}{% icono "cerrar" %}{% elif estado == "esperando" %}{% icono "reloj" %}{% else %}{% icono "reabrir" %}{% endif %}{{ texto }}
                             </button>
                         </form>
                     {% endif %}
                 {% endfor %}
-                {% if puede_editar %}<a class="tkx-btn" href="{% url 'tickets:editar' ticket.pk %}">✏️ Editar</a>{% endif %}
+                {% if puede_editar %}<a class="tkx-btn" href="{% url 'tickets:editar' ticket.pk %}">{% icono "editar" %}Editar</a>{% endif %}
                 {% if "cancelar" in acciones %}
                     <form method="post" action="{% url 'tickets:accion' ticket.pk 'cancelar' %}"
                           onsubmit="return confirm('¿Cerrar este ticket? Ya no podrás responder en él.');">
                         {% csrf_token %}
                         <input type="hidden" name="qs" value="{{ qs }}">
-                        <button class="tkx-btn peligro" type="submit">⏻ Cerrar mi ticket</button>
+                        <button class="tkx-btn peligro" type="submit">{% icono "cerrar" %}Cerrar mi ticket</button>
                     </form>
                 {% endif %}
-                <button class="tkx-btn tkx-ver-panel" type="button" data-panel="abrir">ℹ️ Detalles</button>
+                <button class="tkx-btn tkx-ver-panel" type="button" data-panel="abrir">{% icono "panel" %}Detalles</button>
             </div>
         </header>
 
         <div class="tkx-scroll tkx-mensajes" id="tkx-mensajes">
             {# El primer mensaje es la descripción del ticket #}
             <div class="tkx-msg">
-                <div class="tkx-av sm c{{ ticket.usuario_id|color_av }}">
-                    {% if ticket.usuario.avatar %}<img src="{{ ticket.usuario.avatar.url }}" alt="">{% else %}{{ ticket.usuario|iniciales }}{% endif %}
-                </div>
+                {% if ficha_usuario %}<button type="button" class="tkx-av sm tkx-av-btn c{{ ticket.usuario_id|color_av }}" data-bs-toggle="modal" data-bs-target="#fichaUsuario" title="Ver datos de {{ ticket.usuario }}" aria-label="Ver datos de {{ ticket.usuario }}">{% if ticket.usuario.avatar %}<img src="{% url 'avatar_usuario' ticket.usuario.id %}" alt="">{% else %}{{ ticket.usuario|iniciales }}{% endif %}</button>{% else %}<div class="tkx-av sm c{{ ticket.usuario_id|color_av }}">
+                    {% if ticket.usuario.avatar %}<img src="{% url 'avatar_usuario' ticket.usuario.id %}" alt="">{% else %}{{ ticket.usuario|iniciales }}{% endif %}
+                </div>{% endif %}
                 <div class="tkx-burbuja">
                     <div class="tkx-burbuja-head">
                         <strong>{{ ticket.usuario }}</strong>
@@ -407,7 +477,7 @@
                     {% with c=item.obj %}
                     <div class="tkx-msg {% if c.autor_id != ticket.usuario_id %}staff{% endif %} {% if c.interno %}interno{% endif %}">
                         <div class="tkx-av sm c{{ c.autor_id|color_av }}">
-                            {% if c.autor.avatar %}<img src="{{ c.autor.avatar.url }}" alt="">{% else %}{{ c.autor|iniciales }}{% endif %}
+                            {% if c.autor.avatar %}<img src="{% url 'avatar_usuario' c.autor.id %}" alt="">{% else %}{{ c.autor|iniciales }}{% endif %}
                         </div>
                         <div class="tkx-burbuja">
                             <div class="tkx-burbuja-head">
@@ -427,7 +497,7 @@
             {% endfor %}
 
             {% if ticket.estado == "cerrado" %}
-                <div class="tkx-aviso">🔒 Ticket cerrado{% if ticket.cerrado %} el {{ ticket.cerrado|date:"d/m/Y" }}{% endif %}. Si el problema volvió, crea un ticket nuevo.</div>
+                <div class="tkx-aviso">{% icono "candado" %}Ticket cerrado{% if ticket.cerrado %} el {{ ticket.cerrado|date:"d/m/Y" }}{% endif %}. Si el problema volvió, crea un ticket nuevo.</div>
             {% endif %}
         </div>
 
@@ -438,7 +508,7 @@
 
                 {% if "confirmar" in acciones %}
                     <div class="tkx-resuelto">
-                        <span>✅ El equipo marcó este ticket como <strong>resuelto</strong>. ¿Quedó solucionado?</span>
+                        <span>El equipo marcó este ticket como <strong>resuelto</strong>. ¿Quedó solucionado?</span>
                         <button class="tkx-btn prim" type="submit" formaction="{% url 'tickets:accion' ticket.pk 'confirmar' %}" formnovalidate>Sí, cerrar ticket</button>
                         <button class="tkx-btn" type="submit" formaction="{% url 'tickets:accion' ticket.pk 'reabrir' %}" formnovalidate
                                 title="Si escribes un mensaje, se agrega como motivo">No, sigue el problema</button>
@@ -454,7 +524,7 @@
 
                 <div class="tkx-composer-bar">
                     <label title="{{ comentario_form.archivos.help_text }}">
-                        📎 Adjuntar
+                        {% icono "clip" %}Adjuntar
                         <input type="file" name="archivos" id="tkx-archivos" multiple accept="image/*,video/*,.pdf">
                     </label>
                     <span class="tkx-archivos-elegidos" id="tkx-elegidos"></span>
@@ -463,7 +533,7 @@
                     {% endif %}
                     <div class="der">
                         <span class="tkx-atajo tkx-solo-pc">Ctrl + Enter para enviar</span>
-                        <button class="button" type="submit">➤ Enviar</button>
+                        <button class="button" type="submit">{% icono "enviar" %}Enviar</button>
                     </div>
                 </div>
                 {% if not gestiona and ticket.estado == "esperando" %}
@@ -471,30 +541,70 @@
                 {% endif %}
             </form>
         {% endif %}
-    {% else %}
-        <div class="tkx-vacio-conv">
-            <div class="ico">💬</div>
-            <strong>Selecciona un ticket</strong>
-            <p class="mb-3">Elige un ticket de la bandeja para ver la conversación.</p>
-            <a class="button" href="{% url 'tickets:crear' %}">＋ Nuevo ticket</a>
-        </div>
-    {% endif %}
     </section>
+    {% else %}
+    <section class="tkx-resumen" aria-label="Resumen de la bandeja">
+        <div>
+            <h2>{% if staff %}Resumen de la bandeja{% else %}Tus tickets{% endif %}</h2>
+            <p>Elige un ticket de la bandeja para ver la conversación{% if staff %}, o parte por lo más urgente{% endif %}.</p>
+        </div>
+        <div class="tkx-stats">
+            {% for etiqueta, valor, ayuda, enlace, tono in resumen.tarjetas %}
+                <a class="tkx-stat {{ tono }}" href="{% url 'tickets:lista' %}{{ enlace }}">
+                    <span class="etq">{{ etiqueta }}</span>
+                    <span class="val">{{ valor }}</span>
+                    <span class="ayuda">{{ ayuda }}</span>
+                </a>
+            {% endfor %}
+        </div>
+        <div class="tkx-resumen-grid">
+            <div class="tkx-bloque">
+                <h3>Últimos movimientos</h3>
+                {% if resumen.recientes %}
+                    <ul class="tkx-recientes">
+                        {% for t in resumen.recientes %}
+                            <li><a href="{% url 'tickets:detalle' t.pk %}">
+                                <span>
+                                    <strong>#{{ t.pk }} {{ t.titulo }}</strong>
+                                    <span class="sub">{{ t.usuario }}{% if t.unidad %} · Unidad {{ t.unidad.numero_unidad }}{% endif %} · {{ t.get_estado_display }}</span>
+                                </span>
+                                <time datetime="{{ t.actualizado|date:'c' }}" title="{{ t.actualizado|date:'d/m/Y H:i' }}">{{ t.actualizado|hace_corto }}</time>
+                            </a></li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="tkx-vacio" style="padding:20px 0">Todavía no hay tickets.</p>
+                {% endif %}
+            </div>
+            <div class="tkx-bloque">
+                <h3>Abiertos por categoría</h3>
+                {% for c in resumen.categorias %}
+                    <div class="tkx-barra">
+                        <div class="fila"><span>{{ c.nombre }}</span><strong>{{ c.n }}</strong></div>
+                        <div class="pista"><span style="width: {{ c.pct }}%"></span></div>
+                    </div>
+                {% empty %}
+                    <p class="tkx-vacio" style="padding:20px 0">No hay tickets abiertos.</p>
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+    {% endif %}
 
     <!-- ============================== PANEL ============================== -->
     {% if ticket %}
     <aside class="tkx-col tkx-panel" aria-label="Detalles del ticket">
         <div class="tkx-scroll">
-            <div class="tkx-cerrar-panel"><button class="tkx-btn" type="button" data-panel="cerrar">✕ Cerrar</button></div>
+            <div class="tkx-cerrar-panel"><button class="tkx-btn" type="button" data-panel="cerrar">{% icono "cerrar" %}Cerrar</button></div>
 
             <div class="tkx-caja">
                 <h3>Residente</h3>
                 <div class="tkx-persona">
-                    <div class="tkx-av lg c{{ ticket.usuario_id|color_av }}">
-                        {% if ticket.usuario.avatar %}<img src="{{ ticket.usuario.avatar.url }}" alt="">{% else %}{{ ticket.usuario|iniciales }}{% endif %}
-                    </div>
+                    {% if ficha_usuario %}<button type="button" class="tkx-av lg tkx-av-btn c{{ ticket.usuario_id|color_av }}" data-bs-toggle="modal" data-bs-target="#fichaUsuario" title="Ver datos de {{ ticket.usuario }}" aria-label="Ver datos de {{ ticket.usuario }}">{% if ticket.usuario.avatar %}<img src="{% url 'avatar_usuario' ticket.usuario.id %}" alt="">{% else %}{{ ticket.usuario|iniciales }}{% endif %}</button>{% else %}<div class="tkx-av lg c{{ ticket.usuario_id|color_av }}">
+                        {% if ticket.usuario.avatar %}<img src="{% url 'avatar_usuario' ticket.usuario.id %}" alt="">{% else %}{{ ticket.usuario|iniciales }}{% endif %}
+                    </div>{% endif %}
                     <div>
-                        <strong>{{ ticket.usuario }}</strong>
+                        {% if ficha_usuario %}<button type="button" class="tkx-link-ficha" data-bs-toggle="modal" data-bs-target="#fichaUsuario"><strong>{{ ticket.usuario }}</strong></button>{% else %}<strong>{{ ticket.usuario }}</strong>{% endif %}
                         <span>{{ ticket.usuario.get_rol_display|capfirst }}</span>
                     </div>
                 </div>
@@ -549,7 +659,7 @@
                     {% for o in otros_tickets %}
                         <a class="tkx-otro" href="{% url 'tickets:detalle' o.pk %}{% if qs %}?{{ qs }}{% endif %}">
                             <span>#{{ o.pk }} {{ o.titulo }}</span>
-                            <span class="tk-badge tk-estado-{{ o.estado }}" style="font-size:10px;padding:1px 6px">{{ o.get_estado_display }}</span>
+                            <span class="tk-badge tk-estado-{{ o.estado }}">{{ o.get_estado_display }}</span>
                         </a>
                     {% endfor %}
                 </div>
@@ -558,6 +668,66 @@
     </aside>
     {% endif %}
 </div>
+
+{% if ticket and ficha_usuario %}
+{% with u=ticket.usuario f=ficha_usuario %}
+<div class="modal fade ficha" id="fichaUsuario" tabindex="-1" aria-labelledby="fichaUsuarioTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="ficha-top">
+                <div class="tkx-av c{{ u.id|color_av }}">{% if u.avatar %}<img src="{% url 'avatar_usuario' u.id %}" alt="Foto de {{ u }}">{% else %}{{ u|iniciales }}{% endif %}</div>
+                <div style="flex: 1; min-width: 0">
+                    <h2 class="ficha-nombre m-0" id="fichaUsuarioTitulo">{{ u.nombre }}{% if u.nombre2 %} {{ u.nombre2 }}{% endif %} {{ u.apellido }}{% if u.apellido2 %} {{ u.apellido2 }}{% endif %}</h2>
+                    <div class="ficha-sub">{{ u.get_rol_display|capfirst }}{% if f.relacion %} · {{ f.relacion }} de la unidad{% endif %}</div>
+                    <div class="ficha-chips">
+                        {% if ticket.unidad %}<span class="tkx-tag">{{ ticket.unidad.edificio.nombre }} · Unidad {{ ticket.unidad.numero_unidad }}</span>{% endif %}
+                        {% if u.activo %}<span class="tk-badge tk-estado-abierto">Cuenta activa</span>{% else %}<span class="tk-badge tk-prio-alta">Cuenta desactivada</span>{% endif %}
+                    </div>
+                </div>
+                <button type="button" class="btn-close align-self-start" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="ficha-cuerpo">
+                <div class="ficha-seccion">
+                    <h3>Contacto</h3>
+                    <dl class="ficha-dl">
+                        <dt>Correo</dt><dd>{% if u.email %}<a href="mailto:{{ u.email }}">{{ u.email }}</a>{% else %}—{% endif %}</dd>
+                        <dt>Teléfono</dt><dd>{% if u.telefono %}<a href="tel:{{ u.telefono }}">{{ u.telefono }}</a>{% else %}Sin teléfono{% endif %}</dd>
+                        {% if u.rut %}<dt>RUT</dt><dd>{{ u.rut }}</dd>{% endif %}
+                    </dl>
+                </div>
+                {% if ticket.unidad %}
+                <div class="ficha-seccion">
+                    <h3>Unidad</h3>
+                    <dl class="ficha-dl">
+                        <dt>Condominio</dt><dd>{{ ticket.condominio }}</dd>
+                        <dt>Personas</dt>
+                        <dd>{{ ticket.unidad.cantidad_residentes|default:"Sin informar" }}{% if ticket.unidad.estimado_personas %} <span class="text-muted">(estimado {{ ticket.unidad.estimado_personas }})</span>{% endif %}{% if ticket.unidad.excede_estimado %} <span class="tk-badge tk-estado-en_revision">Sobre el estimado</span>{% endif %}</dd>
+                        {% if f.relacion == "Arrendatario" and ticket.unidad.dueno %}<dt>Dueño</dt><dd>{{ ticket.unidad.dueno }}</dd>{% endif %}
+                        {% if f.relacion == "Dueño" %}<dt>Arrendatario</dt><dd>{{ ticket.unidad.arrendatario|default:"Sin arrendatario" }}</dd>{% endif %}
+                        {% if f.otras_unidades %}<dt>Otras unidades</dt><dd>{% for o in f.otras_unidades %}{{ o.edificio.nombre }} · {{ o.numero_unidad }}{% if not forloop.last %}, {% endif %}{% endfor %}</dd>{% endif %}
+                    </dl>
+                </div>
+                {% endif %}
+                <div class="ficha-seccion">
+                    <h3>Historial de tickets</h3>
+                    <div class="ficha-stats">
+                        <div><strong>{{ f.abiertos }}</strong><span>Abiertos</span></div>
+                        <div><strong>{{ f.total }}</strong><span>En total</span></div>
+                        <div><strong>{{ f.desde|date:"m/Y"|default:"—" }}</strong><span>Primer ticket</span></div>
+                    </div>
+                </div>
+            </div>
+            <div class="ficha-acciones">
+                {% if u.telefono %}<a class="tkx-btn" href="tel:{{ u.telefono }}">{% icono "telefono" %}Llamar</a>{% endif %}
+                {% if u.email %}<a class="tkx-btn" href="mailto:{{ u.email }}?subject=Ticket%20%23{{ ticket.pk }}">{% icono "correo" %}Enviar correo</a>{% endif %}
+                {% if f.puede_editar_usuario %}<a class="tkx-btn prim ms-auto" href="{% url 'usuario_editar' u.id %}">{% icono "editar" %}Editar usuario</a>{% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endwith %}
+{% endif %}
+{% include "tickets/_visor.html" %}
 {% endblock %}
 
 {% block extra_js %}
@@ -567,7 +737,7 @@
     var tkx = document.getElementById("tkx");
     function ajustarAlto() {
         if (window.innerWidth <= 900) { tkx.style.height = ""; return; }
-        tkx.style.height = Math.max(420, window.innerHeight - tkx.getBoundingClientRect().top - window.scrollY) + "px";
+        tkx.style.height = Math.max(560, window.innerHeight - tkx.getBoundingClientRect().top - window.scrollY - 30) + "px";
     }
     ajustarAlto();
     window.addEventListener("resize", ajustarAlto);

@@ -136,6 +136,17 @@ Unidades
                             padding: 12px;
                             border-bottom: 1px solid #e2e8f0;
                         "
+                        title="Personas que informó la unidad{% if edificio.condominio.estimado_personas_departamento %} · estimado del condominio: {{ edificio.condominio.estimado_personas_departamento }}{% endif %}"
+                    >
+                        Personas
+                    </th>
+
+                    <th
+                        style="
+                            text-align: left;
+                            padding: 12px;
+                            border-bottom: 1px solid #e2e8f0;
+                        "
                     >
                         Acciones
                     </th>
@@ -148,12 +159,12 @@ Unidades
             <tbody>
                 {% for unidad in unidades %}
                     {% ifchanged unidad.activo %}
-                        {% if unidad.activo %}<tr><th colspan="6" style="padding:12px; text-align:left; background:#f1f5f9;">Unidades activas</th></tr>
-                        {% else %}<tr><th colspan="6" style="padding:12px; text-align:left; background:#e2e8f0; color:#64748b;">Unidades desactivadas · se conservan para consultar su historial</th></tr>{% endif %}
+                        {% if unidad.activo %}<tr><th colspan="7" style="padding:12px; text-align:left; background:#f1f5f9;">Unidades activas</th></tr>
+                        {% else %}<tr><th colspan="7" style="padding:12px; text-align:left; background:#e2e8f0; color:#64748b;">Unidades desactivadas · se conservan para consultar su historial</th></tr>{% endif %}
                     {% endifchanged %}
                     {% include "core/condominios/_unidad_fila.html" %}
                 {% empty %}
-                    <tr><td colspan="6" style="padding:30px; text-align:center; color:#64748b;">Este edificio no tiene unidades generadas.</td></tr>
+                    <tr><td colspan="7" style="padding:30px; text-align:center; color:#64748b;">Este edificio no tiene unidades generadas.</td></tr>
                 {% endfor %}
             </tbody>
 

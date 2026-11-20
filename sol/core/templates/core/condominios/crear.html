@@ -136,6 +136,23 @@ Nuevo condominio
 
         </div>
 
+        <div>
+            <label for="estimado_personas_departamento" style="display: block; margin-bottom: 6px; font-weight: 600;">
+                Estimado de personas por departamento <span style="font-weight: 400; color: #6b7280;">(opcional)</span>
+            </label>
+            <input
+                type="number"
+                id="estimado_personas_departamento"
+                name="estimado_personas_departamento"
+                value="{{ datos.estimado_personas_departamento|default:'' }}"
+                min="1"
+                max="20"
+                placeholder="Ej.: 4"
+                style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 7px;"
+            >
+            <small style="display: block; margin-top: 6px; color: #64748b;">Es solo una referencia: la app te avisará cuando una unidad informe más personas, pero no la bloqueará. Déjalo vacío si no quieres usarlo.</small>
+        </div>
+
     </div>
 
 
