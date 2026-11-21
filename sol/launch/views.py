@@ -41,6 +41,7 @@ def launch(request):
                     ciudad=ciudad,
                     edificios=c["edificios"],  # Condominio.save() crea los Edificio
                     portada=c["portada"] or "",
+                    estimado_personas_departamento=c.get("estimado_personas_departamento"),
                 )
                 # Condominio.save() ya creó los edificios. Se les asignan pisos y viviendas
                 # por piso y se guardan: Edificio.save() genera sus unidades solo.

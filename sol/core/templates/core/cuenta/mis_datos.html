@@ -1,0 +1,145 @@
+{% extends "core/base.html" %}
+
+{% block title %}Mis datos | Comunidad al Día{% endblock %}
+{% block page_title %}Mis datos{% endblock %}
+
+{% block extra_css %}
+<style>
+    .perfil-foto { width: 112px; height: 112px; border-radius: 50%; object-fit: cover; background: #e2e8f0; display: flex; align-items: center; justify-content: center; font-size: 36px; font-weight: 650; color: #475569; flex-shrink: 0; }
+    .perfil-cabecera { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }
+    .dato-fijo { background: #f8fafc; }
+</style>
+{% endblock %}
+
+{% block content %}
+{% with u=usuario_perfil %}
+<div class="page-intro">
+    <h1>Mis datos</h1>
+    <p>Mantén tu información al día para que la administración pueda contactarte.</p>
+</div>
+
+<section class="card-custom">
+    <h2 class="section-heading">Datos personales</h2>
+
+    {% if errores %}<div class="alert alert-danger">{% for error in errores %}<div>{{ error }}</div>{% endfor %}</div>{% endif %}
+
+    <form method="post" enctype="multipart/form-data" class="row g-3">
+        {% csrf_token %}
+        <input type="hidden" name="accion" value="datos">
+
+        <div class="col-12">
+            <div class="perfil-cabecera">
+                {% if u.avatar %}
+                    <img class="perfil-foto" id="vistaFoto" src="{% url 'avatar_usuario' u.id %}?v={{ u.avatar.name|urlencode }}" alt="Tu foto de perfil">
+                {% else %}
+                    <div class="perfil-foto" id="vistaIniciales" aria-hidden="true">{{ u.nombre|slice:":1" }}{{ u.apellido|slice:":1" }}</div>
+                    <img class="perfil-foto d-none" id="vistaFoto" alt="Vista previa de tu foto">
+                {% endif %}
+                <div style="flex: 1; min-width: 240px;">
+                    <label class="form-label" for="avatar">Foto de perfil (opcional)</label>
+                    <input class="form-control" type="file" id="avatar" name="avatar" accept="image/jpeg,image/png,image/gif,image/webp,image/bmp">
+                    <div class="form-text">JPG, PNG, GIF, WebP o BMP de hasta 10 MB. La recortamos y comprimimos automáticamente.</div>
+                    {% if u.avatar %}
+                        <button class="button button-secondary mt-2" type="submit" form="formQuitarFoto">Quitar foto</button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <label class="form-label" for="nombre">Primer nombre</label>
+            <input class="form-control" type="text" id="nombre" name="nombre" maxlength="30" required value="{% if datos %}{{ datos.nombre }}{% else %}{{ u.nombre }}{% endif %}">
+        </div>
+        <div class="col-md-6">
+            <label class="form-label" for="nombre2">Segundo nombre <span class="text-muted fw-normal">(opcional)</span></label>
+            <input class="form-control" type="text" id="nombre2" name="nombre2" maxlength="30" value="{% if datos %}{{ datos.nombre2 }}{% else %}{{ u.nombre2 }}{% endif %}">
+        </div>
+        <div class="col-md-6">
+            <label class="form-label" for="apellido">Primer apellido</label>
+            <input class="form-control" type="text" id="apellido" name="apellido" maxlength="30" required value="{% if datos %}{{ datos.apellido }}{% else %}{{ u.apellido }}{% endif %}">
+        </div>
+        <div class="col-md-6">
+            <label class="form-label" for="apellido2">Segundo apellido <span class="text-muted fw-normal">(opcional)</span></label>
+            <input class="form-control" type="text" id="apellido2" name="apellido2" maxlength="30" value="{% if datos %}{{ datos.apellido2 }}{% else %}{{ u.apellido2 }}{% endif %}">
+        </div>
+        <div class="col-md-6">
+            <label class="form-label" for="email">Correo electrónico</label>
+            <input class="form-control" type="email" id="email" name="email" maxlength="50" required value="{% if datos %}{{ datos.email }}{% else %}{{ u.email }}{% endif %}">
+        </div>
+        <div class="col-md-6">
+            <label class="form-label" for="telefono">Teléfono <span class="text-muted fw-normal">(opcional)</span></label>
+            <input class="form-control" type="text" id="telefono" name="telefono" placeholder="+56 9 1234 5678" value="{% if datos %}{{ datos.telefono }}{% else %}{{ u.telefono }}{% endif %}">
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">RUT</label>
+            <div class="form-control dato-fijo" aria-readonly="true">{{ u.rut|default:"Sin RUT registrado" }}</div>
+            <div class="form-text">Si tu RUT está mal, pídele al administrador que lo corrija.</div>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Usuario para iniciar sesión</label>
+            <div class="form-control dato-fijo" aria-readonly="true">{{ request.user.username }}</div>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Rol</label>
+            <div class="form-control dato-fijo" aria-readonly="true">{{ u.get_rol_display|capfirst }}</div>
+        </div>
+
+        <div class="col-12">
+            <button class="button" type="submit">Guardar cambios</button>
+        </div>
+    </form>
+    {% if u.avatar %}
+    <form method="post" id="formQuitarFoto" class="d-none">{% csrf_token %}<input type="hidden" name="accion" value="quitar_foto"></form>
+    {% endif %}
+</section>
+
+<section class="card-custom" id="password">
+    <h2 class="section-heading">Cambiar contraseña</h2>
+    {% if form_password.errors %}
+        <div class="alert alert-danger">
+            {% for campo in form_password %}{% for error in campo.errors %}<div>{{ error }}</div>{% endfor %}{% endfor %}
+            {% for error in form_password.non_field_errors %}<div>{{ error }}</div>{% endfor %}
+        </div>
+    {% endif %}
+    <form method="post" class="row g-3">
+        {% csrf_token %}
+        <input type="hidden" name="accion" value="password">
+        <div class="col-md-4">
+            <label class="form-label" for="id_old_password">Contraseña actual</label>
+            <input class="form-control" type="password" id="id_old_password" name="old_password" autocomplete="current-password" required>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label" for="id_new_password1">Nueva contraseña</label>
+            <input class="form-control" type="password" id="id_new_password1" name="new_password1" autocomplete="new-password" required>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label" for="id_new_password2">Repite la nueva contraseña</label>
+            <input class="form-control" type="password" id="id_new_password2" name="new_password2" autocomplete="new-password" required>
+        </div>
+        <div class="col-12">
+            <button class="button" type="submit">Actualizar contraseña</button>
+        </div>
+    </form>
+</section>
+{% endwith %}
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script>
+(function () {
+    const input = document.getElementById("avatar");
+    const vista = document.getElementById("vistaFoto");
+    const iniciales = document.getElementById("vistaIniciales");
+    if (!input || !vista) return;
+    input.addEventListener("change", function () {
+        const archivo = input.files && input.files[0];
+        if (!archivo || !archivo.type.startsWith("image/")) return;
+        vista.src = URL.createObjectURL(archivo);
+        vista.classList.remove("d-none");
+        if (iniciales) iniciales.classList.add("d-none");
+    });
+    {% if seccion_activa == "password" %}document.getElementById("password").scrollIntoView();{% endif %}
+})();
+</script>
+{% endblock %}

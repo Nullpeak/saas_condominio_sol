@@ -1083,7 +1083,7 @@ def usuario_crear(request):
                 errores.extend(error.messages)
 
             if Usuario.objects.filter(
-                email=email
+                email__iexact=email
             ).exists():
                 errores.append(
                     "El correo electrónico ya está registrado."
@@ -1399,7 +1399,7 @@ def usuario_editar(request, usuario_id):
                 errores.extend(error.messages)
 
             if Usuario.objects.filter(
-                email=email
+                email__iexact=email
             ).exclude(
                 id=usuario.id
             ).exists():
@@ -1552,6 +1552,21 @@ def usuario_cambiar_estado(request, usuario_id):
 
 # ============================== CONDOMINIOS ==============================
 
+def leer_estimado_personas(texto, errores):
+    """Estimado de personas por departamento: opcional, entre 1 y 20. Es una referencia, no un límite."""
+    texto = (texto or "").strip()
+    if not texto:
+        return None
+    try:
+        valor = int(texto)
+    except ValueError:
+        valor = 0
+    if not 1 <= valor <= 20:
+        errores.append("El estimado de personas por departamento debe estar entre 1 y 20.")
+        return None
+    return valor
+
+
 @login_required
 def condominios_lista(request):
     usuario_actual = obtener_usuario(request)
@@ -1609,6 +1624,7 @@ def condominio_crear(request):
         portada = request.FILES.get("portada")
 
         errores = []
+        estimado_personas = leer_estimado_personas(request.POST.get("estimado_personas_departamento"), errores)
 
         if not nombre:
             errores.append(
@@ -1651,6 +1667,7 @@ def condominio_crear(request):
                     edificios=edificios_numero,
                     portada=portada,
                     activo=True,
+                    estimado_personas_departamento=estimado_personas,
                 )
                 if es_administrador(usuario_actual):
                     usuario_actual.condominios_administrados.add(condominio)
@@ -1703,6 +1720,7 @@ def condominio_editar(request, condominio_id):
         fundamento_tasa_mora = request.POST.get("fundamento_tasa_mora", "").strip()
 
         errores = []
+        estimado_personas = leer_estimado_personas(request.POST.get("estimado_personas_departamento"), errores)
 
         if modalidad_mora not in Condominio.ModalidadMora.values:
             errores.append("Selecciona una modalidad de mora válida.")
@@ -1793,6 +1811,7 @@ def condominio_editar(request, condominio_id):
                 condominio.modalidad_mora = modalidad_mora
                 condominio.tasa_mora_anual = tasa_mora_anual
                 condominio.fundamento_tasa_mora = fundamento_tasa_mora
+                condominio.estimado_personas_departamento = estimado_personas
 
                 if portada:
                     condominio.portada = portada

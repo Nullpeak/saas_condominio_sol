@@ -1,0 +1,127 @@
+{% extends "core/base.html" %}
+
+{% block title %}Mi unidad | Comunidad al Día{% endblock %}
+{% block page_title %}Mi unidad{% endblock %}
+
+{% block extra_css %}
+<style>
+    .unidad-cabecera { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+    .unidad-cabecera h2 { margin: 0; font-size: 20px; font-weight: 650; }
+    .etiqueta-rol { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: #e0f2f1; color: #0f5f4f; }
+    .etiqueta-rol.arrendatario { background: #e0e7ff; color: #3730a3; }
+    .ficha { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; margin-bottom: 18px; }
+    .ficha-item { padding: 12px 14px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f8fafc; }
+    .ficha-item .titulo { font-size: 12px; color: #64748b; margin-bottom: 3px; }
+    .ficha-item .valor { font-weight: 600; word-break: break-word; }
+    .ficha-item .detalle { font-size: 13px; color: #475569; }
+    .bloque { border-top: 1px solid #e5e7eb; padding-top: 16px; margin-top: 16px; }
+    .bloque h3 { font-size: 16px; font-weight: 650; margin-bottom: 8px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-intro">
+    <h1>Mi unidad</h1>
+    <p>Revisa los datos de tu unidad y mantén actualizado quiénes viven en ella.</p>
+</div>
+
+{% if errores %}<div class="alert alert-danger">{% for error in errores %}<div>{{ error }}</div>{% endfor %}</div>{% endif %}
+
+{% for unidad in unidades %}
+<section class="card-custom">
+    <div class="unidad-cabecera">
+        <div>
+            <h2>Unidad {{ unidad.numero_unidad }}</h2>
+            <div class="text-muted">{{ unidad.edificio.condominio.nombre }} · {{ unidad.edificio.nombre }} · Piso {{ unidad.piso }}</div>
+        </div>
+        {% if unidad.soy_dueno %}<span class="etiqueta-rol">Eres el dueño</span>{% else %}<span class="etiqueta-rol arrendatario">Eres el arrendatario</span>{% endif %}
+    </div>
+
+    <div class="ficha">
+        <div class="ficha-item">
+            <div class="titulo">Dueño</div>
+            <div class="valor">{% if unidad.dueno %}{{ unidad.dueno }}{% else %}Sin asignar{% endif %}</div>
+            {% if unidad.soy_arrendatario and unidad.dueno %}<div class="detalle">{{ unidad.dueno.email }}{% if unidad.dueno.telefono %} · {{ unidad.dueno.telefono }}{% endif %}</div>{% endif %}
+        </div>
+        <div class="ficha-item">
+            <div class="titulo">Arrendatario</div>
+            <div class="valor">{% if unidad.arrendatario %}{{ unidad.arrendatario }}{% else %}Sin arrendatario{% endif %}</div>
+            {% if unidad.soy_dueno and unidad.arrendatario %}<div class="detalle">{{ unidad.arrendatario.email }}{% if unidad.arrendatario.telefono %} · {{ unidad.arrendatario.telefono }}{% endif %}</div>{% endif %}
+        </div>
+        <div class="ficha-item">
+            <div class="titulo">Personas que viven aquí</div>
+            <div class="valor">{% if unidad.cantidad_residentes %}{{ unidad.cantidad_residentes }}{% else %}Sin informar{% endif %}</div>
+            {% if unidad.estimado_personas %}<div class="detalle">Estimado del condominio: {{ unidad.estimado_personas }}</div>{% endif %}
+        </div>
+        <div class="ficha-item">
+            <div class="titulo">¿Vive el dueño?</div>
+            <div class="valor">{% if unidad.propietario_vive %}Sí{% else %}No{% endif %}</div>
+        </div>
+    </div>
+
+    {% if unidad.baja_pendiente %}
+        <div class="alert alert-warning mb-0">
+            {% if unidad.soy_dueno %}
+                <strong>Solicitud de baja en revisión.</strong> La enviaste el {{ unidad.baja_pendiente.creado|date:"d/m/Y" }}. El administrador conversará con ambas partes antes de resolverla.
+                <div class="small mt-1">Motivo: {{ unidad.baja_pendiente.motivo }}</div>
+                <form method="post" class="mt-2">
+                    {% csrf_token %}
+                    <input type="hidden" name="accion" value="cancelar_baja">
+                    <input type="hidden" name="unidad" value="{{ unidad.id }}">
+                    <button class="button button-secondary" type="submit">Cancelar solicitud</button>
+                </form>
+            {% else %}
+                <strong>El dueño solicitó terminar tu arriendo en la plataforma.</strong> El administrador se comunicará contigo antes de resolverlo. Si no estás de acuerdo, cuéntaselo cuando te contacte o abre un ticket.
+            {% endif %}
+        </div>
+    {% endif %}
+
+    <div class="bloque">
+        <h3>Personas que viven en la unidad</h3>
+        {% if unidad.excede_estimado %}
+            <div class="alert alert-info py-2 small">La unidad informa más personas que el estimado del condominio ({{ unidad.estimado_personas }}). No pasa nada, es solo una referencia; si el número está bien, déjalo así.</div>
+        {% endif %}
+        {% if unidad.puedo_editar_residentes %}
+            <form method="post" class="row g-2 align-items-end">
+                {% csrf_token %}
+                <input type="hidden" name="accion" value="residentes">
+                <input type="hidden" name="unidad" value="{{ unidad.id }}">
+                <div class="col-sm-4 col-md-3">
+                    <label class="form-label" for="residentes{{ unidad.id }}">Cantidad de personas</label>
+                    <input class="form-control" type="number" id="residentes{{ unidad.id }}" name="cantidad_residentes" min="1" max="{{ max_residentes }}" value="{{ unidad.cantidad_residentes|default:'' }}" required>
+                </div>
+                <div class="col-auto"><button class="button" type="submit">Guardar</button></div>
+            </form>
+        {% elif unidad.soy_dueno %}
+            <p class="text-muted mb-0">Como la unidad está arrendada, la cantidad de personas la actualiza tu arrendatario.</p>
+        {% else %}
+            <p class="text-muted mb-0">No puedes modificar este dato.</p>
+        {% endif %}
+    </div>
+
+    {% if unidad.soy_dueno and unidad.arrendatario and not unidad.baja_pendiente %}
+    <div class="bloque">
+        <h3>¿Tu arrendatario ya no vive aquí?</h3>
+        <p class="text-muted">Solicita su baja. El administrador conversará contigo y con {{ unidad.arrendatario.nombre }} antes de aprobarla. Al aprobarse, deja de estar ligado a la unidad y su cuenta se desactiva.</p>
+        <button class="button button-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#baja{{ unidad.id }}" aria-expanded="false" aria-controls="baja{{ unidad.id }}">Solicitar baja del arrendatario</button>
+        <div class="collapse mt-3" id="baja{{ unidad.id }}">
+            <form method="post" class="row g-2">
+                {% csrf_token %}
+                <input type="hidden" name="accion" value="solicitar_baja">
+                <input type="hidden" name="unidad" value="{{ unidad.id }}">
+                <div class="col-12">
+                    <label class="form-label" for="motivo{{ unidad.id }}">Motivo</label>
+                    <textarea class="form-control" id="motivo{{ unidad.id }}" name="motivo" rows="3" maxlength="1000" required placeholder="Ej.: el contrato terminó el 30 de noviembre y ya entregó las llaves."></textarea>
+                </div>
+                <div class="col-12"><button class="button" type="submit">Enviar solicitud al administrador</button></div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+</section>
+{% empty %}
+<section class="card-custom">
+    <p class="mb-0 text-muted">Todavía no tienes una unidad asociada. Si crees que es un error, contacta a la administración.</p>
+</section>
+{% endfor %}
+{% endblock %}
