@@ -11,10 +11,45 @@ from django.core.exceptions import ValidationError
 from django.db import models, transaction
 from django.utils import timezone
 from .validators import (
-    formatear_rut, normalizar_email, normalizar_espacios, normalizar_nombre_propio, normalizar_patente, validar_rut,
+    formatear_rut, normalizar_email, normalizar_espacios, normalizar_nombre_propio, normalizar_patente, validar_imagen,
+    validar_rut,
 )
 
 # Create your models here.
+
+
+def imagen_a_jpg(archivo, max_lado, calidad):
+    """
+    Convierte cualquier imagen subida a JPG comprimido: corrige la rotación de las fotos
+    del celular, aplana la transparencia sobre blanco y la achica a `max_lado` px como máximo.
+    Devuelve un ContentFile listo para FieldFile.save().
+    """
+    img = ImageOps.exif_transpose(Image.open(archivo))
+    if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info):
+        fondo = Image.new("RGB", img.size, "white")
+        fondo.paste(img.convert("RGBA"), mask=img.convert("RGBA").split()[-1])
+        img = fondo
+    else:
+        img = img.convert("RGB")
+    img.thumbnail((max_lado, max_lado))
+    salida = BytesIO()
+    img.save(salida, format="JPEG", quality=calidad, optimize=True)
+    return ContentFile(salida.getvalue())
+
+
+def reemplazar_imagen(instancia, campo, nombre, contenido):
+    """
+    Guarda `contenido` en el campo con un nombre fijo (avatar.jpg, portada_sol.jpg...).
+    Antes borra el archivo anterior: si no, el storage no pisa el existente y le agrega
+    letras al azar (avatar_x7Gh2.jpg).
+    """
+    archivo = getattr(instancia, campo)
+    if instancia.pk:
+        anterior = type(instancia).objects.filter(pk=instancia.pk).values_list(campo, flat=True).first()
+        if anterior:
+            archivo.storage.delete(anterior)
+    # Si otro registro ya usa ese nombre (dos condominios llamados igual), el storage le agrega un sufijo
+    archivo.save(nombre, contenido, save=False)
 class Condominio(models.Model):
     class ModalidadMora(models.TextChoices):
         REGLAMENTO_TIPO = "reglamento_tipo", "Reglamento tipo (50% del interés corriente)"
@@ -23,7 +58,7 @@ class Condominio(models.Model):
     nombre = models.CharField(max_length=150)
     direccion = models.CharField(max_length=255)
     ciudad = models.ForeignKey("Ciudad",on_delete=models.PROTECT,related_name="condominios",)
-    portada = models.ImageField(upload_to="condominios/portadas/", blank=True)
+    portada = models.ImageField(upload_to="condominios/portadas/", blank=True, validators=[validar_imagen])
     edificios = models.PositiveSmallIntegerField(default=1,validators=[MinValueValidator(1)],)
     creado = models.DateTimeField(auto_now_add=True)
     activo = models.BooleanField(default=True)
@@ -54,6 +89,10 @@ class Condominio(models.Model):
     def save(self, *args, **kwargs):
         self.nombre = normalizar_espacios(self.nombre)
         self.direccion = normalizar_espacios(self.direccion)
+        if self.portada and not self.portada._committed:
+            # Toda portada nueva queda como JPG: condominios/portadas/portada_<nombre>.jpg
+            nombre = f"portada_{slugify(self.nombre).replace('-', '_') or 'condominio'}.jpg"
+            reemplazar_imagen(self, "portada", nombre, imagen_a_jpg(self.portada, 1920, 82))
         es_nuevo = self._state.adding
         with transaction.atomic():
             super().save(*args, **kwargs)
@@ -282,12 +321,10 @@ class Usuario(models.Model):
         return slug
 
     def _comprimir_avatar(self):
-        img = ImageOps.exif_transpose(Image.open(self.avatar)).convert("RGB")
-        img.thumbnail((512, 512))
-        salida = BytesIO()
-        img.save(salida, format="JPEG", quality=70)
-        nombre = os.path.splitext(os.path.basename(self.avatar.name))[0] + ".jpg"
-        self.avatar.save(nombre, ContentFile(salida.getvalue()), save=False)
+        # Toda foto de perfil queda como user_images/<usuario>/avatar.jpg
+        reemplazar_imagen(self, "avatar", "avatar.jpg", imagen_a_jpg(self.avatar, 512, 70))
+        # El nombre ya no cambia entre una foto y otra; la señal de notificaciones usa esta marca
+        self._avatar_cambiado = True
 
     def _normalizar_rut(self):
         # Un RUT vacío se guarda como None: si fuera "", el unique fallaría con el segundo usuario sin RUT

@@ -1,236 +1,111 @@
 {% extends "core/base.html" %}
 
-{% block title %}
-Nuevo condominio - Comunidad al Día
-{% endblock %}
+{% block title %}Nuevo condominio | Comunidad al Día{% endblock %}
+{% block page_title %}Nuevo condominio{% endblock %}
 
-{% block page_title %}
-Nuevo condominio
+{% block extra_css %}
+<style>
+    .nc-seccion { margin-bottom: 18px; }
+    .nc-seccion h2 { font-size: 17px; font-weight: 650; margin: 0 0 4px; }
+    .nc-seccion > p { color: #64748b; margin: 0 0 16px; font-size: 14px; }
+    .nc-campo label { font-weight: 600; font-size: 14px; margin-bottom: 6px; display: block; }
+    .nc-campo .opcional { font-weight: 400; color: #6b7280; }
+    .nc-campo .form-text { color: #64748b; }
+    .nc-campo .invalid-feedback { display: block; }
+    .nc-resumen { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-top: 16px; padding: 14px 16px; border: 1px solid #cfe8e0; border-radius: 10px; background: #e8f5f1; color: #0f5f4f; }
+    .nc-resumen .total { font-size: 26px; font-weight: 700; line-height: 1; }
+    .nc-resumen .detalle { font-size: 14px; }
+    .nc-resumen .ejemplo { font-size: 13px; color: #2f5d50; }
+</style>
 {% endblock %}
 
 {% block content %}
-
-<!-- ============================== ENCABEZADO ============================== -->
-
-<header class="page-intro">
-
-<h1>
-    Crear condominio
-</h1>
-
-<p style="color: #64748b;">
-    Completa los datos para registrar un nuevo condominio en el sistema.
-</p>
-
-</header>
-
-<!-- ============================== FORMULARIO ============================== -->
-
-<div class="card">
-
-<form method="post" enctype="multipart/form-data">
-
-    {% csrf_token %}
-
-
-    <!-- ============================== INFORMACIÓN GENERAL ============================== -->
-
-    <h3>
-        Información general
-    </h3>
-
-    <div class="grid">
-
-        <div>
-
-            <label
-                for="nombre"
-                style="display: block; margin-bottom: 6px; font-weight: 600;"
-            >
-                Nombre del condominio
-            </label>
-
-            <input
-                type="text"
-                id="nombre"
-                name="nombre"
-                value="{{ datos.nombre|default:'' }}"
-                required
-                placeholder="Ej. Condominio Portal del Sol"
-                style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 7px;"
-            >
-
-        </div>
-
-
-        <div>
-
-            <label
-                for="direccion"
-                style="display: block; margin-bottom: 6px; font-weight: 600;"
-            >
-                Dirección
-            </label>
-
-            <input
-                type="text"
-                id="direccion"
-                name="direccion"
-                value="{{ datos.direccion|default:'' }}"
-                required
-                placeholder="Ej. Avenida Principal 123"
-                style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 7px;"
-            >
-
-        </div>
-
-
-        <div>
-
-            <label
-                for="ciudad"
-                style="display: block; margin-bottom: 6px; font-weight: 600;"
-            >
-                Ciudad
-            </label>
-
-            <input
-                id="ciudad"
-                name="ciudad"
-                type="text"
-                list="ciudades-disponibles"
-                value="{{ datos.ciudad|default:'' }}"
-                required
-                style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 7px;"
-            >
-            <datalist id="ciudades-disponibles">
-                {% for ciudad in ciudades_sugeridas %}<option value="{{ ciudad }}">{% endfor %}
-            </datalist>
-            <small style="display: block; margin-top: 6px; color: #64748b;">Escribe una ciudad o elige una sugerencia.</small>
-
-        </div>
-
-
-        <div>
-
-            <label
-                for="edificios"
-                style="display: block; margin-bottom: 6px; font-weight: 600;"
-            >
-                Cantidad de edificios
-            </label>
-
-            <input
-                type="number"
-                id="edificios"
-                name="edificios"
-                value="{{ datos.edificios|default:'1' }}"
-                min="1"
-                required
-                style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 7px;"
-            >
-
-            <small style="display: block; margin-top: 6px; color: #64748b;">
-                Se crearán automáticamente los edificios iniciales.
-            </small>
-
-        </div>
-
-        <div>
-            <label for="estimado_personas_departamento" style="display: block; margin-bottom: 6px; font-weight: 600;">
-                Estimado de personas por departamento <span style="font-weight: 400; color: #6b7280;">(opcional)</span>
-            </label>
-            <input
-                type="number"
-                id="estimado_personas_departamento"
-                name="estimado_personas_departamento"
-                value="{{ datos.estimado_personas_departamento|default:'' }}"
-                min="1"
-                max="20"
-                placeholder="Ej.: 4"
-                style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 7px;"
-            >
-            <small style="display: block; margin-top: 6px; color: #64748b;">Es solo una referencia: la app te avisará cuando una unidad informe más personas, pero no la bloqueará. Déjalo vacío si no quieres usarlo.</small>
-        </div>
-
-    </div>
-
-
-    <!-- ============================== PORTADA ============================== -->
-
-    <h3 style="margin-top: 30px;">
-        Imagen del condominio
-    </h3>
-
-    <div>
-
-        <label
-            for="portada"
-            style="display: block; margin-bottom: 6px; font-weight: 600;"
-        >
-            Portada
-        </label>
-
-        <input
-            type="file"
-            id="portada"
-            name="portada"
-            accept="image/*"
-            style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 7px; background: white;"
-        >
-
-        <small style="display: block; margin-top: 6px; color: #64748b;">
-            Puedes agregar una imagen representativa del condominio.
-        </small>
-
-    </div>
-
-
-    <!-- ============================== ERRORES ============================== -->
-
-    {% if errores %}
-
-        <div
-            style="margin-top: 25px; padding: 12px 15px; border-radius: 7px; background: #fee2e2; color: #991b1b;"
-        >
-
-            {% for error in errores %}
-
-                <div style="margin-bottom: 5px;">
-                    {{ error }}
-                </div>
-
-            {% endfor %}
-
-        </div>
-
-    {% endif %}
-
-
-    <!-- ============================== BOTONES ============================== -->
-
-    <div
-        style="margin-top: 30px; display: flex; gap: 10px; flex-wrap: wrap;"
-    >
-
-        <button
-            type="submit"
-            class="button"
-        >
-            Crear condominio
-        </button>
-
-        <a
-            href="{% url 'condominios_lista' %}"
-            class="button button-secondary"
-        >
-            Cancelar
-        </a>
-
-    </div>
-
-</form>
-
+<div class="page-intro">
+    <h1>Crear condominio</h1>
+    <p>Igual que en la configuración inicial: se crean el condominio, sus edificios y todas las unidades de una vez.</p>
 </div>
 
+<form method="post" enctype="multipart/form-data" novalidate>
+    {% csrf_token %}
+    {% if form.non_field_errors %}<div class="alert alert-danger">{% for e in form.non_field_errors %}<div>{{ e }}</div>{% endfor %}</div>{% endif %}
+
+    <section class="card-custom nc-seccion">
+        <h2>Información general</h2>
+        <p>Cómo se llama y dónde está.</p>
+        <div class="row g-3">
+            {% include "core/condominios/_campo_condominio.html" with campo=form.nombre col="col-md-6" placeholder="Ej.: Condominio Portal del Sol" %}
+            {% include "core/condominios/_campo_condominio.html" with campo=form.direccion col="col-md-6" placeholder="Ej.: Avenida Principal 123" %}
+            {% include "core/condominios/_campo_condominio.html" with campo=form.ciudad col="col-md-6" ayuda="Escribe para ver las ciudades de Chile. Si la tuya no aparece, escríbela igual." %}
+        </div>
+        <datalist id="lista-ciudades">{% for ciudad in form.ciudades_sugeridas %}<option value="{{ ciudad }}">{% endfor %}</datalist>
+    </section>
+
+    <section class="card-custom nc-seccion">
+        <h2>Edificios y unidades</h2>
+        <p>Todos los edificios parten con la misma cantidad de pisos y viviendas. Después puedes ajustar cada edificio por separado en «Condominios y edificios».</p>
+        <div class="row g-3">
+            {% include "core/condominios/_campo_condominio.html" with campo=form.edificios col="col-md-4" %}
+            {% include "core/condominios/_campo_condominio.html" with campo=form.numero_pisos col="col-md-4" ayuda="Entre 2 y 20." %}
+            {% include "core/condominios/_campo_condominio.html" with campo=form.viviendas_por_piso col="col-md-4" %}
+        </div>
+        <div class="nc-resumen" id="ncResumen" aria-live="polite">
+            <span class="total" id="ncTotal">—</span>
+            <span>
+                <span class="detalle d-block" id="ncDetalle">Completa los tres campos para ver cuántas unidades se crearán.</span>
+                <span class="ejemplo d-block" id="ncEjemplo"></span>
+            </span>
+        </div>
+    </section>
+
+    <section class="card-custom nc-seccion">
+        <h2>Opcional</h2>
+        <p>Puedes completarlo ahora o más adelante al editar el condominio.</p>
+        <div class="row g-3">
+            {% include "core/condominios/_campo_condominio.html" with campo=form.estimado_personas_departamento col="col-md-6" placeholder="Ej.: 4" %}
+            {% include "core/condominios/_campo_condominio.html" with campo=form.portada col="col-md-6" ayuda="Una foto representativa del condominio." %}
+        </div>
+    </section>
+
+    <div class="d-flex gap-2 flex-wrap">
+        <button type="submit" class="button">Crear condominio</button>
+        <a href="{% url 'condominios_lista' %}" class="button button-secondary">Cancelar</a>
+    </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    // Resumen en vivo: cuántas unidades se van a crear y cómo se numeran
+    var edificios = document.getElementById("{{ form.edificios.id_for_label }}");
+    var pisos = document.getElementById("{{ form.numero_pisos.id_for_label }}");
+    var viviendas = document.getElementById("{{ form.viviendas_por_piso.id_for_label }}");
+    var total = document.getElementById("ncTotal");
+    var detalle = document.getElementById("ncDetalle");
+    var ejemplo = document.getElementById("ncEjemplo");
+
+    function entero(input) { var n = parseInt(input.value, 10); return isNaN(n) ? 0 : n; }
+
+    function actualizar() {
+        var e = entero(edificios), p = entero(pisos), v = entero(viviendas);
+        if (e < 1 || p < 2 || p > 20 || v < 1) {
+            total.textContent = "—";
+            detalle.textContent = "Completa los tres campos para ver cuántas unidades se crearán.";
+            ejemplo.textContent = "";
+            return;
+        }
+        var porEdificio = p * v;
+        total.textContent = (e * porEdificio).toLocaleString("es-CL");
+        detalle.textContent = "unidades en total: " + e + " edificio" + (e > 1 ? "s" : "") +
+            " × " + p + " pisos × " + v + " vivienda" + (v > 1 ? "s" : "") + " por piso (" + porEdificio + " por edificio).";
+        // Misma numeración que genera el sistema: <edificio>-<piso><posición>
+        var ancho = String(v).length;
+        function num(ed, pi, po) { return ed + "-" + pi + String(po).padStart(ancho, "0"); }
+        ejemplo.textContent = "Numeración: " + num(1, 1, 1) + ", " + num(1, 1, Math.min(2, v)) + " … hasta " + num(e, p, v) + ".";
+    }
+
+    [edificios, pisos, viviendas].forEach(function (i) { if (i) i.addEventListener("input", actualizar); });
+    actualizar();
+})();
+</script>
 {% endblock %}

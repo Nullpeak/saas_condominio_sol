@@ -1604,81 +1604,32 @@ def condominios_lista(request):
 
 @login_required
 def condominio_crear(request):
+    """Crea condominio, edificios y unidades con el mismo formulario y la misma lógica del launch."""
+    from launch.forms import CondominioForm
+    from .servicios import crear_condominio
+
     usuario_actual = obtener_usuario(request)
 
     if not puede_gestionar_condominio(usuario_actual):
         return redirect("condominios_lista")
 
-    ciudades_sugeridas = ciudades_chile()
+    form = CondominioForm(request.POST or None, request.FILES or None)
 
-    if request.method == "POST":
-        nombre = request.POST.get("nombre", "").strip()
-        direccion = request.POST.get("direccion", "").strip()
-        ciudad_nombre = request.POST.get("ciudad", "").strip()
-        edificios = request.POST.get("edificios", "1").strip()
-        portada = request.FILES.get("portada")
-
-        errores = []
-        estimado_personas = leer_estimado_personas(request.POST.get("estimado_personas_departamento"), errores)
-
-        if not nombre:
-            errores.append(
-                "Debes ingresar el nombre del condominio."
-            )
-
-        if not direccion:
-            errores.append(
-                "Debes ingresar la dirección."
-            )
-
-        if not ciudad_nombre:
-            errores.append(
-                "Debes seleccionar una ciudad."
-            )
-
-        try:
-            edificios_numero = int(edificios)
-
-            if edificios_numero < 1:
-                errores.append(
-                    "El condominio debe tener al menos un edificio."
-                )
-
-        except ValueError:
-            edificios_numero = 1
-            errores.append(
-                "La cantidad de edificios no es válida."
-            )
-
-        if not errores:
-            with transaction.atomic():
-                ciudad = Ciudad.objects.filter(nombre__iexact=ciudad_nombre).first()
-                if not ciudad:
-                    ciudad = Ciudad.objects.create(nombre=ciudad_nombre)
-                condominio = Condominio.objects.create(
-                    nombre=nombre,
-                    direccion=direccion,
-                    ciudad=ciudad,
-                    edificios=edificios_numero,
-                    portada=portada,
-                    activo=True,
-                    estimado_personas_departamento=estimado_personas,
-                )
-                if es_administrador(usuario_actual):
-                    usuario_actual.condominios_administrados.add(condominio)
-
-            return redirect("condominios_lista")
-
-        return render(request, "core/condominios/crear.html", {
-            "usuario_actual": usuario_actual,
-            "ciudades_sugeridas": ciudades_sugeridas,
-            "errores": errores,
-            "datos": request.POST,
-        })
+    if request.method == "POST" and form.is_valid():
+        with transaction.atomic():
+            condominio = crear_condominio(form.cleaned_data)
+            if es_administrador(usuario_actual):
+                usuario_actual.condominios_administrados.add(condominio)
+        total = condominio.edificios * form.cleaned_data["numero_pisos"] * form.cleaned_data["viviendas_por_piso"]
+        messages.success(
+            request,
+            f"Se creó «{condominio.nombre}» con {condominio.edificios} edificio(s) y {total} unidades.",
+        )
+        return redirect("edificios_lista", condominio_id=condominio.pk)
 
     return render(request, "core/condominios/crear.html", {
         "usuario_actual": usuario_actual,
-        "ciudades_sugeridas": ciudades_sugeridas,
+        "form": form,
     })
 
 
@@ -1710,11 +1661,21 @@ def condominio_editar(request, condominio_id):
         edificios_texto = request.POST.get("edificios", "").strip()
         activo = request.POST.get("activo") == "on"
         portada = request.FILES.get("portada")
+        if portada:
+            try:
+                validar_imagen(portada)
+            except ValidationError as error:
+                errores_portada = error.messages
+                portada = None
+            else:
+                errores_portada = []
+        else:
+            errores_portada = []
         modalidad_mora = request.POST.get("modalidad_mora", Condominio.ModalidadMora.REGLAMENTO_TIPO)
         tasa_mora_texto = request.POST.get("tasa_mora_anual", "").strip().replace(",", ".")
         fundamento_tasa_mora = request.POST.get("fundamento_tasa_mora", "").strip()
 
-        errores = []
+        errores = list(errores_portada)
         estimado_personas = leer_estimado_personas(request.POST.get("estimado_personas_departamento"), errores)
 
         if modalidad_mora not in Condominio.ModalidadMora.values:

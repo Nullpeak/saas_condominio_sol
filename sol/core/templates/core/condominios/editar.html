@@ -182,7 +182,7 @@ Editar condominio
             </p>
 
             <img
-                src="{{ condominio.portada.url }}"
+                src="{% url 'portada_condominio' condominio.pk %}?v={{ condominio.portada.name|urlencode }}"
                 alt="Portada de {{ condominio.nombre }}"
                 style="max-width: 300px; max-height: 180px; object-fit: cover; border-radius: 8px; border: 1px solid #d1d5db;"
             >
@@ -209,7 +209,7 @@ Editar condominio
             type="file"
             id="portada"
             name="portada"
-            accept="image/*"
+            accept="image/jpeg,image/png,image/gif,image/webp,image/bmp"
             style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 7px; background: white;"
         >
 

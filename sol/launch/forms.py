@@ -8,6 +8,7 @@ from core.validators import (
     normalizar_email,
     normalizar_nombre_propio,
     validar_email,
+    validar_imagen,
     validar_rut,
     validar_telefono,
 )
@@ -96,7 +97,7 @@ class CondominioForm(forms.Form):
         min_value=1, max_value=20, required=False,
         help_text="Es solo una referencia: te avisaremos cuando una unidad informe más personas, sin bloquearla.",
     )
-    portada = forms.ImageField(label="Imagen de portada (opcional)", required=False)
+    portada = forms.ImageField(label="Imagen de portada (opcional)", required=False, validators=[validar_imagen])
 
     # Sugerencias para el campo ciudad (el template las dibuja como <datalist>).
     ciudades_sugeridas = ciudades_chile()

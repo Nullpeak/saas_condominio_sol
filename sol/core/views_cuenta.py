@@ -20,11 +20,10 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 
-from anuncios.models import validar_imagen
 from notis.signals import notificar
 
-from .models import SolicitudBajaArrendatario, Unidad, Usuario
-from .validators import formatear_telefono, validar_email, validar_telefono
+from .models import Condominio, SolicitudBajaArrendatario, Unidad, Usuario
+from .validators import formatear_telefono, validar_email, validar_imagen, validar_telefono
 
 
 ROLES_STAFF = (Usuario.Rol.SUPER, Usuario.Rol.ADMINISTRADOR, Usuario.Rol.GESTOR)
@@ -38,6 +37,28 @@ def _perfil(request):
         return request.user.usuario
     except (AttributeError, ObjectDoesNotExist):
         return None
+
+
+def servir_imagen(request, archivo):
+    """
+    Entrega una imagen guardada. Como el nombre es fijo (avatar.jpg, portada_x.jpg), el
+    navegador revalida cada vez: si no cambió responde 304 (sin reenviar la imagen) y si
+    cambió manda la nueva.
+    """
+    from django.http import HttpResponseNotModified
+    from django.utils.http import http_date
+    from django.views.static import was_modified_since
+
+    try:
+        modificado = archivo.storage.get_modified_time(archivo.name).timestamp()
+        if not was_modified_since(request.META.get("HTTP_IF_MODIFIED_SINCE"), modificado):
+            return HttpResponseNotModified()
+        respuesta = FileResponse(archivo.open("rb"), content_type=mimetypes.guess_type(archivo.name)[0] or "image/jpeg")
+    except FileNotFoundError:
+        raise Http404
+    respuesta["Last-Modified"] = http_date(modificado)
+    respuesta["Cache-Control"] = "private, no-cache"
+    return respuesta
 
 
 # ============================== MIS DATOS ==============================
@@ -125,7 +146,6 @@ def mis_datos(request):
                     errores.extend(error.messages)
 
             if not errores:
-                foto_anterior = perfil.avatar.name if perfil.avatar else ""
                 with transaction.atomic():
                     perfil.nombre = datos["nombre"]
                     perfil.nombre2 = datos["nombre2"]
@@ -139,10 +159,6 @@ def mis_datos(request):
                     if perfil.user_id and request.user.email != datos["email"]:
                         request.user.email = datos["email"]
                         request.user.save(update_fields=["email"])
-
-                # La foto anterior ya no la usa nadie: se borra del disco
-                if foto and foto_anterior and foto_anterior != perfil.avatar.name:
-                    perfil.avatar.storage.delete(foto_anterior)
 
                 messages.success(request, "Tus datos se guardaron.")
                 return redirect("mis_datos")
@@ -172,14 +188,21 @@ def avatar_usuario(request, usuario_id):
     if not permitido:
         raise Http404
 
-    try:
-        archivo = usuario.avatar.open("rb")
-    except FileNotFoundError:
+    return servir_imagen(request, usuario.avatar)
+
+
+@login_required
+def portada_condominio(request, condominio_id):
+    """
+    Sirve la portada de un condominio. /media/ no se publica (ahí también están los adjuntos
+    de tickets), así que cada archivo pasa por una vista que revisa permisos.
+    Puede verla quien tiene acceso al condominio.
+    """
+    perfil = _perfil(request)
+    condominio = get_object_or_404(Condominio, pk=condominio_id)
+    if perfil is None or not condominio.portada or not perfil.puede_acceder_condominio(condominio.pk):
         raise Http404
-    tipo = mimetypes.guess_type(usuario.avatar.name)[0] or "image/jpeg"
-    respuesta = FileResponse(archivo, content_type=tipo)
-    respuesta["Cache-Control"] = "private, max-age=300"
-    return respuesta
+    return servir_imagen(request, condominio.portada)
 
 
 # ============================== MI UNIDAD ==============================

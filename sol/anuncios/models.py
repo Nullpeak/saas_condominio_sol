@@ -5,23 +5,9 @@ from django.db import models
 from PIL import Image, UnidentifiedImageError
 
 
-MAX_IMAGEN_BYTES = 10 * 1024 * 1024
-EXTENSIONES_IMAGEN = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}
-
-
-def validar_imagen(archivo):
-    extension = os.path.splitext(archivo.name)[1].lower()
-    if extension not in EXTENSIONES_IMAGEN:
-        raise ValidationError("Adjunta una imagen JPG, PNG, GIF, WebP o BMP.")
-    if archivo.size > MAX_IMAGEN_BYTES:
-        raise ValidationError("La imagen debe pesar 10 MB o menos.")
-    try:
-        imagen = Image.open(archivo)
-        imagen.verify()
-    except (UnidentifiedImageError, OSError, ValueError):
-        raise ValidationError("La imagen está dañada o no es válida.")
-    finally:
-        archivo.seek(0)
+# La validación de imágenes vive en core/validators.py y es la misma para toda la app.
+# Se importa aquí con este nombre porque la migración 0001 la referencia como anuncios.models.validar_imagen.
+from core.validators import EXTENSIONES_IMAGEN, MAX_IMAGEN_BYTES, validar_imagen  # noqa: E402,F401
 
 
 def ruta_imagen(instance, filename):
