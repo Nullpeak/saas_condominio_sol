@@ -942,6 +942,38 @@ def usuarios_lista(request):
         "unidades_arrendadas__edificio__condominio",
     ).distinct()
     paginacion = paginar(request, usuarios.order_by("apellido", "nombre", "pk"))
+    for usuario_item in paginacion["page_obj"]:
+        unidades_propias = list(usuario_item.unidades_propias.all())
+        unidades_arrendadas = list(usuario_item.unidades_arrendadas.all())
+        usuario_item.relaciones_unidad_mixtas = bool(unidades_propias and unidades_arrendadas)
+        condominios_unidades = {
+            unidad.edificio.condominio_id
+            for unidad in unidades_propias + unidades_arrendadas
+        }
+        condominios_admin = {c.pk for c in usuario_item.condominios_administrados.all()}
+        usuario_item.mostrar_condominio_directo = bool(
+            usuario_item.condominio_id
+            and usuario_item.condominio_id not in condominios_unidades
+            and usuario_item.condominio_id not in condominios_admin
+        )
+
+        if usuario_item.rol == Usuario.Rol.RESIDENTE:
+            es_dueno = bool(unidades_propias)
+            es_arrendatario = bool(unidades_arrendadas)
+            vive_como_dueno = any(unidad.propietario_vive for unidad in unidades_propias)
+            if es_dueno and es_arrendatario:
+                usuario_item.rol_en_listado = (
+                    "Residente / dueño y arrendatario" if vive_como_dueno else "Dueño y arrendatario"
+                )
+            elif es_dueno:
+                usuario_item.rol_en_listado = "Residente / dueño" if vive_como_dueno else "Dueño"
+            elif es_arrendatario:
+                usuario_item.rol_en_listado = "Arrendatario"
+            else:
+                usuario_item.rol_en_listado = "Residente"
+        else:
+            usuario_item.rol_en_listado = usuario_item.get_rol_display().capitalize()
+
     return render(request, "core/usuarios/lista.html", {
         "usuario": usuario_actual,
         "usuarios": paginacion["page_obj"],

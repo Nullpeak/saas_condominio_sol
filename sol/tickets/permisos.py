@@ -4,8 +4,8 @@ Reglas de quién ve y quién hace qué con los tickets. Las vistas solo pregunta
 - Super Administrador: ve y gestiona los tickets de todos los condominios.
 - Administrador / Gestor: ve y gestiona los tickets de los condominios que tiene asignados
   (un administrador puede tener varios: Usuario.condominios_asignados).
-- Residente: ve solo los tickets que él creó; puede comentar, confirmar la solución,
-  reabrir un ticket resuelto, cerrar (cancelar) uno propio y editarlo mientras siga abierto.
+- Residente: ve solo los tickets que él creó; puede comentar, reabrir un ticket resuelto
+  y editarlo mientras siga abierto. Solo administración o el gestor asignado cierra/reabre.
 """
 from django.db.models import Q
 
@@ -19,18 +19,16 @@ ROLES_STAFF = (Rol.SUPER, Rol.ADMINISTRADOR, Rol.GESTOR)
 
 # A qué estados puede mover el staff desde cada estado
 TRANSICIONES_STAFF = {
-    E.ABIERTO: {E.EN_REVISION, E.ESPERANDO, E.RESUELTO, E.CERRADO},
-    E.EN_REVISION: {E.ESPERANDO, E.RESUELTO, E.CERRADO},
-    E.ESPERANDO: {E.EN_REVISION, E.RESUELTO, E.CERRADO},
-    E.RESUELTO: {E.EN_REVISION, E.CERRADO},
-    E.CERRADO: {E.EN_REVISION},  # reabrir
+    E.ABIERTO: {E.EN_REVISION, E.ESPERANDO, E.RESUELTO},
+    E.EN_REVISION: {E.ESPERANDO, E.RESUELTO},
+    E.ESPERANDO: {E.EN_REVISION, E.RESUELTO},
+    E.RESUELTO: {E.EN_REVISION},
+    E.CERRADO: set(),
 }
 
 # Acciones del residente sobre su propio ticket: nombre -> (desde, hacia)
 ACCIONES_RESIDENTE = {
-    "confirmar": ({E.RESUELTO}, E.CERRADO),  # "sí, quedó solucionado"
     "reabrir": ({E.RESUELTO}, E.EN_REVISION),  # "no se solucionó"
-    "cancelar": ({E.ABIERTO, E.EN_REVISION, E.ESPERANDO}, E.CERRADO),  # ya no lo necesita
 }
 
 
@@ -54,10 +52,26 @@ def puede_gestionar(perfil, ticket):
     return perfil.rol in ROLES_STAFF and perfil.puede_acceder_condominio(ticket.condominio_id)
 
 
+def puede_cerrar_reabrir(perfil, ticket):
+    """Cerrar o reabrir tickets: admin del condominio o gestor asignado."""
+    if perfil.rol == Rol.SUPER:
+        return True
+    if not perfil.puede_acceder_condominio(ticket.condominio_id):
+        return False
+    if perfil.rol == Rol.ADMINISTRADOR:
+        return True
+    return perfil.rol == Rol.GESTOR and ticket.asignado_id == perfil.pk
+
+
 def estados_siguientes(perfil, ticket):
     if not puede_gestionar(perfil, ticket):
         return set()
-    return TRANSICIONES_STAFF.get(ticket.estado, set())
+    siguientes = set(TRANSICIONES_STAFF.get(ticket.estado, set()))
+    if ticket.estado == E.CERRADO:
+        return {E.EN_REVISION} if puede_cerrar_reabrir(perfil, ticket) else set()
+    if puede_cerrar_reabrir(perfil, ticket):
+        siguientes.add(E.CERRADO)
+    return siguientes
 
 
 def acciones_residente(perfil, ticket):
@@ -77,10 +91,11 @@ def puede_editar(perfil, ticket):
 
 
 def puede_comentar(perfil, ticket):
+    if ticket.estado == E.CERRADO:
+        return False
     if puede_gestionar(perfil, ticket):
         return True
-    # El residente puede escribir mientras no esté cerrado
-    return ticket.usuario_id == perfil.pk and ticket.estado != E.CERRADO
+    return ticket.usuario_id == perfil.pk
 
 
 def asignables(condominio_id):
