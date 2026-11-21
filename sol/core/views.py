@@ -40,6 +40,11 @@ def obtener_usuario(request):
     return request.user.usuario
 
 
+def pagina_no_encontrada(request, exception):
+    """Muestra una página amigable cuando la URL solicitada no existe."""
+    return render(request, "core/404.html", status=404)
+
+
 def tiene_rol(usuario, *roles):
     return usuario.rol in roles
 

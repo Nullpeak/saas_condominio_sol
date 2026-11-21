@@ -1,0 +1,33 @@
+{% extends "core/public_access_base.html" %}
+
+{% block title %}Página no encontrada | Comunidad al Día{% endblock %}
+{% block story_title %}Volvamos a encontrar el camino.{% endblock %}
+{% block story_text %}La dirección puede estar incompleta o haber cambiado. Usa las opciones para volver al sitio o entrar a tu cuenta.{% endblock %}
+{% block story_points %}{% endblock %}
+{% block story_footer %}{% endblock %}
+
+{% block panel %}
+<div class="not-found-mark" aria-hidden="true">
+    <svg viewBox="0 0 48 48" fill="none">
+        <path d="M8 20.5 24 8l16 12.5V40H8V20.5Z" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/>
+        <path d="M19 40V27h10v13M17 20h.01M31 20h.01" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="m35 8 5-5m-5 0 5 5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+    </svg>
+</div>
+<p class="access-kicker">Error 404</p>
+<h2 id="not-found-title">Esta página no existe</h2>
+<p class="access-description">Revisa la dirección o vuelve al inicio de Comunidad al Día para encontrar lo que necesitas.</p>
+<a class="access-button not-found-primary" href="{% url 'landing' %}">Volver al inicio <span aria-hidden="true">→</span></a>
+<div class="access-link-row not-found-links">
+    <a href="{% url 'login' %}">Ir a iniciar sesión</a>
+</div>
+
+<style>
+    .access-story { min-height:320px; }
+    .not-found-mark { display:grid; place-items:center; width:62px; height:62px; margin:0 0 22px; border-radius:18px; background:#e7f4ee; color:#167c69; }
+    .not-found-mark svg { width:34px; height:34px; }
+    .not-found-primary { display:flex; align-items:center; justify-content:center; gap:9px; color:#fff; text-decoration:none; }
+    .not-found-primary:focus-visible,.not-found-links a:focus-visible { outline:3px solid #8bcab3; outline-offset:3px; }
+    .not-found-links { justify-content:center; }
+</style>
+{% endblock %}

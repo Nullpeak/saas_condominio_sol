@@ -285,3 +285,7 @@ urlpatterns = [
     path("", include("invitaciones.urls")),
     path("notificaciones/", include("notis.urls")),
 ]
+
+
+# Django usa esta vista para las URL inexistentes cuando DEBUG=False.
+handler404 = "core.views.pagina_no_encontrada"

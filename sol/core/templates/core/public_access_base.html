@@ -61,8 +61,8 @@
     </header>
     <main class="access-layout">
         <aside class="access-story">
-            <div class="story-content"><span class="story-label">Herramientas del condominio</span><h1>{% block story_title %}Gestión organizada. Comunidad informada.{% endblock %}</h1><p>{% block story_text %}Accede a las herramientas de tu condominio desde un solo lugar y continúa donde lo dejaste.{% endblock %}</p><div class="story-points"><span>Liquidaciones y saldos</span><span>Reservas y visitas</span><span>Solicitudes y mantenciones</span></div></div>
-            <div class="story-footer">Comunidad al Día · Gestión de comunidades</div>
+            <div class="story-content"><span class="story-label">Herramientas del condominio</span><h1>{% block story_title %}Gestión organizada. Comunidad informada.{% endblock %}</h1><p>{% block story_text %}Accede a las herramientas de tu condominio desde un solo lugar y continúa donde lo dejaste.{% endblock %}</p>{% block story_points %}<div class="story-points"><span>Liquidaciones y saldos</span><span>Reservas y visitas</span><span>Solicitudes y mantenciones</span></div>{% endblock %}</div>
+            {% block story_footer %}<div class="story-footer">Comunidad al Día · Gestión de comunidades</div>{% endblock %}
         </aside>
         <section class="access-card">{% block panel %}{% endblock %}</section>
     </main>
