@@ -120,6 +120,9 @@
         .user-info { text-align: right; font-size: 12px; }
         .user-name { font-weight: bold; }
         .user-role { color: #64748b; }
+        .user-chip { display: flex; align-items: center; gap: 9px; color: inherit; text-decoration: none; padding: 3px 6px; border-radius: 8px; }
+        .user-chip:hover { background: #f1f5f9; color: inherit; }
+        .user-avatar { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; background: #e2e8f0; color: #475569; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 650; flex-shrink: 0; }
 
         /* ============================== NOTIFICACIONES ============================== */
 
@@ -411,6 +414,7 @@
                 <svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="5" rx="1.5"/><rect x="13" y="10" width="8" height="11" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/></svg><span class="menu-link-label">Inicio</span>
             </a>
             {% if perfil %}
+                {% if perfil.rol == "Residente" %}<a href="{% url 'mi_unidad' %}" data-menu-link class="{% if request.resolver_match.url_name == 'mi_unidad' %}active{% endif %}"><svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10M10 20v-6h4v6"/></svg><span class="menu-link-label">Mi unidad</span></a>{% endif %}
                 {% if perfil.rol == "Super Administrador" or perfil.rol == "Administrador" %}
                 <div class="menu-title">Administración</div>
                 <a href="{% url 'administracion' %}" data-menu-link class="{% if request.resolver_match.url_name == 'administracion' %}active{% endif %}"><svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-5h6v5M8 9h.01M12 9h.01M16 9h.01"/></svg><span class="menu-link-label">Administración</span></a>
@@ -425,6 +429,7 @@
                 <a href="{% url 'reservaciones_lista' %}" data-menu-link class="{% if request.resolver_match.url_name == 'reservaciones_lista' %}active{% endif %}"><svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18M8 14h3m-3 3h6"/></svg><span class="menu-link-label">Reservas</span></a>
                 <a href="{% url 'visitas:lista' %}" data-menu-link class="{% if request.resolver_match.namespace == 'visitas' %}active{% endif %}"><svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v16M2 21h20M9 21v-5h6v5M9 8h.01M15 8h.01M9 12h.01M15 12h.01"/></svg><span class="menu-link-label">Control de visitas</span></a>
                 <a href="{% url 'tickets:lista' %}" data-menu-link class="{% if request.resolver_match.namespace == 'tickets' %}active{% endif %}"><svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8a3 3 0 0 0 0 6v4h18v-4a3 3 0 0 0 0-6V4H3z"/><path d="M13 4v2m0 4v2m0 4v2"/></svg><span class="menu-link-label">Tickets y solicitudes</span></a>
+                {% if perfil.rol == "Administrador" or perfil.rol == "Gestor" %}<a href="{% url 'solicitudes_baja_lista' %}" data-menu-link class="{% if request.resolver_match.url_name == 'solicitudes_baja_lista' %}active{% endif %}"><svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="4"/><path d="M3 21v-2a6 6 0 0 1 6-6h1m6 2 5 5m0-5-5 5"/></svg><span class="menu-link-label">Bajas de arrendatarios</span></a>{% endif %}
                 {% if perfil.rol == "Administrador" or perfil.rol == "Gestor" %}<a href="{% url 'mantenimientos:lista' %}" data-menu-link class="{% if request.resolver_match.namespace == 'mantenimientos' %}active{% endif %}"><svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14.7 6.3 3 3M4 20l5.1-1.1L20 8a2.1 2.1 0 0 0-3-3L6.1 15.9 4 20Z"/><path d="m13 5 2-2 6 6-2 2"/></svg><span class="menu-link-label">Mantenciones</span></a>{% endif %}
                 <div class="menu-title">Comunicaciones</div>
                 <a href="{% url 'anuncios:lista' %}" data-menu-link class="{% if request.resolver_match.namespace == 'anuncios' %}active{% endif %}"><svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 11 18-5v12L3 13v-2ZM5 14l2 6h4l-2.5-5.2M21 10a2 2 0 0 1 0 4"/></svg><span class="menu-link-label">Anuncios</span>{% if anuncios_nuevos %}<span class="menu-notice-dot" aria-label="Hay anuncios nuevos"></span>{% endif %}</a>
@@ -434,6 +439,8 @@
                 <a href="{% url 'invitaciones:invitar' %}" data-menu-link class="{% if request.resolver_match.namespace == 'invitaciones' %}active{% endif %}"><svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="4"/><path d="M3 21v-2a6 6 0 0 1 6-6h1m8-2v8m-4-4h8"/></svg><span class="menu-link-label">Invitar usuarios</span></a>
                 <a href="{% url 'historial_administrativo' %}" data-menu-link class="{% if request.resolver_match.url_name == 'historial_administrativo' %}active{% endif %}"><svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 2.6-6.4L3 8"/><path d="M3 3v5h5m4-1v5l3 2"/></svg><span class="menu-link-label">Historial administrativo</span></a>
                 {% endif %}
+                <div class="menu-title">Mi cuenta</div>
+                <a href="{% url 'mis_datos' %}" data-menu-link class="{% if request.resolver_match.url_name == 'mis_datos' %}active{% endif %}"><svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a7 7 0 0 1 14 0v1"/></svg><span class="menu-link-label">Mis datos</span></a>
             {% endif %}
         </nav>
     </aside>
@@ -477,10 +484,17 @@
                 {% endif %}
 
 
+                {% if perfil %}
+                <a class="user-chip" href="{% url 'mis_datos' %}" title="Mis datos">
+                    {% if perfil.avatar %}<img class="user-avatar" src="{% url 'avatar_usuario' perfil.id %}?v={{ perfil.avatar.name|urlencode }}" alt="">{% else %}<span class="user-avatar" aria-hidden="true">{{ perfil.nombre|slice:":1" }}{{ perfil.apellido|slice:":1" }}</span>{% endif %}
+                    <span class="user-info">
+                        <span class="user-name d-block">{{ perfil.nombre }} {{ perfil.apellido }}</span>
+                        <span class="user-role d-block">{{ perfil.rol }}</span>
+                    </span>
+                </a>
+                {% endif %}
                 <div class="user-info">
                     {% if perfil %}
-                        <div class="user-name">{{ perfil.nombre }} {{ perfil.apellido }}</div>
-                        <div class="user-role">{{ perfil.rol }}</div>
                     {% else %}
                         <div class="user-name">{{ request.user.username }}</div>
                     {% endif %}

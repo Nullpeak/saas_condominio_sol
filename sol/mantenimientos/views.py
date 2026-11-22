@@ -383,10 +383,14 @@ def editar_registro(request, registro_id):
             registro.detalle_cierre = detalle_cierre
             registro.empresa = request.POST.get("empresa", "").strip()
             registro.telefono_empresa = request.POST.get("telefono_empresa", "").strip()
-            registro.full_clean()
-            registro.save()
-            messages.success(request, "Se actualizaron los datos del mantenimiento.")
-            return redirect("mantenimientos:detalle", elemento_id=registro.elemento_id)
+            try:
+                registro.full_clean()
+            except ValidationError as error:
+                errores.extend(error.messages)
+            else:
+                registro.save()
+                messages.success(request, "Se actualizaron los datos del mantenimiento.")
+                return redirect("mantenimientos:detalle", elemento_id=registro.elemento_id)
     return render(request, "mantenimientos/registro_form.html", {
         "registro": registro, "datos": datos, "errores": errores,
         "estados": RegistroMantenimiento.Estado.choices,

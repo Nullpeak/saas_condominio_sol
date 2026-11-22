@@ -278,7 +278,7 @@ class SelectorAreasComunesTests(TestCase):
         area = AreaComun.objects.get(nombre="Sala multiuso")
         self.assertEqual(area.condominio_id, self.condominio_dos.pk)
 
-    def test_gestor_solo_recibe_tarjeta_de_su_condominio(self):
+    def test_gestor_con_un_condominio_va_directo_a_sus_areas(self):
         auth_gestor = get_user_model().objects.create_user(username="gestor-areas", password="test-pass")
         Usuario.objects.create(
             user=auth_gestor,
@@ -292,8 +292,10 @@ class SelectorAreasComunesTests(TestCase):
 
         respuesta = self.client.get(reverse("areas_comunes_selector"))
 
-        self.assertContains(respuesta, "Condominio Uno")
-        self.assertNotContains(respuesta, "Condominio Dos")
+        self.assertRedirects(
+            respuesta,
+            reverse("areas_comunes_lista", args=[self.condominio_uno.pk]),
+        )
 
 
 

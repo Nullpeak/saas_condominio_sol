@@ -190,7 +190,7 @@ class TicketsTests(BaseTickets):
         self.assertEqual(t.estado, E.EN_REVISION)
         self.assertTrue(Notification.objects.filter(recipient=self.gestor.user).exists())
 
-        # Se resuelve, el residente reabre, se resuelve de nuevo y confirma
+        # Se resuelve, el residente puede reabrirlo, pero no cerrarlo.
         self.entrar(self.gestor)
         self.post(reverse("tickets:gestionar", args=[t.pk]), {
             "estado": E.RESUELTO, "categoria": "mantencion", "asignado": self.gestor.pk})
@@ -207,15 +207,38 @@ class TicketsTests(BaseTickets):
         self.post(reverse("tickets:gestionar", args=[t.pk]), {
             "estado": E.RESUELTO, "categoria": "mantencion", "asignado": self.gestor.pk})
         self.entrar(self.residente)
-        self.post(reverse("tickets:accion", args=[t.pk, "confirmar"]))
+        self.assertEqual(self.post(reverse("tickets:accion", args=[t.pk, "confirmar"])).status_code, 403)
+        t.refresh_from_db()
+        self.assertEqual(t.estado, E.RESUELTO)
+
+        # El gestor asignado lo cierra y puede reabrirlo si debe continuar la conversación.
+        self.entrar(self.gestor)
+        self.post(reverse("tickets:gestionar", args=[t.pk]), {
+            "estado": E.CERRADO, "categoria": "mantencion", "asignado": self.gestor.pk})
         t.refresh_from_db()
         self.assertEqual(t.estado, E.CERRADO)
         self.assertIsNotNone(t.cerrado)
 
-        # Cerrado: el residente ya no puede comentar ni volver a confirmar
+        # Cerrado: ni residente ni staff pueden comentar hasta reabrirlo.
+        self.entrar(self.gestor)
+        self.assertEqual(self.post(reverse("tickets:comentar", args=[t.pk]), {"texto": "respuesta"}).status_code, 403)
+        self.entrar(self.residente)
         self.assertEqual(self.post(reverse("tickets:comentar", args=[t.pk]), {"texto": "hola"}).status_code, 403)
         self.assertEqual(self.post(reverse("tickets:accion", args=[t.pk, "confirmar"])).status_code, 403)
-        self.assertEqual(TicketComentario.objects.filter(ticket=t).count(), 4)
+
+        self.entrar(self.gestor)
+        self.post(reverse("tickets:gestionar", args=[t.pk]), {
+            "estado": E.EN_REVISION, "categoria": "mantencion", "asignado": self.gestor.pk})
+        t.refresh_from_db()
+        self.assertEqual(t.estado, E.EN_REVISION)
+        self.assertIsNone(t.cerrado)
+        self.assertEqual(self.post(reverse("tickets:comentar", args=[t.pk]), {"texto": "Continúo la revisión"}).status_code, 302)
+
+        self.post(reverse("tickets:gestionar", args=[t.pk]), {
+            "estado": E.CERRADO, "categoria": "mantencion", "asignado": self.gestor.pk})
+        t.refresh_from_db()
+        self.assertEqual(t.estado, E.CERRADO)
+        self.assertEqual(TicketComentario.objects.filter(ticket=t).count(), 5)
 
     def test_adjunto_de_nota_interna_oculto_al_residente(self):
         t = self.crear()
@@ -226,11 +249,14 @@ class TicketsTests(BaseTickets):
         self.entrar(self.residente)
         self.assertEqual(self.client.get(reverse("tickets:archivo", args=[adj.pk])).status_code, 404)
 
-    def test_residente_cancela_su_ticket(self):
+    def test_residente_no_puede_cerrar_su_ticket(self):
         t = self.crear()
-        self.post(reverse("tickets:accion", args=[t.pk, "cancelar"]))
+        self.assertEqual(self.post(reverse("tickets:accion", args=[t.pk, "cancelar"])).status_code, 403)
+        self.assertEqual(self.post(reverse("tickets:gestionar", args=[t.pk]), {
+            "estado": E.CERRADO, "categoria": "mantencion",
+        }).status_code, 403)
         t.refresh_from_db()
-        self.assertEqual(t.estado, E.CERRADO)
+        self.assertEqual(t.estado, E.ABIERTO)
 
 
 class IntegracionGdcTests(BaseTickets):

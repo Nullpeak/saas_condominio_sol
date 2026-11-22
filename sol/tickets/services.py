@@ -5,6 +5,7 @@ de último movimiento quedan siempre al día, venga el cambio de la vista que ve
 `ticket._actor` le dice a las señales de notis quién hizo el cambio (para no notificarse a sí mismo).
 """
 from django.db import transaction
+from django.core.exceptions import ValidationError
 from django.utils import timezone
 
 from .models import Ticket, TicketArchivo, TicketComentario, TicketEvento
@@ -53,6 +54,8 @@ def crear_ticket(perfil, *, condominio, titulo, descripcion, categoria, unidad=N
 @transaction.atomic
 def comentar(perfil, ticket, *, texto, interno=False, archivos=None, es_staff=False):
     ticket = Ticket.objects.select_for_update().get(pk=ticket.pk)
+    if ticket.estado == E.CERRADO:
+        raise ValidationError("El ticket está cerrado. Debe reabrirlo un administrador o el gestor asignado para continuar la conversación.")
     comentario = TicketComentario.objects.create(
         ticket=ticket, autor=perfil, texto=texto, interno=interno and es_staff
     )
@@ -107,6 +110,13 @@ def actualizar(perfil, ticket, **cambios):
                                     anterior=anterior or "", nuevo=nuevo or ""))
 
     if "estado" in cambios and cambios["estado"] != ticket.estado:
+        from .permisos import puede_cerrar_reabrir
+
+        nuevo_estado = cambios["estado"]
+        if (nuevo_estado == E.CERRADO or ticket.estado == E.CERRADO) and not puede_cerrar_reabrir(perfil, ticket):
+            raise ValidationError("Solo un administrador o el gestor asignado puede cerrar o reabrir este ticket.")
+        if ticket.estado == E.CERRADO and nuevo_estado != E.EN_REVISION:
+            raise ValidationError("Un ticket cerrado solo puede reabrirse y pasar a revisión.")
         registrar(TicketEvento.Tipo.ESTADO, ticket.get_estado_display(), E(cambios["estado"]).label)
         _aplicar_estado(ticket, cambios["estado"])
 

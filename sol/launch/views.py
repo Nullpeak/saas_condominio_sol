@@ -5,9 +5,9 @@ from django.http import Http404
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_http_methods
 
-from core.models import Ciudad, Condominio, Usuario
+from core.models import Usuario
+from core.servicios import crear_condominio
 
-from .ciudades import ciudades_chile
 from .forms import CondominioForm, SuperUsuarioForm
 from .guards import setup_disponible, solo_primer_lanzamiento
 
@@ -28,26 +28,8 @@ def launch(request):
                 if not setup_disponible():
                     raise Http404
 
-                # Se carga la tabla Ciudad con las ciudades de Chile y se usa la que
-                # escogió el usuario (si escribió una que no está, se crea).
-                Ciudad.objects.bulk_create(
-                    [Ciudad(nombre=n) for n in ciudades_chile()],
-                    ignore_conflicts=True,
-                )
-                ciudad, _ = Ciudad.objects.get_or_create(nombre=c["ciudad"])
-                condominio = Condominio.objects.create(
-                    nombre=c["nombre"],
-                    direccion=c["direccion"],
-                    ciudad=ciudad,
-                    edificios=c["edificios"],  # Condominio.save() crea los Edificio
-                    portada=c["portada"] or "",
-                )
-                # Condominio.save() ya creó los edificios. Se les asignan pisos y viviendas
-                # por piso y se guardan: Edificio.save() genera sus unidades solo.
-                for edificio in condominio.edificios_set.all():
-                    edificio.numero_pisos = c["numero_pisos"]
-                    edificio.viviendas_por_piso = c["viviendas_por_piso"]
-                    edificio.save()
+                # Condominio, edificios y unidades: misma lógica que "Crear condominio"
+                condominio = crear_condominio(c)
                 auth_user = get_user_model().objects.create_superuser(
                     username=u["username"],
                     email=u["email"],

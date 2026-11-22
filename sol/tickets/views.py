@@ -35,9 +35,7 @@ POR_PAGINA = 30
 E = Ticket.Estado
 
 TEXTO_ACCION = {
-    "confirmar": "Gracias por confirmar. El ticket quedó cerrado.",
     "reabrir": "Reabriste el ticket. El equipo lo revisará de nuevo.",
-    "cancelar": "Cerraste el ticket.",
 }
 
 # Carpetas de la bandeja: (clave, nombre, filtro). El filtro recibe el perfil.
@@ -243,7 +241,10 @@ def _contexto_ticket(perfil, ticket, comentario_form=None, gestion_form=None):
     otros = []
     if gestiona:
         siguientes = estados_siguientes(perfil, ticket)
-        botones_estado = [(e, BOTON_ESTADO[e]) for e in BOTON_ESTADO if e in siguientes]
+        botones_estado = [
+            (e, "Reabrir ticket" if ticket.estado == E.CERRADO and e == E.EN_REVISION else BOTON_ESTADO[e])
+            for e in BOTON_ESTADO if e in siguientes
+        ]
         puede_asignarse = ticket.asignado_id != perfil.pk and asignables(ticket.condominio_id).filter(pk=perfil.pk).exists()
         otros = list(
             tickets_visibles(perfil).filter(usuario_id=ticket.usuario_id).exclude(pk=ticket.pk)
@@ -260,11 +261,76 @@ def _contexto_ticket(perfil, ticket, comentario_form=None, gestion_form=None):
         "comentario_form": comentario_form if puede_comentar(perfil, ticket) else None,
         "gestion_form": gestion_form,
         "botones_estado": botones_estado,
+        "puede_reabrir": ticket.estado == E.CERRADO and any(e == E.EN_REVISION for e, _ in botones_estado),
         "puede_asignarse": puede_asignarse,
         "otros_tickets": otros,
         "acciones": acciones_residente(perfil, ticket),
         "puede_editar": puede_editar(perfil, ticket),
+        "ficha_usuario": _ficha_usuario(perfil, ticket) if gestiona else None,
     }
+
+
+def _ficha_usuario(perfil, ticket):
+    """Datos del residente que se muestran al staff al hacer clic en su foto."""
+    usuario = ticket.usuario
+    unidad = ticket.unidad
+    relacion = ""
+    if unidad:
+        if unidad.dueno_id == usuario.pk:
+            relacion = "Dueño"
+        elif unidad.arrendatario_id == usuario.pk:
+            relacion = "Arrendatario"
+    otras_unidades = list(
+        Unidad.objects.filter(Q(dueno=usuario) | Q(arrendatario=usuario))
+        .exclude(pk=getattr(unidad, "pk", None))
+        .select_related("edificio")
+        .distinct()[:5]
+    )
+    return {
+        "relacion": relacion,
+        "otras_unidades": otras_unidades,
+        "abiertos": Ticket.objects.filter(usuario=usuario, estado__in=Ticket.ABIERTOS).count(),
+        "total": Ticket.objects.filter(usuario=usuario).count(),
+        "desde": Ticket.objects.filter(usuario=usuario).order_by("creado").values_list("creado", flat=True).first(),
+        "puede_editar_usuario": perfil.rol in (Rol.SUPER, Rol.ADMINISTRADOR),
+    }
+
+
+def _resumen(perfil, contexto):
+    """Lo que se muestra en el centro cuando no hay un ticket abierto."""
+    visibles = tickets_visibles(perfil)
+    conteo = {clave: n for clave, _, n in contexto["carpetas"]}
+    if contexto["staff"]:
+        sin_movimiento = visibles.filter(
+            estado__in=Ticket.ABIERTOS, actualizado__lte=timezone.now() - timedelta(days=7)
+        ).count()
+        tarjetas = [
+            ("Por atender", conteo.get("pendientes", 0), "Abiertos o en revisión", "?carpeta=pendientes", "verde"),
+            ("Sin asignar", conteo.get("sin_asignar", 0), "Nadie los ha tomado", "?carpeta=sin_asignar", "ambar"),
+            ("Esperando residente", conteo.get("esperando", 0), "Le pediste más información", "?carpeta=esperando", "neutro"),
+            ("Sin movimiento hace 7 días", sin_movimiento, "Conviene darles seguimiento",
+             "?carpeta=todos&seguimiento=sin_movimiento", "rojo"),
+        ]
+    else:
+        tarjetas = [
+            ("Activos", conteo.get("pendientes", 0), "Tickets en curso", "?carpeta=pendientes", "verde"),
+            ("Esperan tu respuesta", visibles.filter(estado=Ticket.Estado.ESPERANDO).count(),
+             "El equipo te pidió más información", "?carpeta=pendientes", "ambar"),
+            ("Resueltos por confirmar", visibles.filter(estado=Ticket.Estado.RESUELTO).count(),
+             "Confirma si quedó solucionado", "?carpeta=pendientes", "neutro"),
+        ]
+
+    por_categoria = list(
+        visibles.filter(estado__in=Ticket.ABIERTOS).values("categoria").annotate(n=Count("id")).order_by("-n")
+    )
+    total_abiertos = sum(c["n"] for c in por_categoria) or 1
+    etiquetas = dict(Ticket.Categoria.choices)
+    categorias = [
+        {"nombre": etiquetas.get(c["categoria"], c["categoria"]), "n": c["n"], "pct": round(c["n"] * 100 / total_abiertos)}
+        for c in por_categoria
+    ]
+    recientes = visibles.select_related("usuario", "unidad").order_by("-actualizado", "-pk")[:6]
+    return {"resumen": {"tarjetas": tarjetas, "categorias": categorias, "recientes": recientes}}
 
 
 def _render_bandeja(request, ticket=None, status=200, **extra):
@@ -272,6 +338,8 @@ def _render_bandeja(request, ticket=None, status=200, **extra):
     contexto = _bandeja(request, perfil)
     if ticket is not None:
         contexto.update(_contexto_ticket(perfil, ticket, **extra))
+    else:
+        contexto.update(_resumen(perfil, contexto))
     return render(request, "tickets/bandeja.html", contexto, status=status)
 
 
@@ -341,13 +409,17 @@ def comentar(request, ticket_id):
     form = ComentarioForm(request.POST, request.FILES, staff=gestiona)
     if not form.is_valid():
         return _render_bandeja(request, ticket, status=400, comentario_form=form)
-    services.comentar(
-        perfil, ticket,
-        texto=form.cleaned_data["texto"],
-        interno=form.cleaned_data.get("interno", False),
-        archivos=form.cleaned_data["archivos"],
-        es_staff=gestiona,
-    )
+    try:
+        services.comentar(
+            perfil, ticket,
+            texto=form.cleaned_data["texto"],
+            interno=form.cleaned_data.get("interno", False),
+            archivos=form.cleaned_data["archivos"],
+            es_staff=gestiona,
+        )
+    except ValidationError as e:
+        messages.error(request, " ".join(e.messages))
+        return _volver(request, ticket)
     return _volver(request, ticket)
 
 
@@ -376,7 +448,7 @@ def gestionar(request, ticket_id):
 @con_perfil
 @require_POST
 def accion(request, ticket_id, nombre):
-    """Botones del residente: confirmar solución, reabrir o cancelar."""
+    """Acciones del residente que no requieren gestión del ticket."""
     perfil = request.perfil
     ticket = _ticket_visible(perfil, ticket_id)
     if nombre not in acciones_residente(perfil, ticket):

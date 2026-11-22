@@ -40,6 +40,11 @@ def obtener_usuario(request):
     return request.user.usuario
 
 
+def pagina_no_encontrada(request, exception):
+    """Muestra una página amigable cuando la URL solicitada no existe."""
+    return render(request, "core/404.html", status=404)
+
+
 def tiene_rol(usuario, *roles):
     return usuario.rol in roles
 
@@ -937,6 +942,38 @@ def usuarios_lista(request):
         "unidades_arrendadas__edificio__condominio",
     ).distinct()
     paginacion = paginar(request, usuarios.order_by("apellido", "nombre", "pk"))
+    for usuario_item in paginacion["page_obj"]:
+        unidades_propias = list(usuario_item.unidades_propias.all())
+        unidades_arrendadas = list(usuario_item.unidades_arrendadas.all())
+        usuario_item.relaciones_unidad_mixtas = bool(unidades_propias and unidades_arrendadas)
+        condominios_unidades = {
+            unidad.edificio.condominio_id
+            for unidad in unidades_propias + unidades_arrendadas
+        }
+        condominios_admin = {c.pk for c in usuario_item.condominios_administrados.all()}
+        usuario_item.mostrar_condominio_directo = bool(
+            usuario_item.condominio_id
+            and usuario_item.condominio_id not in condominios_unidades
+            and usuario_item.condominio_id not in condominios_admin
+        )
+
+        if usuario_item.rol == Usuario.Rol.RESIDENTE:
+            es_dueno = bool(unidades_propias)
+            es_arrendatario = bool(unidades_arrendadas)
+            vive_como_dueno = any(unidad.propietario_vive for unidad in unidades_propias)
+            if es_dueno and es_arrendatario:
+                usuario_item.rol_en_listado = (
+                    "Residente / dueño y arrendatario" if vive_como_dueno else "Dueño y arrendatario"
+                )
+            elif es_dueno:
+                usuario_item.rol_en_listado = "Residente / dueño" if vive_como_dueno else "Dueño"
+            elif es_arrendatario:
+                usuario_item.rol_en_listado = "Arrendatario"
+            else:
+                usuario_item.rol_en_listado = "Residente"
+        else:
+            usuario_item.rol_en_listado = usuario_item.get_rol_display().capitalize()
+
     return render(request, "core/usuarios/lista.html", {
         "usuario": usuario_actual,
         "usuarios": paginacion["page_obj"],
@@ -1078,7 +1115,7 @@ def usuario_crear(request):
                 errores.extend(error.messages)
 
             if Usuario.objects.filter(
-                email=email
+                email__iexact=email
             ).exists():
                 errores.append(
                     "El correo electrónico ya está registrado."
@@ -1394,7 +1431,7 @@ def usuario_editar(request, usuario_id):
                 errores.extend(error.messages)
 
             if Usuario.objects.filter(
-                email=email
+                email__iexact=email
             ).exclude(
                 id=usuario.id
             ).exists():
@@ -1547,6 +1584,21 @@ def usuario_cambiar_estado(request, usuario_id):
 
 # ============================== CONDOMINIOS ==============================
 
+def leer_estimado_personas(texto, errores):
+    """Estimado de personas por departamento: opcional, entre 1 y 20. Es una referencia, no un límite."""
+    texto = (texto or "").strip()
+    if not texto:
+        return None
+    try:
+        valor = int(texto)
+    except ValueError:
+        valor = 0
+    if not 1 <= valor <= 20:
+        errores.append("El estimado de personas por departamento debe estar entre 1 y 20.")
+        return None
+    return valor
+
+
 @login_required
 def condominios_lista(request):
     usuario_actual = obtener_usuario(request)
@@ -1589,79 +1641,32 @@ def condominios_lista(request):
 
 @login_required
 def condominio_crear(request):
+    """Crea condominio, edificios y unidades con el mismo formulario y la misma lógica del launch."""
+    from launch.forms import CondominioForm
+    from .servicios import crear_condominio
+
     usuario_actual = obtener_usuario(request)
 
     if not puede_gestionar_condominio(usuario_actual):
         return redirect("condominios_lista")
 
-    ciudades_sugeridas = ciudades_chile()
+    form = CondominioForm(request.POST or None, request.FILES or None)
 
-    if request.method == "POST":
-        nombre = request.POST.get("nombre", "").strip()
-        direccion = request.POST.get("direccion", "").strip()
-        ciudad_nombre = request.POST.get("ciudad", "").strip()
-        edificios = request.POST.get("edificios", "1").strip()
-        portada = request.FILES.get("portada")
-
-        errores = []
-
-        if not nombre:
-            errores.append(
-                "Debes ingresar el nombre del condominio."
-            )
-
-        if not direccion:
-            errores.append(
-                "Debes ingresar la dirección."
-            )
-
-        if not ciudad_nombre:
-            errores.append(
-                "Debes seleccionar una ciudad."
-            )
-
-        try:
-            edificios_numero = int(edificios)
-
-            if edificios_numero < 1:
-                errores.append(
-                    "El condominio debe tener al menos un edificio."
-                )
-
-        except ValueError:
-            edificios_numero = 1
-            errores.append(
-                "La cantidad de edificios no es válida."
-            )
-
-        if not errores:
-            with transaction.atomic():
-                ciudad = Ciudad.objects.filter(nombre__iexact=ciudad_nombre).first()
-                if not ciudad:
-                    ciudad = Ciudad.objects.create(nombre=ciudad_nombre)
-                condominio = Condominio.objects.create(
-                    nombre=nombre,
-                    direccion=direccion,
-                    ciudad=ciudad,
-                    edificios=edificios_numero,
-                    portada=portada,
-                    activo=True,
-                )
-                if es_administrador(usuario_actual):
-                    usuario_actual.condominios_administrados.add(condominio)
-
-            return redirect("condominios_lista")
-
-        return render(request, "core/condominios/crear.html", {
-            "usuario_actual": usuario_actual,
-            "ciudades_sugeridas": ciudades_sugeridas,
-            "errores": errores,
-            "datos": request.POST,
-        })
+    if request.method == "POST" and form.is_valid():
+        with transaction.atomic():
+            condominio = crear_condominio(form.cleaned_data)
+            if es_administrador(usuario_actual):
+                usuario_actual.condominios_administrados.add(condominio)
+        total = condominio.edificios * form.cleaned_data["numero_pisos"] * form.cleaned_data["viviendas_por_piso"]
+        messages.success(
+            request,
+            f"Se creó «{condominio.nombre}» con {condominio.edificios} edificio(s) y {total} unidades.",
+        )
+        return redirect("edificios_lista", condominio_id=condominio.pk)
 
     return render(request, "core/condominios/crear.html", {
         "usuario_actual": usuario_actual,
-        "ciudades_sugeridas": ciudades_sugeridas,
+        "form": form,
     })
 
 
@@ -1693,11 +1698,22 @@ def condominio_editar(request, condominio_id):
         edificios_texto = request.POST.get("edificios", "").strip()
         activo = request.POST.get("activo") == "on"
         portada = request.FILES.get("portada")
+        if portada:
+            try:
+                validar_imagen(portada)
+            except ValidationError as error:
+                errores_portada = error.messages
+                portada = None
+            else:
+                errores_portada = []
+        else:
+            errores_portada = []
         modalidad_mora = request.POST.get("modalidad_mora", Condominio.ModalidadMora.REGLAMENTO_TIPO)
         tasa_mora_texto = request.POST.get("tasa_mora_anual", "").strip().replace(",", ".")
         fundamento_tasa_mora = request.POST.get("fundamento_tasa_mora", "").strip()
 
-        errores = []
+        errores = list(errores_portada)
+        estimado_personas = leer_estimado_personas(request.POST.get("estimado_personas_departamento"), errores)
 
         if modalidad_mora not in Condominio.ModalidadMora.values:
             errores.append("Selecciona una modalidad de mora válida.")
@@ -1788,6 +1804,7 @@ def condominio_editar(request, condominio_id):
                 condominio.modalidad_mora = modalidad_mora
                 condominio.tasa_mora_anual = tasa_mora_anual
                 condominio.fundamento_tasa_mora = fundamento_tasa_mora
+                condominio.estimado_personas_departamento = estimado_personas
 
                 if portada:
                     condominio.portada = portada

@@ -10,9 +10,46 @@ from django.core.files.base import ContentFile
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
 from django.utils import timezone
-from .validators import formatear_rut, validar_rut
+from .validators import (
+    formatear_rut, normalizar_email, normalizar_espacios, normalizar_nombre_propio, normalizar_patente, validar_imagen,
+    validar_rut,
+)
 
 # Create your models here.
+
+
+def imagen_a_jpg(archivo, max_lado, calidad):
+    """
+    Convierte cualquier imagen subida a JPG comprimido: corrige la rotación de las fotos
+    del celular, aplana la transparencia sobre blanco y la achica a `max_lado` px como máximo.
+    Devuelve un ContentFile listo para FieldFile.save().
+    """
+    img = ImageOps.exif_transpose(Image.open(archivo))
+    if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info):
+        fondo = Image.new("RGB", img.size, "white")
+        fondo.paste(img.convert("RGBA"), mask=img.convert("RGBA").split()[-1])
+        img = fondo
+    else:
+        img = img.convert("RGB")
+    img.thumbnail((max_lado, max_lado))
+    salida = BytesIO()
+    img.save(salida, format="JPEG", quality=calidad, optimize=True)
+    return ContentFile(salida.getvalue())
+
+
+def reemplazar_imagen(instancia, campo, nombre, contenido):
+    """
+    Guarda `contenido` en el campo con un nombre fijo (avatar.jpg, portada_sol.jpg...).
+    Antes borra el archivo anterior: si no, el storage no pisa el existente y le agrega
+    letras al azar (avatar_x7Gh2.jpg).
+    """
+    archivo = getattr(instancia, campo)
+    if instancia.pk:
+        anterior = type(instancia).objects.filter(pk=instancia.pk).values_list(campo, flat=True).first()
+        if anterior:
+            archivo.storage.delete(anterior)
+    # Si otro registro ya usa ese nombre (dos condominios llamados igual), el storage le agrega un sufijo
+    archivo.save(nombre, contenido, save=False)
 class Condominio(models.Model):
     class ModalidadMora(models.TextChoices):
         REGLAMENTO_TIPO = "reglamento_tipo", "Reglamento tipo (50% del interés corriente)"
@@ -21,7 +58,7 @@ class Condominio(models.Model):
     nombre = models.CharField(max_length=150)
     direccion = models.CharField(max_length=255)
     ciudad = models.ForeignKey("Ciudad",on_delete=models.PROTECT,related_name="condominios",)
-    portada = models.ImageField(upload_to="condominios/portadas/", blank=True)
+    portada = models.ImageField(upload_to="condominios/portadas/", blank=True, validators=[validar_imagen])
     edificios = models.PositiveSmallIntegerField(default=1,validators=[MinValueValidator(1)],)
     creado = models.DateTimeField(auto_now_add=True)
     activo = models.BooleanField(default=True)
@@ -36,6 +73,12 @@ class Condominio(models.Model):
         help_text="Porcentaje anual indicado en el reglamento propio del condominio.",
     )
     fundamento_tasa_mora = models.CharField(max_length=180, blank=True)
+    # Referencia, no un límite: sirve para avisar cuando una unidad informa muchas más personas.
+    estimado_personas_departamento = models.PositiveSmallIntegerField(
+        "Estimado de personas por departamento",
+        null=True, blank=True,
+        validators=[MinValueValidator(1), MaxValueValidator(20)],
+    )
 
     class Meta:
         db_table = "condominio"
@@ -44,6 +87,12 @@ class Condominio(models.Model):
         return self.nombre
 
     def save(self, *args, **kwargs):
+        self.nombre = normalizar_espacios(self.nombre)
+        self.direccion = normalizar_espacios(self.direccion)
+        if self.portada and not self.portada._committed:
+            # Toda portada nueva queda como JPG: condominios/portadas/portada_<nombre>.jpg
+            nombre = f"portada_{slugify(self.nombre).replace('-', '_') or 'condominio'}.jpg"
+            reemplazar_imagen(self, "portada", nombre, imagen_a_jpg(self.portada, 1920, 82))
         es_nuevo = self._state.adding
         with transaction.atomic():
             super().save(*args, **kwargs)
@@ -174,6 +223,16 @@ class Unidad(models.Model):
         # El primer estacionamiento va incluido, desde el segundo se cobra
         return max(self.estacionamientos.count() - 1, 0)
 
+    @property
+    def estimado_personas(self):
+        return self.edificio.condominio.estimado_personas_departamento
+
+    @property
+    def excede_estimado(self):
+        """True si informa más personas que el estimado del condominio (solo es un aviso)."""
+        estimado = self.estimado_personas
+        return bool(estimado and self.cantidad_residentes and self.cantidad_residentes > estimado)
+
     class Meta:
         db_table = "unidad"
         constraints = [
@@ -262,12 +321,10 @@ class Usuario(models.Model):
         return slug
 
     def _comprimir_avatar(self):
-        img = ImageOps.exif_transpose(Image.open(self.avatar)).convert("RGB")
-        img.thumbnail((512, 512))
-        salida = BytesIO()
-        img.save(salida, format="JPEG", quality=70)
-        nombre = os.path.splitext(os.path.basename(self.avatar.name))[0] + ".jpg"
-        self.avatar.save(nombre, ContentFile(salida.getvalue()), save=False)
+        # Toda foto de perfil queda como user_images/<usuario>/avatar.jpg
+        reemplazar_imagen(self, "avatar", "avatar.jpg", imagen_a_jpg(self.avatar, 512, 70))
+        # El nombre ya no cambia entre una foto y otra; la señal de notificaciones usa esta marca
+        self._avatar_cambiado = True
 
     def _normalizar_rut(self):
         # Un RUT vacío se guarda como None: si fuera "", el unique fallaría con el segundo usuario sin RUT
@@ -279,8 +336,8 @@ class Usuario(models.Model):
 
     def save(self, *args, **kwargs):
         for campo in ("nombre", "nombre2", "apellido", "apellido2"):
-            valor = " ".join((getattr(self, campo) or "").split())
-            setattr(self, campo, valor.title())
+            setattr(self, campo, normalizar_nombre_propio(getattr(self, campo)))
+        self.email = normalizar_email(self.email)
         self._normalizar_rut()
         if not self.slug:
             self.slug = self._generar_slug()
@@ -477,6 +534,7 @@ class Reservacion(models.Model):
                 raise ValidationError("Una reserva de invitado no lleva área común.")
 
     def save(self, *args, **kwargs):
+        self.nombre_invitado = normalizar_nombre_propio(self.nombre_invitado)
         crear_invitado = (
             self.tipo_reserva == self.Tipo.INVITADO
             and self.nombre_invitado
@@ -513,6 +571,11 @@ class Invitado(models.Model):
 
     def __str__(self):
         return f"{self.nombre} - {self.unidad}"
+
+    def save(self, *args, **kwargs):
+        self.nombre = normalizar_nombre_propio(self.nombre)
+        self.patente_vehiculo = normalizar_patente(self.patente_vehiculo)
+        super().save(*args, **kwargs)
 #
 # Ticket y TicketArchivo se movieron a la app "tickets" (tickets/models.py).
 # Esta función se queda aquí solo porque la referencia core/migrations/0001_initial.py.
@@ -614,3 +677,43 @@ class HistorialAdministrativo(models.Model):
 
     def __str__(self):
         return f"{self.get_accion_display()} · {self.modelo} #{self.objeto_id}"
+
+
+class SolicitudBajaArrendatario(models.Model):
+    """
+    El dueño de una unidad pide dar de baja a su arrendatario.
+    La baja solo se aplica cuando un Administrador la aprueba, después de conversar con ambas partes.
+    """
+    class Estado(models.TextChoices):
+        PENDIENTE = "pendiente", "Pendiente"
+        APROBADA = "aprobada", "Aprobada"
+        RECHAZADA = "rechazada", "Rechazada"
+        CANCELADA = "cancelada", "Cancelada por el dueño"
+
+    unidad = models.ForeignKey(Unidad, on_delete=models.CASCADE, related_name="solicitudes_baja")
+    arrendatario = models.ForeignKey(Usuario, on_delete=models.PROTECT, related_name="bajas_recibidas")
+    solicitante = models.ForeignKey(Usuario, on_delete=models.PROTECT, related_name="bajas_solicitadas")
+    motivo = models.TextField(max_length=1000)
+    estado = models.CharField(max_length=10, choices=Estado.choices, default=Estado.PENDIENTE)
+    creado = models.DateTimeField(auto_now_add=True)
+    resuelto_por = models.ForeignKey(
+        Usuario, on_delete=models.SET_NULL, null=True, blank=True, related_name="bajas_resueltas",
+    )
+    resuelto_en = models.DateTimeField(null=True, blank=True)
+    comentario_admin = models.TextField(max_length=1000, blank=True)
+
+    class Meta:
+        db_table = "solicitud_baja_arrendatario"
+        ordering = ["-creado", "-id"]
+        verbose_name = "solicitud de baja de arrendatario"
+        verbose_name_plural = "solicitudes de baja de arrendatario"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["unidad"],
+                condition=Q(estado="pendiente"),
+                name="baja_pendiente_unica_por_unidad",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Baja de {self.arrendatario} en {self.unidad}"

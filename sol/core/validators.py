@@ -120,3 +120,86 @@ def validar_email(valor):
         raise ValidationError(
             "El correo electrónico no tiene un formato válido."
         )
+
+#============================== NORMALIZACIÓN DE TEXTO ==============================
+
+# Partículas de apellidos y nombres que van en minúscula salvo al inicio: "De la Fuente", "María del Carmen".
+PARTICULAS_NOMBRE = {"de", "del", "la", "las", "los", "y", "e", "da", "das", "do", "dos", "di", "van", "von", "der"}
+
+
+def normalizar_espacios(texto):
+    """Quita espacios al inicio/fin y deja un solo espacio entre palabras."""
+    return " ".join((texto or "").split())
+
+
+def _capitalizar_palabra(palabra):
+    # Respeta guiones y apóstrofos: "maría-josé" -> "María-José", "o'higgins" -> "O'Higgins"
+    partes = re.split(r"([-'’])", palabra.lower())
+    return "".join(p[:1].upper() + p[1:] if p not in ("-", "'", "’") else p for p in partes)
+
+
+def normalizar_nombre_propio(texto):
+    """
+    Nombres y apellidos de personas: cada palabra con la primera letra en mayúscula.
+    "jose luis  IGNACIO" -> "Jose Luis Ignacio"; "DE LA FUENTE" -> "De la Fuente".
+    """
+    palabras = normalizar_espacios(texto).split(" ")
+    resultado = []
+    for i, palabra in enumerate(palabras):
+        if not palabra:
+            continue
+        if i > 0 and palabra.lower() in PARTICULAS_NOMBRE:
+            resultado.append(palabra.lower())
+        else:
+            resultado.append(_capitalizar_palabra(palabra))
+    return " ".join(resultado)
+
+
+def normalizar_email(valor):
+    """Correos sin espacios y en minúscula: así "Juan@Mail.cl" y "juan@mail.cl" son el mismo."""
+    return (valor or "").strip().lower()
+
+
+def normalizar_patente(valor):
+    """Patente en mayúscula y sin espacios, puntos ni guiones: "ab-cd 12" -> "ABCD12"."""
+    return re.sub(r"[\s.\-·]", "", valor or "").upper()
+
+
+def normalizar_telefono_opcional(valor, region=REGION_TELEFONO_POR_DEFECTO):
+    """
+    Para campos de teléfono opcionales: vacío -> "", si no, lo valida y lo deja en +56912345678.
+    Lanza ValidationError si no es un número válido.
+    """
+    valor = (valor or "").strip()
+    if not valor:
+        return ""
+    validar_telefono(valor, region)
+    return formatear_telefono(valor, region)
+
+#============================== VALIDACIÓN DE IMÁGENES ==============================
+
+MAX_IMAGEN_BYTES = 10 * 1024 * 1024
+EXTENSIONES_IMAGEN = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}
+
+
+def validar_imagen(archivo):
+    """
+    Revisa que un archivo subido sea de verdad una imagen: extensión permitida, máximo 10 MB
+    y que Pillow pueda abrirla (un PDF renombrado a .jpg o un archivo dañado no pasan).
+    Se usa en portadas de condominios, fotos de perfil y anuncios.
+    """
+    import os
+    from PIL import Image, UnidentifiedImageError
+
+    extension = os.path.splitext(archivo.name)[1].lower()
+    if extension not in EXTENSIONES_IMAGEN:
+        raise ValidationError("Adjunta una imagen JPG, PNG, GIF, WebP o BMP.")
+    if archivo.size > MAX_IMAGEN_BYTES:
+        raise ValidationError("La imagen debe pesar 10 MB o menos.")
+    try:
+        imagen = Image.open(archivo)
+        imagen.verify()
+    except (UnidentifiedImageError, OSError, ValueError):
+        raise ValidationError("La imagen está dañada o no es válida.")
+    finally:
+        archivo.seek(0)
