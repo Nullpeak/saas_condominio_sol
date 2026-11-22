@@ -96,9 +96,39 @@
     .gestor-kpi-alert .resident-kpi-icon { background:#fff0ed; color:#c24132; }
     .gestor-kpi-alert { border-color:#f0d4ce; }
     .gestor-dashboard-panels { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; margin-bottom:18px; }
+    .superadmin-welcome { margin-bottom:18px; padding:22px 26px; border:1px solid #c9e6df; border-radius:14px; background:radial-gradient(circle at 92% 10%,#dff4e7 0,transparent 34%),linear-gradient(115deg,#fff 0%,#f0faf7 100%); }
+    .superadmin-welcome h2 { margin:0 0 5px; color:#153a36; font-size:25px; }
+    .superadmin-welcome p { margin:0; color:#58716b; }
+    .superadmin-kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:13px; margin-bottom:18px; }
+    .superadmin-kpi { min-height:105px; padding:16px; border:1px solid #dce9e5; border-radius:11px; background:#fff; box-shadow:0 3px 12px #0f172a08; }
+    .superadmin-kpi span { display:block; color:#64748b; font-size:12px; font-weight:650; }
+    .superadmin-kpi strong { display:block; margin-top:7px; color:#173735; font-size:24px; line-height:1.15; }
+    .superadmin-kpi small { display:block; margin-top:5px; color:#64748b; }
+    .superadmin-panels { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin-bottom:18px; }
+    .superadmin-panel { min-width:0; padding:19px; border:1px solid #e2e8f0; border-radius:12px; background:#fff; }
+    .superadmin-panel h2 { margin:0; color:#172b2c; font-size:16px; font-weight:700; }
+    .superadmin-panel-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:12px; }
+    .superadmin-list { margin:0; padding:0; list-style:none; }
+    .superadmin-list li { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; padding:11px 10px; border-radius:8px; }
+    .superadmin-list li:nth-child(even) { background:#f1f8f5; }
+    .superadmin-list li + li { margin-top:2px; }
+    .superadmin-list a { color:#23433e; text-decoration:none; }
+    .superadmin-list a:hover { color:#167c69; }
+    .superadmin-list small { display:block; margin-top:3px; color:#64748b; }
+    .superadmin-count { display:inline-flex; min-width:28px; height:25px; align-items:center; justify-content:center; padding:0 7px; border-radius:99px; background:#e7f5ef; color:#167c69; font-size:12px; font-weight:700; }
+    .superadmin-alert .superadmin-count { background:#fff0ed; color:#b9382d; }
+    .superadmin-activity-title { display:block; font-weight:650; }
+    .superadmin-usage-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+    .superadmin-usage-card { padding:13px; border:1px solid #e3ece8; border-radius:9px; background:#fff; }
+    .superadmin-usage-card h3 { margin:0 0 10px; font-size:14px; }
+    .superadmin-usage-metrics { display:flex; flex-wrap:wrap; gap:6px; }
+    .superadmin-usage-metrics span { padding:4px 7px; border-radius:6px; background:#f1f8f5; color:#526660; font-size:11px; }
+    .superadmin-empty { padding:14px 2px; color:#64748b; font-size:13px; }
     @media(max-width:760px) { .resident-home-grid { grid-template-columns:1fr; } }
     @media(max-width:760px) { .dashboard-visuals { grid-template-columns:1fr; } }
     @media(max-width:760px) { .resident-home-kpis,.resident-home-panels { grid-template-columns:1fr; } .resident-welcome { padding:20px; } }
+    @media(max-width:900px) { .superadmin-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); } .superadmin-panels { grid-template-columns:1fr; } }
+    @media(max-width:520px) { .superadmin-kpis,.superadmin-usage-grid { grid-template-columns:1fr; } .superadmin-welcome { padding:19px; } }
     @media(max-width:1000px) { .gestor-home-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); } .gestor-dashboard-panels { grid-template-columns:1fr; } }
     @media(max-width:480px) { .gestor-home-kpis { grid-template-columns:1fr; } }
     @media(max-width:600px) { .dashboard-filter select { width:100%; } }
@@ -106,11 +136,52 @@
 {% endblock %}
 
 {% block content %}
-{% if usuario.rol != "Residente" and usuario.rol != "Gestor" %}
+{% if usuario.rol != "Residente" and usuario.rol != "Gestor" and usuario.rol != "Super Administrador" %}
 <header class="page-intro">
     <h1>Hola, {{ usuario.nombre }}</h1>
     <p>{{ usuario.get_rol_display }}{% if usuario.condominio %} · {{ usuario.condominio.nombre }}{% endif %}</p>
 </header>
+{% endif %}
+
+{% if es_dashboard_superadmin %}
+<section class="superadmin-welcome" aria-labelledby="superadmin-welcome-title">
+    <p class="dashboard-section-label">Supervisión de plataforma</p>
+    <h2 id="superadmin-welcome-title">Hola, {{ usuario.nombre }}</h2>
+    <p>Estado general, alertas de configuración y actividad reciente de las comunidades.</p>
+</section>
+
+<section class="superadmin-kpis" aria-label="Panorama de la plataforma">
+    <div class="superadmin-kpi"><span>Condominios activos</span><strong>{{ resumen_superadmin.condominios_activos }}</strong><small>{{ resumen_superadmin.condominios_inactivos }} inactivos</small></div>
+    <div class="superadmin-kpi"><span>Usuarios activos</span><strong>{{ resumen_superadmin.usuarios_activos }}</strong><small>{{ resumen_superadmin.usuarios_inactivos }} inactivos</small></div>
+    <div class="superadmin-kpi"><span>Administradores activos</span><strong>{{ resumen_superadmin.administradores_activos }}</strong><small>Asignados a comunidades</small></div>
+    <div class="superadmin-kpi"><span>Edificios y unidades activos</span><strong>{{ resumen_superadmin.edificios_activos }} / {{ resumen_superadmin.unidades_activas }}</strong><small>En condominios activos</small></div>
+    <div class="superadmin-kpi"><span>Invitaciones pendientes</span><strong>{{ resumen_superadmin.invitaciones_pendientes }}</strong><small>Vigentes y aún sin aceptar</small></div>
+</section>
+
+<div class="superadmin-panels">
+    <section class="superadmin-panel" aria-labelledby="superadmin-alerts-title">
+        <div class="superadmin-panel-heading"><div><p class="dashboard-section-label">Configuración</p><h2 id="superadmin-alerts-title">Alertas de atención</h2></div><a class="dashboard-action" href="{% url 'condominios_lista' %}">Ver condominios</a></div>
+        <ul class="superadmin-list superadmin-alert">
+            {% for alerta in alertas_superadmin %}<li><span><a class="superadmin-activity-title" href="{{ alerta.url }}">{{ alerta.titulo }}</a><small>{{ alerta.detalle }}</small></span><span class="superadmin-count">{{ alerta.cantidad }}</span></li>
+            {% empty %}<li class="superadmin-empty">No hay alertas de configuración por resolver.</li>{% endfor %}
+        </ul>
+    </section>
+
+    <section class="superadmin-panel" aria-labelledby="superadmin-activity-title">
+        <div class="superadmin-panel-heading"><div><p class="dashboard-section-label">Trazabilidad</p><h2 id="superadmin-activity-title">Actividad administrativa reciente</h2></div><a class="dashboard-action" href="{% url 'historial_administrativo' %}">Abrir historial</a></div>
+        <ul class="superadmin-list">
+            {% for evento in actividad_superadmin %}<li><span><a class="superadmin-activity-title" href="{% url 'historial_administrativo' %}">{{ evento.get_accion_display }} · {{ evento.objeto|truncatechars:58 }}</a><small>{% if evento.actor %}{{ evento.actor.nombre }} {{ evento.actor.apellido }}{% else %}Sistema{% endif %} · {{ evento.condominio.nombre|default:"Plataforma" }}</small></span><small class="text-nowrap">{{ evento.creado|date:"d/m H:i" }}</small></li>
+            {% empty %}<li class="superadmin-empty">Todavía no hay acciones administrativas registradas.</li>{% endfor %}
+        </ul>
+    </section>
+</div>
+
+<section class="superadmin-panel mb-4" aria-labelledby="superadmin-usage-title">
+    <div class="superadmin-panel-heading"><div><p class="dashboard-section-label">Últimos 30 días</p><h2 id="superadmin-usage-title">Uso por condominio</h2></div><a class="dashboard-action" href="{% url 'condominios_lista' %}">Explorar comunidades</a></div>
+    {% if condominios_uso_superadmin %}<div class="superadmin-usage-grid">
+        {% for condominio in condominios_uso_superadmin %}<article class="superadmin-usage-card"><h3>{{ condominio.nombre }}</h3><div class="superadmin-usage-metrics"><span>{{ condominio.tickets_30_dias }} tickets</span><span>{{ condominio.anuncios_30_dias }} anuncios</span><span>{{ condominio.visitas_30_dias }} visitas</span></div></article>{% endfor %}
+    </div>{% else %}<p class="superadmin-empty">No hay condominios activos para resumir.</p>{% endif %}
+</section>
 {% endif %}
 
 {% if usuario.rol == "Residente" %}
