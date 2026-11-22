@@ -1,0 +1,248 @@
+{% load tickets_extras %}
+{# ============================== VISOR DE IMÁGENES Y VIDEOS ============================== #}
+{# Se abre al hacer clic en cualquier adjunto con data-visor. El usuario nunca sale de la página. #}
+<style>
+    .visor { position: fixed; inset: 0; z-index: 1100; display: none; flex-direction: column; background: rgb(8 18 18 / 97%); color: #fff; }
+    .visor.abierto { display: flex; }
+    .visor-barra { display: flex; align-items: center; gap: 10px; padding: 12px 16px; }
+    .visor-titulo { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+    .visor-titulo strong { font-size: 14.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .visor-titulo span { font-size: 12.5px; color: #b9cdc7; }
+    .visor-btn {
+        display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 42px; height: 42px; padding: 0 12px;
+        border: 1px solid rgb(255 255 255 / 18%); border-radius: 9px; background: rgb(255 255 255 / 8%); color: #fff;
+        font-size: 13.5px; text-decoration: none; cursor: pointer;
+    }
+    .visor-btn:hover, .visor-btn:focus-visible { background: rgb(255 255 255 / 18%); color: #fff; outline: none; }
+    .visor-btn[hidden] { display: none; }
+    .visor-escena { position: relative; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
+    .visor-marco { width: 100%; height: 100%; overflow: auto; display: flex; align-items: center; justify-content: center; padding: 0 76px 16px; box-sizing: border-box; }
+    .visor-marco img { max-width: 100%; max-height: 100%; object-fit: contain; cursor: zoom-in; user-select: none; border-radius: 4px; }
+    .visor-marco video { max-width: 100%; max-height: 100%; border-radius: 6px; background: #000; }
+    /* Zoom: la imagen a tamaño real y se recorre con scroll o arrastrando */
+    .visor.zoom .visor-marco { display: block; text-align: center; }
+    .visor.zoom .visor-marco img { max-width: none; max-height: none; cursor: grab; }
+    .visor.zoom.arrastrando .visor-marco img { cursor: grabbing; }
+    .visor-flecha { position: absolute; top: 50%; transform: translateY(-50%); width: 48px; height: 48px; border-radius: 50%; }
+    .visor-flecha.ant { left: 16px; } .visor-flecha.sig { right: 16px; }
+    .visor-cargando { position: absolute; font-size: 13.5px; color: #b9cdc7; }
+    .visor-miniaturas { display: flex; gap: 8px; justify-content: center; padding: 0 16px 14px; overflow-x: auto; }
+    .visor-miniaturas button { flex: 0 0 auto; width: 56px; height: 56px; padding: 0; border: 2px solid transparent; border-radius: 7px; background: rgb(255 255 255 / 8%); overflow: hidden; cursor: pointer; opacity: .6; color: #fff; }
+    .visor-miniaturas button.on { border-color: #c7ec8b; opacity: 1; }
+    .visor-miniaturas img { width: 100%; height: 100%; object-fit: cover; }
+    body.visor-abierto { overflow: hidden; }
+    @media (max-width: 700px) {
+        .visor-marco { padding: 0 8px 12px; }
+        .visor-flecha { display: none; }          /* en el celular se desliza con el dedo */
+        .visor-btn .texto { display: none; }
+    }
+</style>
+
+<div class="visor" id="visor" role="dialog" aria-modal="true" aria-labelledby="visorNombre" aria-hidden="true">
+    <div class="visor-barra">
+        <div class="visor-titulo">
+            <strong id="visorNombre">Imagen</strong>
+            <span id="visorContador"></span>
+        </div>
+        <button type="button" class="visor-btn" id="visorZoom" aria-label="Acercar" title="Acercar (Z)">{% icono "lupa" 18 %}<span class="texto">Acercar</span></button>
+        <a class="visor-btn" id="visorDescargar" href="#" download aria-label="Descargar" title="Descargar">{% icono "descargar" 18 %}<span class="texto">Descargar</span></a>
+        <button type="button" class="visor-btn" id="visorCerrar" aria-label="Cerrar visor" title="Cerrar (Esc)">{% icono "cerrar" 18 %}</button>
+    </div>
+    <div class="visor-escena">
+        <div class="visor-marco" id="visorMarco"></div>
+        <span class="visor-cargando" id="visorCargando" hidden>Cargando…</span>
+        <button type="button" class="visor-btn visor-flecha ant" id="visorAnt" aria-label="Anterior">{% icono "volver" 22 %}</button>
+        <button type="button" class="visor-btn visor-flecha sig" id="visorSig" aria-label="Siguiente">{% icono "siguiente" 22 %}</button>
+    </div>
+    <div class="visor-miniaturas" id="visorMiniaturas" aria-label="Archivos del ticket"></div>
+</div>
+
+<script>
+(function () {
+    var visor = document.getElementById("visor");
+    if (!visor) return;
+    var marco = document.getElementById("visorMarco");
+    var nombre = document.getElementById("visorNombre");
+    var contador = document.getElementById("visorContador");
+    var cargando = document.getElementById("visorCargando");
+    var btnZoom = document.getElementById("visorZoom");
+    var btnDescargar = document.getElementById("visorDescargar");
+    var btnAnt = document.getElementById("visorAnt");
+    var btnSig = document.getElementById("visorSig");
+    var miniaturas = document.getElementById("visorMiniaturas");
+
+    var items = [];        // archivos del ticket que se pueden ver, sin repetir
+    var actual = 0;
+    var origenFoco = null; // para devolver el foco al cerrar
+
+    // Junta los adjuntos de la página. El mismo archivo aparece en la conversación y en el
+    // panel "Archivos", así que se deduplica por URL.
+    function recolectar() {
+        var vistos = {};
+        items = [];
+        document.querySelectorAll("a[data-visor]").forEach(function (a) {
+            var url = a.getAttribute("href");
+            if (vistos[url] === undefined) {
+                vistos[url] = items.length;
+                items.push({ url: url, tipo: a.dataset.visor, nombre: a.dataset.nombre, descargar: a.dataset.descargar });
+            }
+            a.dataset.indice = vistos[url];
+        });
+    }
+
+    function mostrar(i) {
+        actual = (i + items.length) % items.length;
+        var it = items[actual];
+        visor.classList.remove("zoom");
+        btnZoom.hidden = it.tipo !== "imagen";
+        marco.innerHTML = "";
+        cargando.hidden = false;
+
+        var el;
+        if (it.tipo === "video") {
+            el = document.createElement("video");
+            el.controls = true;
+            el.autoplay = true;
+            el.playsInline = true;
+            el.addEventListener("loadeddata", function () { cargando.hidden = true; });
+        } else {
+            el = document.createElement("img");
+            el.alt = it.nombre;
+            el.addEventListener("load", function () { cargando.hidden = true; });
+            el.addEventListener("click", alternarZoom);
+        }
+        el.addEventListener("error", function () { cargando.hidden = false; cargando.textContent = "No se pudo cargar el archivo."; });
+        cargando.textContent = "Cargando…";
+        el.src = it.url;
+        marco.appendChild(el);
+
+        nombre.textContent = it.nombre;
+        contador.textContent = items.length > 1 ? (actual + 1) + " de " + items.length : "";
+        btnDescargar.href = it.descargar;
+        btnAnt.hidden = btnSig.hidden = items.length < 2;
+        miniaturas.querySelectorAll("button").forEach(function (b, j) {
+            b.classList.toggle("on", j === actual);
+            if (j === actual) b.scrollIntoView({ block: "nearest", inline: "center" });
+        });
+        // Precarga la siguiente imagen para que el cambio sea instantáneo
+        var sig = items[(actual + 1) % items.length];
+        if (sig && sig.tipo === "imagen") new Image().src = sig.url;
+    }
+
+    function pintarMiniaturas() {
+        miniaturas.innerHTML = "";
+        miniaturas.hidden = items.length < 2;
+        items.forEach(function (it, j) {
+            var b = document.createElement("button");
+            b.type = "button";
+            b.setAttribute("aria-label", "Ver " + it.nombre);
+            if (it.tipo === "imagen") {
+                var img = document.createElement("img");
+                img.src = it.url; img.alt = ""; img.loading = "lazy";
+                b.appendChild(img);
+            } else {
+                b.textContent = "Video";
+                b.style.fontSize = "11px";
+            }
+            b.addEventListener("click", function () { mostrar(j); });
+            miniaturas.appendChild(b);
+        });
+    }
+
+    function abrir(i, desde) {
+        recolectar();
+        if (!items.length) return;
+        origenFoco = desde || document.activeElement;
+        pintarMiniaturas();
+        visor.classList.add("abierto");
+        visor.setAttribute("aria-hidden", "false");
+        document.body.classList.add("visor-abierto");
+        mostrar(i);
+        document.getElementById("visorCerrar").focus();
+    }
+
+    function cerrar() {
+        visor.classList.remove("abierto", "zoom");
+        visor.setAttribute("aria-hidden", "true");
+        document.body.classList.remove("visor-abierto");
+        marco.innerHTML = "";              // detiene el video si estaba sonando
+        if (origenFoco) origenFoco.focus();
+    }
+
+    function alternarZoom() {
+        if (items[actual].tipo !== "imagen") return;
+        var activo = visor.classList.toggle("zoom");
+        btnZoom.setAttribute("aria-label", activo ? "Ajustar a la pantalla" : "Acercar");
+        btnZoom.querySelector(".texto").textContent = activo ? "Ajustar" : "Acercar";
+    }
+
+    // Clic en un adjunto: se abre el visor en vez de otra pestaña.
+    // Ctrl/⌘ + clic o clic con la rueda siguen abriendo una pestaña, como en cualquier enlace.
+    document.addEventListener("click", function (e) {
+        var a = e.target.closest("a[data-visor]");
+        if (!a || e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;
+        e.preventDefault();
+        recolectar();
+        abrir(Number(a.dataset.indice) || 0, a);
+    });
+
+    document.getElementById("visorCerrar").addEventListener("click", cerrar);
+    btnAnt.addEventListener("click", function () { mostrar(actual - 1); });
+    btnSig.addEventListener("click", function () { mostrar(actual + 1); });
+    btnZoom.addEventListener("click", alternarZoom);
+    // Clic en el fondo oscuro (fuera de la imagen) cierra
+    marco.addEventListener("click", function (e) { if (e.target === marco) cerrar(); });
+
+    document.addEventListener("keydown", function (e) {
+        if (!visor.classList.contains("abierto")) return;
+        if (e.key === "Escape") { e.preventDefault(); cerrar(); }
+        else if (e.key === "ArrowLeft" && items.length > 1) mostrar(actual - 1);
+        else if (e.key === "ArrowRight" && items.length > 1) mostrar(actual + 1);
+        else if (e.key === "z" || e.key === "Z") alternarZoom();
+        else if (e.key === "Tab") {
+            // Mantiene el foco dentro del visor
+            var focos = visor.querySelectorAll("button:not([hidden]), a[href], video");
+            if (!focos.length) return;
+            var primero = focos[0], ultimo = focos[focos.length - 1];
+            if (e.shiftKey && document.activeElement === primero) { e.preventDefault(); ultimo.focus(); }
+            else if (!e.shiftKey && document.activeElement === ultimo) { e.preventDefault(); primero.focus(); }
+        }
+    });
+
+    // Con zoom, arrastrar la imagen para recorrerla
+    var arrastre = null;
+    marco.addEventListener("mousedown", function (e) {
+        if (!visor.classList.contains("zoom") || e.target.tagName !== "IMG") return;
+        arrastre = { x: e.clientX, y: e.clientY, l: marco.scrollLeft, t: marco.scrollTop, movio: false };
+        visor.classList.add("arrastrando");
+        e.preventDefault();
+    });
+    window.addEventListener("mousemove", function (e) {
+        if (!arrastre) return;
+        var dx = e.clientX - arrastre.x, dy = e.clientY - arrastre.y;
+        if (Math.abs(dx) + Math.abs(dy) > 4) arrastre.movio = true;
+        marco.scrollLeft = arrastre.l - dx;
+        marco.scrollTop = arrastre.t - dy;
+    });
+    window.addEventListener("mouseup", function (e) {
+        if (!arrastre) return;
+        // Si se arrastró, el clic no debe quitar el zoom
+        if (arrastre.movio) e.target.addEventListener("click", function frenar(ev) { ev.stopImmediatePropagation(); e.target.removeEventListener("click", frenar, true); }, true);
+        arrastre = null;
+        visor.classList.remove("arrastrando");
+    });
+
+    // En el celular: deslizar a los lados para cambiar de imagen
+    var toque = null;
+    marco.addEventListener("touchstart", function (e) {
+        if (visor.classList.contains("zoom") || e.touches.length !== 1) return;
+        toque = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    }, { passive: true });
+    marco.addEventListener("touchend", function (e) {
+        if (!toque || items.length < 2) return;
+        var dx = e.changedTouches[0].clientX - toque.x, dy = e.changedTouches[0].clientY - toque.y;
+        if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) mostrar(actual + (dx < 0 ? 1 : -1));
+        toque = null;
+    });
+})();
+</script>

@@ -5,7 +5,10 @@ from django.contrib.auth.password_validation import validate_password
 from core.validators import (
     formatear_rut,
     formatear_telefono,
+    normalizar_email,
+    normalizar_nombre_propio,
     validar_email,
+    validar_imagen,
     validar_rut,
     validar_telefono,
 )
@@ -37,6 +40,21 @@ class SuperUsuarioForm(forms.Form):
         if get_user_model().objects.filter(username__iexact=username).exists():
             raise forms.ValidationError("Ese nombre de usuario ya existe.")
         return username
+
+    def clean_email(self):
+        return normalizar_email(self.cleaned_data["email"])
+
+    def clean_nombre(self):
+        return normalizar_nombre_propio(self.cleaned_data["nombre"])
+
+    def clean_nombre2(self):
+        return normalizar_nombre_propio(self.cleaned_data.get("nombre2", ""))
+
+    def clean_apellido(self):
+        return normalizar_nombre_propio(self.cleaned_data["apellido"])
+
+    def clean_apellido2(self):
+        return normalizar_nombre_propio(self.cleaned_data.get("apellido2", ""))
 
     def clean_rut(self):
         # Mismo formato con el que Usuario.save() lo guarda: 12345678-5
@@ -74,7 +92,12 @@ class CondominioForm(forms.Form):
     edificios = forms.IntegerField(label="Cantidad de edificios", min_value=1, initial=1)
     numero_pisos = forms.IntegerField(label="Pisos por edificio", min_value=2, max_value=20)
     viviendas_por_piso = forms.IntegerField(label="Viviendas por piso", min_value=1)
-    portada = forms.ImageField(label="Imagen de portada (opcional)", required=False)
+    estimado_personas_departamento = forms.IntegerField(
+        label="Estimado de personas por departamento (opcional)",
+        min_value=1, max_value=20, required=False,
+        help_text="Es solo una referencia: te avisaremos cuando una unidad informe más personas, sin bloquearla.",
+    )
+    portada = forms.ImageField(label="Imagen de portada (opcional)", required=False, validators=[validar_imagen])
 
     # Sugerencias para el campo ciudad (el template las dibuja como <datalist>).
     ciudades_sugeridas = ciudades_chile()

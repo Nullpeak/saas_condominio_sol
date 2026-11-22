@@ -8,7 +8,7 @@ from django.utils import timezone
 
 from .models import (
     AreaComun, Condominio, Edificio, EspacioEstacionamiento,
-    HistorialAdministrativo, HorarioAreaComun, Pago, Reservacion, Unidad, Usuario,
+    HistorialAdministrativo, HorarioAreaComun, Pago, Reservacion, SolicitudBajaArrendatario, Unidad, Usuario,
 )
 
 
@@ -157,7 +157,7 @@ def _registrar(instancia, accion, cambios):
 
 _MODELOS_TRACKING = (
     Condominio, Edificio, Unidad, Usuario, AreaComun, HorarioAreaComun,
-    Reservacion, Pago, EspacioEstacionamiento,
+    Reservacion, Pago, EspacioEstacionamiento, SolicitudBajaArrendatario,
 )
 
 

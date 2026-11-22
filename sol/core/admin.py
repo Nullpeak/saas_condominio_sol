@@ -15,6 +15,7 @@ from .models import (
     Invitado,
     Anuncio,
     EspacioEstacionamiento,
+    SolicitudBajaArrendatario,
 )
 
 admin.site.register(Condominio)
@@ -29,3 +30,8 @@ admin.site.register(Reservacion)
 admin.site.register(Invitado)
 admin.site.register(Anuncio)
 admin.site.register(EspacioEstacionamiento)
+
+@admin.register(SolicitudBajaArrendatario)
+class SolicitudBajaArrendatarioAdmin(admin.ModelAdmin):
+    list_display = ("unidad", "arrendatario", "solicitante", "estado", "creado")
+    list_filter = ("estado",)

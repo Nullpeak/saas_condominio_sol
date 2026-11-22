@@ -1,6 +1,8 @@
 from django.db import models
 from django.utils import timezone
 
+from core.validators import normalizar_nombre_propio, normalizar_patente
+
 
 class Visita(models.Model):
     class Estado(models.TextChoices):
@@ -58,3 +60,9 @@ class Visita(models.Model):
 
     def __str__(self):
         return f"{self.nombre} - {self.unidad or 'Unidad no disponible'} ({self.fecha_visita})"
+
+    def save(self, *args, **kwargs):
+        self.nombre = normalizar_nombre_propio(self.nombre)
+        self.motivo = " ".join((self.motivo or "").split())
+        self.patente_vehiculo = normalizar_patente(self.patente_vehiculo)
+        super().save(*args, **kwargs)

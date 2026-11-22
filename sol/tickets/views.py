@@ -264,7 +264,71 @@ def _contexto_ticket(perfil, ticket, comentario_form=None, gestion_form=None):
         "otros_tickets": otros,
         "acciones": acciones_residente(perfil, ticket),
         "puede_editar": puede_editar(perfil, ticket),
+        "ficha_usuario": _ficha_usuario(perfil, ticket) if gestiona else None,
     }
+
+
+def _ficha_usuario(perfil, ticket):
+    """Datos del residente que se muestran al staff al hacer clic en su foto."""
+    usuario = ticket.usuario
+    unidad = ticket.unidad
+    relacion = ""
+    if unidad:
+        if unidad.dueno_id == usuario.pk:
+            relacion = "Dueño"
+        elif unidad.arrendatario_id == usuario.pk:
+            relacion = "Arrendatario"
+    otras_unidades = list(
+        Unidad.objects.filter(Q(dueno=usuario) | Q(arrendatario=usuario))
+        .exclude(pk=getattr(unidad, "pk", None))
+        .select_related("edificio")
+        .distinct()[:5]
+    )
+    return {
+        "relacion": relacion,
+        "otras_unidades": otras_unidades,
+        "abiertos": Ticket.objects.filter(usuario=usuario, estado__in=Ticket.ABIERTOS).count(),
+        "total": Ticket.objects.filter(usuario=usuario).count(),
+        "desde": Ticket.objects.filter(usuario=usuario).order_by("creado").values_list("creado", flat=True).first(),
+        "puede_editar_usuario": perfil.rol in (Rol.SUPER, Rol.ADMINISTRADOR),
+    }
+
+
+def _resumen(perfil, contexto):
+    """Lo que se muestra en el centro cuando no hay un ticket abierto."""
+    visibles = tickets_visibles(perfil)
+    conteo = {clave: n for clave, _, n in contexto["carpetas"]}
+    if contexto["staff"]:
+        sin_movimiento = visibles.filter(
+            estado__in=Ticket.ABIERTOS, actualizado__lte=timezone.now() - timedelta(days=7)
+        ).count()
+        tarjetas = [
+            ("Por atender", conteo.get("pendientes", 0), "Abiertos o en revisión", "?carpeta=pendientes", "verde"),
+            ("Sin asignar", conteo.get("sin_asignar", 0), "Nadie los ha tomado", "?carpeta=sin_asignar", "ambar"),
+            ("Esperando residente", conteo.get("esperando", 0), "Le pediste más información", "?carpeta=esperando", "neutro"),
+            ("Sin movimiento hace 7 días", sin_movimiento, "Conviene darles seguimiento",
+             "?carpeta=todos&seguimiento=sin_movimiento", "rojo"),
+        ]
+    else:
+        tarjetas = [
+            ("Activos", conteo.get("pendientes", 0), "Tickets en curso", "?carpeta=pendientes", "verde"),
+            ("Esperan tu respuesta", visibles.filter(estado=Ticket.Estado.ESPERANDO).count(),
+             "El equipo te pidió más información", "?carpeta=pendientes", "ambar"),
+            ("Resueltos por confirmar", visibles.filter(estado=Ticket.Estado.RESUELTO).count(),
+             "Confirma si quedó solucionado", "?carpeta=pendientes", "neutro"),
+        ]
+
+    por_categoria = list(
+        visibles.filter(estado__in=Ticket.ABIERTOS).values("categoria").annotate(n=Count("id")).order_by("-n")
+    )
+    total_abiertos = sum(c["n"] for c in por_categoria) or 1
+    etiquetas = dict(Ticket.Categoria.choices)
+    categorias = [
+        {"nombre": etiquetas.get(c["categoria"], c["categoria"]), "n": c["n"], "pct": round(c["n"] * 100 / total_abiertos)}
+        for c in por_categoria
+    ]
+    recientes = visibles.select_related("usuario", "unidad").order_by("-actualizado", "-pk")[:6]
+    return {"resumen": {"tarjetas": tarjetas, "categorias": categorias, "recientes": recientes}}
 
 
 def _render_bandeja(request, ticket=None, status=200, **extra):
@@ -272,6 +336,8 @@ def _render_bandeja(request, ticket=None, status=200, **extra):
     contexto = _bandeja(request, perfil)
     if ticket is not None:
         contexto.update(_contexto_ticket(perfil, ticket, **extra))
+    else:
+        contexto.update(_resumen(perfil, contexto))
     return render(request, "tickets/bandeja.html", contexto, status=status)
 
 

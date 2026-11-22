@@ -7,7 +7,9 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 
 from core.models import Condominio, Edificio, Unidad, Usuario
-from core.validators import formatear_telefono, validar_email, validar_rut, validar_telefono
+from core.validators import (
+    formatear_rut, formatear_telefono, normalizar_nombre_propio, validar_email, validar_rut, validar_telefono,
+)
 from .cupos import cupo_ocupado
 from .models import Invitacion
 from .permisos import PUEDE_INVITAR, Rol
@@ -229,6 +231,12 @@ class AceptarInvitacionForm(forms.ModelForm):
         self.fields["rut"].required = True  # igual que en tu vista usuario_crear
         if not self._pide_cantidad(invitacion):
             del self.fields["cantidad_residentes"]
+        else:
+            estimado = invitacion.unidad.edificio.condominio.estimado_personas_departamento
+            if estimado:
+                self.fields["cantidad_residentes"].help_text = (
+                    f"Incluyéndote a ti. Como referencia, en este condominio se estiman {estimado} por departamento."
+                )
 
     @staticmethod
     def _pide_cantidad(invitacion):
@@ -262,6 +270,32 @@ class AceptarInvitacionForm(forms.ModelForm):
         if get_user_model().objects.filter(username__iexact=username).exists():
             raise ValidationError("Ese nombre de usuario ya está en uso.")
         return username
+
+    def _nombre(self, campo):
+        return normalizar_nombre_propio(self.cleaned_data.get(campo, ""))
+
+    def clean_nombre(self):
+        return self._nombre("nombre")
+
+    def clean_nombre2(self):
+        return self._nombre("nombre2")
+
+    def clean_apellido(self):
+        return self._nombre("apellido")
+
+    def clean_apellido2(self):
+        return self._nombre("apellido2")
+
+    def clean_rut(self):
+        # Se formatea antes de la revisión de "RUT único": si no, 12.345.678-5 no chocaría
+        # con el 12345678-5 guardado y el registro terminaría en un IntegrityError.
+        rut = self.cleaned_data.get("rut") or ""
+        if not rut:
+            return None
+        rut = formatear_rut(rut)
+        if Usuario.objects.filter(rut=rut).exists():
+            raise ValidationError("Ese RUT ya está registrado.")
+        return rut
 
     def clean_telefono(self):
         telefono = self.cleaned_data.get("telefono", "").strip()

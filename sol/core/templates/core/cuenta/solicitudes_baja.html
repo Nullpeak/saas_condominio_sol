@@ -1,0 +1,68 @@
+{% extends "core/base.html" %}
+
+{% block title %}Solicitudes de baja | Comunidad al Día{% endblock %}
+{% block page_title %}Solicitudes de baja de arrendatarios{% endblock %}
+
+{% block content %}
+<div class="page-intro">
+    <h1>Solicitudes de baja de arrendatarios</h1>
+    <p>Los dueños piden dar de baja a sus arrendatarios. Conversa con ambas partes antes de aprobar: al aprobar, el arrendatario queda desvinculado de la unidad y su cuenta se desactiva (si no tiene otra unidad).</p>
+</div>
+
+<div class="d-flex flex-wrap gap-2 mb-3">
+    {% for valor, etiqueta in estados %}
+        <a class="button {% if estado != valor %}button-secondary{% endif %}" href="?estado={{ valor }}">{{ etiqueta }}{% if valor == "pendiente" and total_pendientes %} ({{ total_pendientes }}){% endif %}</a>
+    {% endfor %}
+    <a class="button {% if estado != 'todas' %}button-secondary{% endif %}" href="?estado=todas">Todas</a>
+</div>
+
+{% for s in solicitudes %}
+<section class="card-custom">
+    <div class="d-flex justify-content-between flex-wrap gap-2 mb-2">
+        <div>
+            <h2 class="h5 mb-1">Unidad {{ s.unidad.numero_unidad }} · {{ s.unidad.edificio.nombre }}</h2>
+            <div class="text-muted small">{{ s.unidad.edificio.condominio.nombre }} · Solicitada el {{ s.creado|date:"d/m/Y H:i" }}</div>
+        </div>
+        <span class="badge {% if s.estado == 'pendiente' %}text-bg-warning{% elif s.estado == 'aprobada' %}text-bg-success{% elif s.estado == 'rechazada' %}text-bg-danger{% else %}text-bg-secondary{% endif %} align-self-start">{{ s.get_estado_display }}</span>
+    </div>
+
+    <div class="row g-3 mb-2">
+        <div class="col-md-6">
+            <div class="small text-muted">Dueño (solicitante)</div>
+            <div class="fw-semibold">{{ s.solicitante }}</div>
+            <div class="small">{{ s.solicitante.email }}{% if s.solicitante.telefono %} · <a href="tel:{{ s.solicitante.telefono }}">{{ s.solicitante.telefono }}</a>{% endif %}</div>
+        </div>
+        <div class="col-md-6">
+            <div class="small text-muted">Arrendatario</div>
+            <div class="fw-semibold">{{ s.arrendatario }}</div>
+            <div class="small">{{ s.arrendatario.email }}{% if s.arrendatario.telefono %} · <a href="tel:{{ s.arrendatario.telefono }}">{{ s.arrendatario.telefono }}</a>{% endif %}</div>
+        </div>
+        <div class="col-12">
+            <div class="small text-muted">Motivo</div>
+            <div>{{ s.motivo|linebreaksbr }}</div>
+        </div>
+        {% if s.estado != 'pendiente' %}
+        <div class="col-12 small text-muted">
+            {% if s.resuelto_por %}Resuelta por {{ s.resuelto_por }}{% endif %}{% if s.resuelto_en %} el {{ s.resuelto_en|date:"d/m/Y H:i" }}{% endif %}{% if s.comentario_admin %} · Comentario: {{ s.comentario_admin }}{% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    {% if s.estado == 'pendiente' %}
+    <form method="post" action="{% url 'solicitud_baja_resolver' s.id %}" class="row g-2">
+        {% csrf_token %}
+        <div class="col-12">
+            <label class="form-label" for="comentario{{ s.id }}">Comentario (opcional, lo verá el dueño)</label>
+            <textarea class="form-control" id="comentario{{ s.id }}" name="comentario" rows="2" maxlength="1000"></textarea>
+        </div>
+        <div class="col-12 d-flex gap-2 flex-wrap">
+            <button class="button" type="submit" name="accion" value="aprobar">Aprobar baja</button>
+            <button class="button button-secondary" type="submit" name="accion" value="rechazar">Rechazar</button>
+        </div>
+    </form>
+    {% endif %}
+</section>
+{% empty %}
+<section class="card-custom"><p class="mb-0 text-muted">No hay solicitudes {% if estado == 'pendiente' %}pendientes{% elif estado != 'todas' %}en este estado{% endif %}.</p></section>
+{% endfor %}
+{% endblock %}

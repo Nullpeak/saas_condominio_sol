@@ -16,6 +16,7 @@ from django.urls import path, include
 
 from core.views import *
 from core.reportes import reportes
+from core import views_cuenta
 
 
 urlpatterns = [
@@ -281,6 +282,13 @@ urlpatterns = [
         reservacion_cancelar,
         name="reservacion_cancelar"
     ),
+    # Cuenta propia y panel de dueños/arrendatarios
+    path("mis-datos/", views_cuenta.mis_datos, name="mis_datos"),
+    path("usuarios/<int:usuario_id>/avatar/", views_cuenta.avatar_usuario, name="avatar_usuario"),
+    path("condominios/<int:condominio_id>/portada/", views_cuenta.portada_condominio, name="portada_condominio"),
+    path("mi-unidad/", views_cuenta.mi_unidad, name="mi_unidad"),
+    path("solicitudes-baja/", views_cuenta.solicitudes_baja_lista, name="solicitudes_baja_lista"),
+    path("solicitudes-baja/<int:solicitud_id>/resolver/", views_cuenta.solicitud_baja_resolver, name="solicitud_baja_resolver"),
     path("launch/", include("launch.urls")),
     path("", include("invitaciones.urls")),
     path("notificaciones/", include("notis.urls")),

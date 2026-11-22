@@ -1,0 +1,20 @@
+{# Un campo del formulario de condominio con el estilo de la app. Parámetros: campo, col, placeholder, ayuda #}
+<div class="{{ col|default:'col-md-6' }} nc-campo">
+    <label for="{{ campo.id_for_label }}">{{ campo.label|cut:" (opcional)" }}{% if not campo.field.required %} <span class="opcional">(opcional)</span>{% endif %}</label>
+    {% if campo.field.widget.input_type == "file" %}
+        <input type="file" class="form-control{% if campo.errors %} is-invalid{% endif %}" id="{{ campo.id_for_label }}" name="{{ campo.html_name }}" accept="image/jpeg,image/png,image/gif,image/webp,image/bmp">
+    {% else %}
+        <input type="{% if campo.field.widget.input_type == 'number' %}number{% else %}text{% endif %}"
+               class="form-control{% if campo.errors %} is-invalid{% endif %}"
+               id="{{ campo.id_for_label }}" name="{{ campo.html_name }}"
+               value="{{ campo.value|default_if_none:'' }}"
+               {% if campo.field.required %}required{% endif %}
+               {% if campo.field.min_value is not None %}min="{{ campo.field.min_value }}"{% endif %}
+               {% if campo.field.max_value is not None %}max="{{ campo.field.max_value }}"{% endif %}
+               {% if campo.field.max_length %}maxlength="{{ campo.field.max_length }}"{% endif %}
+               {% if campo.name == "ciudad" %}list="lista-ciudades" autocomplete="off"{% endif %}
+               {% if placeholder %}placeholder="{{ placeholder }}"{% endif %}>
+    {% endif %}
+    {% for e in campo.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+    {% if ayuda %}<div class="form-text">{{ ayuda }}</div>{% elif campo.help_text %}<div class="form-text">{{ campo.help_text }}</div>{% endif %}
+</div>

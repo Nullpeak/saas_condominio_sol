@@ -127,7 +127,8 @@ def notificar_cambio_perfil(sender, instance, created, **kwargs):
     if anterior.email != instance.email:
         notificar(destinatarios, f"{nombre} ha actualizado su correo electrónico.", remitente=instance)
 
-    if anterior.avatar.name != instance.avatar.name:
+    # El archivo siempre se llama avatar.jpg, así que el nombre no basta para saber si cambió
+    if anterior.avatar.name != instance.avatar.name or getattr(instance, "_avatar_cambiado", False):
         notificar(destinatarios, f"{nombre} ha actualizado su imagen de perfil.", remitente=instance)
 
 

@@ -8,6 +8,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from core.models import Unidad
+from core.validators import normalizar_patente
 from core.paginacion import paginar
 from .models import Visita
 
@@ -154,7 +155,7 @@ def crear(request):
         nombre = request.POST.get("nombre", "").strip()
         fecha_texto = request.POST.get("fecha_visita", "").strip()
         motivo = request.POST.get("motivo", "").strip()
-        patente = request.POST.get("patente_vehiculo", "").strip().upper()
+        patente = normalizar_patente(request.POST.get("patente_vehiculo", ""))
         try:
             unidad = unidades.filter(pk=int(unidad_id)).first() if unidad_id else None
         except (TypeError, ValueError):
@@ -264,7 +265,7 @@ def editar(request, visita_id):
         nombre = request.POST.get("nombre", "").strip()
         fecha_texto = request.POST.get("fecha_visita", "").strip()
         motivo = request.POST.get("motivo", "").strip()
-        patente = request.POST.get("patente_vehiculo", "").strip().upper()
+        patente = normalizar_patente(request.POST.get("patente_vehiculo", ""))
         datos = request.POST
         if not unidad:
             errores.append("Selecciona una unidad activa y autorizada.")
