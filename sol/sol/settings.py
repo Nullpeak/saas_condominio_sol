@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.humanize',
     'core',
     'visitas',
     'tickets',
@@ -150,6 +151,7 @@ MERCADOPAGO_ENVIRONMENT = os.environ.get("MERCADOPAGO_ENVIRONMENT", "production"
 MERCADOPAGO_TEST_WEBHOOK_SECRET = os.environ.get("MERCADOPAGO_TEST_WEBHOOK_SECRET", "").strip()
 MERCADOPAGO_WEBHOOK_SECRET = os.environ.get("MERCADOPAGO_WEBHOOK_SECRET", "").strip()
 MERCADOPAGO_WEBHOOK_URL = os.environ.get("MERCADOPAGO_WEBHOOK_URL", "").strip()
+PAYMENT_CREDENTIALS_ENCRYPTION_KEY = os.environ.get("PAYMENT_CREDENTIALS_ENCRYPTION_KEY", "").strip()
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
