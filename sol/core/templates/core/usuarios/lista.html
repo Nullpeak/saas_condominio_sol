@@ -4,6 +4,13 @@
 {% block page_title %}Usuarios{% endblock %}
 
 {% block content %}
+<style>
+    .usuarios-tabla th:nth-child(2),
+    .usuarios-tabla td:nth-child(2) {
+        min-width: 150px;
+        white-space: nowrap;
+    }
+</style>
 <section class="card">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
         <div>
@@ -24,7 +31,7 @@
 
     {% if usuarios %}
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
+            <table class="table table-hover align-middle mb-0 usuarios-tabla">
                 <thead><tr><th>Nombre</th><th>RUT</th><th>Correo</th><th>Rol</th><th>Condominio, edificio y unidad</th><th>Estado</th><th class="text-end">Acciones</th></tr></thead>
                 <tbody>
                     {% for usuario_item in usuarios %}
@@ -32,12 +39,12 @@
                             <td class="fw-semibold">{{ usuario_item.nombre }} {{ usuario_item.nombre2 }} {{ usuario_item.apellido }} {{ usuario_item.apellido2 }}</td>
                             <td>{{ usuario_item.rut|default:"—" }}</td>
                             <td>{{ usuario_item.email }}</td>
-                            <td>{{ usuario_item.get_rol_display }}</td>
+                            <td>{{ usuario_item.rol_en_listado }}</td>
                             <td>
-                                {% if usuario_item.condominio %}<div>{{ usuario_item.condominio.nombre }}</div>{% endif %}
+                                {% if usuario_item.condominio and usuario_item.mostrar_condominio_directo %}<div>{{ usuario_item.condominio.nombre }}</div>{% endif %}
                                 {% for condominio_admin in usuario_item.condominios_administrados.all %}<div>{{ condominio_admin.nombre }} <small class="text-secondary">· administración</small></div>{% endfor %}
-                                {% for unidad_item in usuario_item.unidades_propias.all %}<div>{{ unidad_item.edificio.condominio.nombre }} · {{ unidad_item.edificio.nombre }} · Unidad {{ unidad_item.numero_unidad }} <small class="text-secondary">· propietario</small></div>{% endfor %}
-                                {% for unidad_item in usuario_item.unidades_arrendadas.all %}<div>{{ unidad_item.edificio.condominio.nombre }} · {{ unidad_item.edificio.nombre }} · Unidad {{ unidad_item.numero_unidad }} <small class="text-secondary">· residente</small></div>{% endfor %}
+                                {% for unidad_item in usuario_item.unidades_propias.all %}<div>{{ unidad_item.edificio.condominio.nombre }} · {{ unidad_item.edificio.nombre }} · Unidad {{ unidad_item.numero_unidad }}{% if usuario_item.relaciones_unidad_mixtas %} <small class="text-secondary">· dueño</small>{% endif %}</div>{% endfor %}
+                                {% for unidad_item in usuario_item.unidades_arrendadas.all %}<div>{{ unidad_item.edificio.condominio.nombre }} · {{ unidad_item.edificio.nombre }} · Unidad {{ unidad_item.numero_unidad }}{% if usuario_item.relaciones_unidad_mixtas %} <small class="text-secondary">· arrendatario</small>{% endif %}</div>{% endfor %}
                                 {% if not usuario_item.condominio and not usuario_item.condominios_administrados.all and not usuario_item.unidades_propias.all and not usuario_item.unidades_arrendadas.all %}—{% endif %}
                             </td>
                             <td>{% if usuario_item.activo %}<span class="text-success">Activo</span>{% else %}<span class="text-secondary">Inactivo</span>{% endif %}</td>

@@ -35,9 +35,7 @@ POR_PAGINA = 30
 E = Ticket.Estado
 
 TEXTO_ACCION = {
-    "confirmar": "Gracias por confirmar. El ticket quedó cerrado.",
     "reabrir": "Reabriste el ticket. El equipo lo revisará de nuevo.",
-    "cancelar": "Cerraste el ticket.",
 }
 
 # Carpetas de la bandeja: (clave, nombre, filtro). El filtro recibe el perfil.
@@ -243,7 +241,10 @@ def _contexto_ticket(perfil, ticket, comentario_form=None, gestion_form=None):
     otros = []
     if gestiona:
         siguientes = estados_siguientes(perfil, ticket)
-        botones_estado = [(e, BOTON_ESTADO[e]) for e in BOTON_ESTADO if e in siguientes]
+        botones_estado = [
+            (e, "Reabrir ticket" if ticket.estado == E.CERRADO and e == E.EN_REVISION else BOTON_ESTADO[e])
+            for e in BOTON_ESTADO if e in siguientes
+        ]
         puede_asignarse = ticket.asignado_id != perfil.pk and asignables(ticket.condominio_id).filter(pk=perfil.pk).exists()
         otros = list(
             tickets_visibles(perfil).filter(usuario_id=ticket.usuario_id).exclude(pk=ticket.pk)
@@ -260,6 +261,7 @@ def _contexto_ticket(perfil, ticket, comentario_form=None, gestion_form=None):
         "comentario_form": comentario_form if puede_comentar(perfil, ticket) else None,
         "gestion_form": gestion_form,
         "botones_estado": botones_estado,
+        "puede_reabrir": ticket.estado == E.CERRADO and any(e == E.EN_REVISION for e, _ in botones_estado),
         "puede_asignarse": puede_asignarse,
         "otros_tickets": otros,
         "acciones": acciones_residente(perfil, ticket),
@@ -407,13 +409,17 @@ def comentar(request, ticket_id):
     form = ComentarioForm(request.POST, request.FILES, staff=gestiona)
     if not form.is_valid():
         return _render_bandeja(request, ticket, status=400, comentario_form=form)
-    services.comentar(
-        perfil, ticket,
-        texto=form.cleaned_data["texto"],
-        interno=form.cleaned_data.get("interno", False),
-        archivos=form.cleaned_data["archivos"],
-        es_staff=gestiona,
-    )
+    try:
+        services.comentar(
+            perfil, ticket,
+            texto=form.cleaned_data["texto"],
+            interno=form.cleaned_data.get("interno", False),
+            archivos=form.cleaned_data["archivos"],
+            es_staff=gestiona,
+        )
+    except ValidationError as e:
+        messages.error(request, " ".join(e.messages))
+        return _volver(request, ticket)
     return _volver(request, ticket)
 
 
@@ -442,7 +448,7 @@ def gestionar(request, ticket_id):
 @con_perfil
 @require_POST
 def accion(request, ticket_id, nombre):
-    """Botones del residente: confirmar solución, reabrir o cancelar."""
+    """Acciones del residente que no requieren gestión del ticket."""
     perfil = request.perfil
     ticket = _ticket_visible(perfil, ticket_id)
     if nombre not in acciones_residente(perfil, ticket):

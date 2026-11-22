@@ -438,14 +438,6 @@
                     {% endif %}
                 {% endfor %}
                 {% if puede_editar %}<a class="tkx-btn" href="{% url 'tickets:editar' ticket.pk %}">{% icono "editar" %}Editar</a>{% endif %}
-                {% if "cancelar" in acciones %}
-                    <form method="post" action="{% url 'tickets:accion' ticket.pk 'cancelar' %}"
-                          onsubmit="return confirm('¿Cerrar este ticket? Ya no podrás responder en él.');">
-                        {% csrf_token %}
-                        <input type="hidden" name="qs" value="{{ qs }}">
-                        <button class="tkx-btn peligro" type="submit">{% icono "cerrar" %}Cerrar mi ticket</button>
-                    </form>
-                {% endif %}
                 <button class="tkx-btn tkx-ver-panel" type="button" data-panel="abrir">{% icono "panel" %}Detalles</button>
             </div>
         </header>
@@ -497,7 +489,7 @@
             {% endfor %}
 
             {% if ticket.estado == "cerrado" %}
-                <div class="tkx-aviso">{% icono "candado" %}Ticket cerrado{% if ticket.cerrado %} el {{ ticket.cerrado|date:"d/m/Y" }}{% endif %}. Si el problema volvió, crea un ticket nuevo.</div>
+                <div class="tkx-aviso">{% icono "candado" %}Ticket cerrado{% if ticket.cerrado %} el {{ ticket.cerrado|date:"d/m/Y" }}{% endif %}.{% if puede_reabrir %} Reábrelo para continuar la conversación.{% else %} No se pueden enviar más mensajes. Solicita a administración o al gestor asignado que lo reabra si necesitas continuar.{% endif %}</div>
             {% endif %}
         </div>
 
@@ -506,10 +498,9 @@
                 {% csrf_token %}
                 <input type="hidden" name="qs" value="{{ qs }}">
 
-                {% if "confirmar" in acciones %}
+                {% if "reabrir" in acciones and ticket.estado == "resuelto" %}
                     <div class="tkx-resuelto">
-                        <span>El equipo marcó este ticket como <strong>resuelto</strong>. ¿Quedó solucionado?</span>
-                        <button class="tkx-btn prim" type="submit" formaction="{% url 'tickets:accion' ticket.pk 'confirmar' %}" formnovalidate>Sí, cerrar ticket</button>
+                        <span>El equipo marcó este ticket como <strong>resuelto</strong>. Si el problema continúa, puedes reabrirlo.</span>
                         <button class="tkx-btn" type="submit" formaction="{% url 'tickets:accion' ticket.pk 'reabrir' %}" formnovalidate
                                 title="Si escribes un mensaje, se agrega como motivo">No, sigue el problema</button>
                     </div>
