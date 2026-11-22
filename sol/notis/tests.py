@@ -114,7 +114,9 @@ class ReservasTests(BaseNotis):
         Notification.objects.all().delete()
         self.client.force_login(self.residente.user)
         with self.commit():
-            self.client.post(reverse("reservacion_cancelar", args=[r.pk]))
+            self.client.post(reverse("reservacion_cancelar", args=[r.pk]), {
+                "motivo_cancelacion": "Ya no necesito usar el quincho",
+            })
         r.refresh_from_db()
         self.assertEqual(r.estado, Reservacion.Estado.CANCELADO)
         self.assertEqual(self.avisos(self.residente), [])

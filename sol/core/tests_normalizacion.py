@@ -282,13 +282,14 @@ class NombresDeImagenesTests(TestCase):
         ciudad = Ciudad.objects.create(nombre="Santiago")
         c = Condominio.objects.create(nombre="Portal del Sol", direccion="X", ciudad=ciudad, edificios=1, portada=self._img())
         self.assertEqual(c.portada.name, "condominios/portadas/portada_portal_del_sol.jpg")
-        im = Image.open(c.portada.path)
-        self.assertEqual((im.format, max(im.size)), ("JPEG", 1920))
+        with Image.open(c.portada.path) as im:
+            self.assertEqual((im.format, max(im.size)), ("JPEG", 1920))
         # Reemplazarla mantiene el nombre exacto y no deja la anterior en el disco
         c.portada = self._img("otra.jpg", modo="RGB", tam=(800, 600))
         c.save()
         self.assertEqual(c.portada.name, "condominios/portadas/portada_portal_del_sol.jpg")
-        self.assertEqual(Image.open(c.portada.path).size, (800, 600))
+        with Image.open(c.portada.path) as im:
+            self.assertEqual(im.size, (800, 600))
 
     def test_avatar_queda_como_avatar_jpg_y_avisa_el_cambio(self):
         from notis.models import Notification
