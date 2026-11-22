@@ -46,6 +46,89 @@ def saldos_acumulados(condominio, hasta_periodo=None):
     return saldos
 
 
+def movimientos_cartola(unidad, hasta_periodo=None):
+    """Agrupa cargos por liquidación y distribuye pagos a las deudas más antiguas."""
+    liquidaciones = list(
+        Liquidacion.objects.filter(
+            unidad=unidad,
+            periodo__estado=Periodo.Estado.PUBLICADO,
+        )
+        .select_related("periodo", "periodo__condominio")
+        .order_by("periodo__anio", "periodo__mes", "periodo__publicado", "pk")
+    )
+    if hasta_periodo:
+        liquidaciones = [
+            l for l in liquidaciones
+            if (l.periodo.anio, l.periodo.mes) <= (hasta_periodo.anio, hasta_periodo.mes)
+        ]
+    if not liquidaciones:
+        return {"movimientos": [], "total_cargos": Decimal("0"), "total_pagos": Decimal("0"), "saldo": Decimal("0")}
+
+    cargos = []
+    for liquidacion in liquidaciones:
+        fecha = (liquidacion.periodo.publicado or liquidacion.periodo.creado).date()
+        monto = Decimal(liquidacion.total or 0) - Decimal(liquidacion.saldo_anterior or 0)
+        if monto <= 0:
+            continue
+        cargo = {
+            "tipo": "cargo", "fecha": fecha, "orden": 0, "monto": monto,
+            "unidad": unidad, "liquidacion": liquidacion,
+            "periodo": liquidacion.periodo,
+            "vencimiento": liquidacion.periodo.vencimiento,
+            "saldo_evento": Decimal("0"), "saldo_pendiente": monto,
+            "monto_pagado": Decimal("0"), "abonos": [],
+        }
+        cargos.append(cargo)
+
+    pagos = list(
+        PagoRegistrado.objects.filter(
+            liquidacion__in=liquidaciones,
+            liquidacion__periodo__estado=Periodo.Estado.PUBLICADO,
+        )
+        .select_related("liquidacion__periodo", "registrado_por")
+        .order_by("fecha", "pk")
+    )
+    total_pagos = Decimal("0")
+    for pago in pagos:
+        monto = Decimal(pago.monto)
+        total_pagos += monto
+        restante = monto
+        for cargo in cargos:
+            if cargo["fecha"] > pago.fecha or cargo["saldo_pendiente"] <= 0:
+                continue
+            aplicado = min(cargo["saldo_pendiente"], restante)
+            cargo["saldo_pendiente"] -= aplicado
+            cargo["monto_pagado"] += aplicado
+            cargo["abonos"].append({"pago": pago, "monto": aplicado})
+            restante -= aplicado
+            if restante <= 0:
+                break
+    for cargo in cargos:
+        cargo["saldo_evento"] = cargo["saldo_pendiente"].quantize(
+            Decimal("1"), rounding=ROUND_HALF_UP
+        )
+        if cargo["saldo_pendiente"] <= 0:
+            cargo["estado"] = "pagado"
+            cargo["estado_texto"] = "Pagado"
+        elif cargo["monto_pagado"] > 0:
+            cargo["estado"] = "abono"
+            cargo["estado_texto"] = "Abono · pendiente"
+        elif cargo["vencimiento"] < timezone.localdate():
+            cargo["estado"] = "vencido"
+            cargo["estado_texto"] = "Vencido"
+        else:
+            cargo["estado"] = "pendiente"
+            cargo["estado_texto"] = "Pendiente"
+        cargo["abonos"].sort(key=lambda a: (a["pago"].fecha, a["pago"].pk), reverse=True)
+    saldo = sum((c["saldo_pendiente"] for c in cargos), Decimal("0"))
+    return {
+        "movimientos": list(reversed(cargos)),
+        "total_cargos": sum((e["monto"] for e in cargos), Decimal("0")),
+        "total_pagos": total_pagos,
+        "saldo": saldo.quantize(Decimal("1"), rounding=ROUND_HALF_UP),
+    }
+
+
 def fecha_inicio_mora(periodo):
     """El atraso empieza después del vencimiento y del plazo legal de diez días."""
     fecha_emision = (periodo.publicado or periodo.creado).date()

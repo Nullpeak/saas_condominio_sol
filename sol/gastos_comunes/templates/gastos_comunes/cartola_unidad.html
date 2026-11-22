@@ -1,0 +1,61 @@
+{% extends "core/base.html" %}
+{% load humanize %}
+{% block title %}Cartola de unidad | Gastos comunes{% endblock %}
+{% block page_title %}Cartola de unidad{% endblock %}
+{% block content %}
+<header class="page-intro">
+    <span class="text-primary fw-semibold small">ESTADO DE CUENTA</span>
+    <h1>{{ unidad.edificio.condominio.nombre }} · {{ unidad.edificio.nombre }} · Unidad {{ unidad.numero_unidad }}</h1>
+    {% if es_gestion %}<p>Cuenta de cargos y pagos de esta unidad.</p>
+    <p class="small text-muted">Propietario: {{ unidad.dueno|default:"Sin asignar" }} · Arrendatario: {{ unidad.arrendatario|default:"Sin asignar" }}</p>
+    {% else %}<p>Revisa cada liquidación, los pagos aplicados y el saldo pendiente de la unidad.</p>{% endif %}
+</header>
+<div class="quick-links mt-0">
+    <a class="button button-secondary" href="{% url 'gastos_comunes:lista' %}">Volver a gastos comunes</a>
+    {% if es_gestion and ultima_liquidacion %}<a class="button button-secondary" href="{% url 'gastos_comunes:detalle' ultima_liquidacion.periodo.id %}">Abrir período actual</a>{% endif %}
+</div>
+
+<section class="row g-3 mb-3" aria-label="Resumen de la cuenta">
+    <div class="col-12 col-md-4"><article class="card h-100 mb-0"><span class="small text-muted">SALDO TOTAL PENDIENTE</span><strong class="fs-3 {% if saldo > 0 %}text-danger{% else %}text-success{% endif %}">${{ saldo|floatformat:0|intcomma }}</strong><span class="small text-muted">Deuda acumulada de los períodos publicados.</span></article></div>
+    <div class="col-12 col-md-4"><article class="card h-100 mb-0"><span class="small text-muted">CARGOS EMITIDOS</span><strong class="fs-3">${{ cartola.total_cargos|floatformat:0|intcomma }}</strong><span class="small text-muted">Cada período se suma una vez, sin repetir saldos anteriores.</span></article></div>
+    <div class="col-12 col-md-4"><article class="card h-100 mb-0"><span class="small text-muted">PAGOS REGISTRADOS</span><strong class="fs-3 text-success">${{ cartola.total_pagos|floatformat:0|intcomma }}</strong><span class="small text-muted">Pagos registrados por la administración o confirmados en línea.</span></article></div>
+</section>
+
+{% if puede_pagar and ultima_liquidacion %}
+<section class="card border-success-subtle">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div><h2 class="h5 mb-1">Paga el saldo pendiente de esta unidad</h2><p class="text-muted mb-0">El botón considera la deuda acumulada hasta el último período publicado.</p><p class="small text-muted mb-0">{% if webpay_modo_prueba %}Prueba Webpay: no se cobrará dinero real.{% else %}Pago con tarjeta a través de Webpay.{% endif %}</p></div>
+        <form method="post" action="{% url 'gastos_comunes:pago_iniciar' ultima_liquidacion.id %}">{% csrf_token %}<button class="button" type="submit">Pagar saldo total · ${{ saldo|floatformat:0|intcomma }}</button></form>
+    </div>
+</section>
+{% endif %}
+
+<section class="card">
+    <div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-3"><div><h2 class="h5 mb-1">Estado de cada liquidación</h2><p class="small text-muted mb-0">Cada período aparece una vez con el cargo, los abonos aplicados y su saldo pendiente. Los pagos se aplican primero a la deuda más antigua.</p></div>
+        {% if ultima_liquidacion %}<span class="small text-muted">Último período publicado: {{ ultima_liquidacion.periodo.mes|stringformat:"02d" }}/{{ ultima_liquidacion.periodo.anio }} · Vence {{ ultima_liquidacion.periodo.vencimiento|date:"d/m/Y" }}</span>{% endif %}</div>
+    <div class="table-responsive"><table class="table align-middle mb-0">
+        <thead><tr><th>Fecha</th><th>Liquidación</th><th class="text-end">Cargo</th><th class="text-end">Abono aplicado</th><th class="text-end">Saldo de liquidación</th><th>Estado</th><th>Detalle</th></tr></thead>
+        <tbody>
+        {% for movimiento in cartola.movimientos %}
+            <tr class="{% if movimiento.estado == 'vencido' %}table-danger{% elif movimiento.estado == 'pagado' %}table-success{% endif %}">
+                <td class="text-nowrap">{{ movimiento.fecha|date:"d/m/Y" }}</td>
+                <td><strong>Gasto común · {{ movimiento.periodo.mes|stringformat:"02d" }}/{{ movimiento.periodo.anio }}</strong><div class="small text-muted">Vence {{ movimiento.vencimiento|date:"d/m/Y" }}</div></td>
+                <td class="text-end">${{ movimiento.monto|floatformat:0|intcomma }}</td><td class="text-end">{% if movimiento.monto_pagado %}<strong class="text-success">− ${{ movimiento.monto_pagado|floatformat:0|intcomma }}</strong>{% else %}—{% endif %}</td><td class="text-end">${{ movimiento.saldo_pendiente|floatformat:0|intcomma }}</td>
+                <td>{% if movimiento.estado == "vencido" %}<span class="badge text-bg-danger">Vencido</span>{% elif movimiento.estado == "abono" %}<span class="badge text-bg-warning">Abono · pendiente</span>{% elif movimiento.estado == "pendiente" %}<span class="badge text-bg-secondary">Pendiente</span>{% else %}<span class="badge text-bg-success">Pagado</span>{% endif %}</td>
+                <td><a class="button button-secondary btn-sm" href="{% url 'gastos_comunes:detalle' movimiento.periodo.id %}?unidad={{ unidad.id }}">Ver boleta</a></td>
+            </tr>
+        {% empty %}<tr><td colspan="7" class="text-center text-muted py-4">Todavía no hay cargos publicados ni pagos registrados para esta unidad.</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+    {% include "core/_paginacion.html" with page_obj=movimientos_page_obj page_range=movimientos_page_range querystring=movimientos_querystring %}
+</section>
+
+{% if pagos_online %}
+<section class="card"><h2 class="h5">Intentos de pago en línea</h2><p class="small text-muted">Los intentos pendientes o rechazados no se cuentan como pagos recibidos.</p>
+    <div class="table-responsive"><table class="table align-middle mb-0"><thead><tr><th>Fecha</th><th>Período</th><th>Monto intentado</th><th>Medio</th><th>Estado</th><th>Comprobante</th>{% if es_gestion %}<th>Registrado por</th>{% endif %}</tr></thead><tbody>
+        {% for pago in pagos_online %}<tr><td>{{ pago.creado|date:"d/m/Y H:i" }}</td><td>{{ pago.liquidacion.periodo.mes|stringformat:"02d" }}/{{ pago.liquidacion.periodo.anio }}</td><td>${{ pago.monto|floatformat:0|intcomma }}</td><td>{{ pago.get_proveedor_display }}</td><td>{% if pago.estado == "aprobado" %}<span class="badge text-bg-success">Aprobado</span>{% elif pago.estado == "rechazado" or pago.estado == "error" %}<span class="badge text-bg-danger">{{ pago.get_estado_display }}</span>{% elif pago.estado == "cancelado" %}<span class="badge text-bg-secondary">Cancelado</span>{% else %}<span class="badge text-bg-warning">{{ pago.get_estado_display }}</span>{% endif %}</td><td>{% if es_gestion %}{{ pago.codigo_autorizacion|default:pago.orden_proveedor|default:"—" }}{% else %}<a class="button button-secondary btn-sm" href="{% url 'gastos_comunes:pago_resultado' pago.referencia_externa %}">Ver estado</a>{% endif %}</td>{% if es_gestion %}<td>{{ pago.usuario }}</td>{% endif %}</tr>{% endfor %}
+    </tbody></table></div>
+    {% include "core/_paginacion.html" with page_obj=intentos_page_obj page_range=intentos_page_range querystring=intentos_querystring %}
+</section>
+{% endif %}
+{% endblock %}

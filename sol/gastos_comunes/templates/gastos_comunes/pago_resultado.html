@@ -1,26 +1,97 @@
 {% extends "core/base.html" %}
+{% load humanize %}
 {% block title %}Estado del pago | Gastos comunes{% endblock %}
 {% block page_title %}Estado del pago{% endblock %}
 {% block content %}
-<header class="page-intro">
-    <h1>Pago de gastos comunes</h1>
-    <p>{{ pago.liquidacion.unidad.edificio.nombre }} · Unidad {{ pago.liquidacion.unidad.numero_unidad }} · {{ pago.liquidacion.periodo.mes|stringformat:"02d" }}/{{ pago.liquidacion.periodo.anio }}</p>
+<header class="page-intro payment-page-intro">
+    <span class="text-primary fw-semibold small">GASTOS COMUNES · COMPROBANTE</span>
+    <h1>Resultado de tu pago</h1>
+    <p>{{ pago.liquidacion.periodo.condominio.nombre }} · {{ pago.liquidacion.unidad.edificio.nombre }} · Unidad {{ pago.liquidacion.unidad.numero_unidad }}</p>
 </header>
-<section class="card">
+
+<main class="payment-result-wrap">
     {% if pago.estado == "aprobado" %}
-        <h2 class="h5">Pago aprobado</h2>
-        <p>Registramos el pago de <strong>${{ pago.monto|floatformat:0 }}</strong> en el historial de la unidad.</p>
+    <section class="payment-result-card payment-result-approved" aria-labelledby="payment-status-title">
+        <div class="payment-status-heading">
+            <span class="payment-status-mark" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none"><path d="m5 12.5 4.2 4.2L19 7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+            <div><span class="payment-eyebrow">TRANSACCIÓN COMPLETADA</span><h2 id="payment-status-title">Pago aprobado</h2><p>El pago quedó registrado en la cuenta de esta unidad.</p></div>
+        </div>
+        <div class="payment-amount-panel"><span>Monto pagado</span><strong>${{ pago.monto|floatformat:0|intcomma }}</strong></div>
+        <dl class="payment-receipt-grid">
+            <div><dt>Período</dt><dd>{{ pago.liquidacion.periodo.mes|stringformat:"02d" }}/{{ pago.liquidacion.periodo.anio }}</dd></div>
+            <div><dt>Medio de pago</dt><dd>{{ pago.get_proveedor_display }}</dd></div>
+            <div><dt>Fecha de confirmación</dt><dd>{% if pago.pagado %}{{ pago.pagado|date:"d/m/Y · H:i" }}{% else %}Confirmado{% endif %}</dd></div>
+            {% if pago.codigo_autorizacion %}<div><dt>Código de autorización</dt><dd>{{ pago.codigo_autorizacion }}</dd></div>{% endif %}
+            <div><dt>Unidad</dt><dd>{{ pago.liquidacion.unidad.edificio.nombre }} · {{ pago.liquidacion.unidad.numero_unidad }}</dd></div>
+        </dl>
+        <div class="payment-receipt-note">Guarda esta información como comprobante de la operación.</div>
+    </section>
     {% elif pago.estado == "rechazado" %}
-        <h2 class="h5">Pago rechazado</h2>
-        <p>Mercado Pago no aprobó esta operación. El saldo sigue pendiente y puedes intentarlo nuevamente.</p>
+    <section class="payment-result-card payment-result-rejected" aria-labelledby="payment-status-title">
+        <div class="payment-status-heading"><span class="payment-status-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="m7 7 10 10M17 7 7 17" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span><div><span class="payment-eyebrow">TRANSACCIÓN NO COMPLETADA</span><h2 id="payment-status-title">Pago rechazado</h2><p>{% if pago.proveedor == "webpay" %}Transbank no aprobó esta operación.{% else %}El proveedor de pago no aprobó esta operación.{% endif %} El saldo de la unidad continúa pendiente.</p></div></div>
+        <div class="payment-amount-panel"><span>Monto intentado</span><strong>${{ pago.monto|floatformat:0|intcomma }}</strong></div>
+        <p class="payment-help-text">Puedes revisar la cartola y volver a intentar el pago desde el período vigente.</p>
+    </section>
     {% elif pago.estado == "cancelado" %}
-        <h2 class="h5">Pago cancelado</h2>
-        <p>El saldo sigue pendiente. Puedes volver a iniciar el pago desde el detalle de gastos comunes.</p>
+    <section class="payment-result-card payment-result-cancelled" aria-labelledby="payment-status-title">
+        <div class="payment-status-heading"><span class="payment-status-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12 7v5l3 2m6-2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><div><span class="payment-eyebrow">OPERACIÓN INTERRUMPIDA</span><h2 id="payment-status-title">Pago cancelado</h2><p>No se registró un pago. El saldo de la unidad permanece pendiente.</p></div></div>
+        <div class="payment-amount-panel"><span>Monto no cobrado</span><strong>${{ pago.monto|floatformat:0|intcomma }}</strong></div>
+    </section>
     {% else %}
-        <h2 class="h5">Estamos verificando el pago</h2>
-        <p>El proveedor todavía no confirmó el resultado. No vuelvas a pagar por ahora; actualiza esta página en unos momentos.</p>
+    <section class="payment-result-card payment-result-pending" aria-labelledby="payment-status-title">
+        <div class="payment-status-heading"><span class="payment-status-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12 7v5l3 2m6-2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><div><span class="payment-eyebrow">ESTAMOS CONSULTANDO</span><h2 id="payment-status-title">Pago en verificación</h2><p>{% if pago.proveedor == "webpay" %}Transbank todavía no confirma el resultado.{% else %}El proveedor todavía no confirma el resultado.{% endif %} Actualiza el estado antes de volver a pagar.</p></div></div>
+        <div class="payment-amount-panel"><span>Monto de la operación</span><strong>${{ pago.monto|floatformat:0|intcomma }}</strong></div>
+    </section>
     {% endif %}
-    <p class="text-muted small mb-0">Estado: {{ pago.get_estado_display }}{% if pago.pagado %} · Fecha de confirmación: {{ pago.pagado|date:"d/m/Y H:i" }}{% endif %}</p>
-</section>
-<div class="quick-links mt-0"><a class="button button-secondary" href="{% url 'gastos_comunes:detalle' pago.liquidacion.periodo_id %}">Volver al detalle</a></div>
+
+    <section class="payment-reference-row" aria-label="Referencia de la operación">
+        <span>Referencia</span><code>{{ pago.orden_proveedor|default:pago.referencia_externa }}</code>
+        <span class="payment-state-pill {% if pago.estado == 'aprobado' %}is-approved{% elif pago.estado == 'rechazado' or pago.estado == 'error' %}is-rejected{% elif pago.estado == 'cancelado' %}is-cancelled{% else %}is-pending{% endif %}">{{ pago.get_estado_display }}</span>
+    </section>
+
+    <nav class="payment-result-actions" aria-label="Acciones del pago">
+        <a class="button" href="{% url 'gastos_comunes:cartola_unidad' pago.liquidacion.unidad_id %}">Ver cartola de la unidad</a>
+        <a class="button button-secondary" href="{% url 'gastos_comunes:detalle' pago.liquidacion.periodo_id %}?unidad={{ pago.liquidacion.unidad_id }}">Ver desglose de esta unidad</a>
+        {% if pago.estado != "aprobado" and pago.estado != "rechazado" and pago.estado != "cancelado" %}<a class="button button-secondary" href="{% url 'gastos_comunes:pago_resultado' pago.referencia_externa %}">Actualizar estado</a>{% endif %}
+        <a class="button button-secondary payment-back-link" href="{% url 'gastos_comunes:lista' %}">Volver a gastos comunes</a>
+    </nav>
+</main>
+{% endblock %}
+
+{% block extra_js %}
+<style>
+    .payment-result-wrap { width: min(100%, 920px); margin: 1.5rem auto 3rem; }
+    .payment-page-intro { margin-bottom: 1.25rem; }
+    .payment-page-intro h1 { margin-top: .35rem; }
+    .payment-result-card { --payment-accent: #16816e; --payment-soft: #eaf6f1; padding: clamp(1.25rem, 3vw, 2rem); border: 1px solid #dce5ed; border-top: 4px solid var(--payment-accent); border-radius: 16px; background: #fff; box-shadow: 0 8px 24px rgba(21, 42, 63, .06); }
+    .payment-result-approved { --payment-accent: #16816e; --payment-soft: #eaf6f1; }
+    .payment-result-rejected { --payment-accent: #bd3b42; --payment-soft: #fff0f0; }
+    .payment-result-cancelled { --payment-accent: #68788b; --payment-soft: #f1f4f7; }
+    .payment-result-pending { --payment-accent: #a36b12; --payment-soft: #fff7e7; }
+    .payment-status-heading { display: flex; align-items: flex-start; gap: 1rem; }
+    .payment-status-mark { display: grid; place-items: center; width: 52px; height: 52px; flex: 0 0 52px; color: var(--payment-accent); background: var(--payment-soft); border-radius: 15px; }
+    .payment-status-mark svg { width: 27px; height: 27px; }
+    .payment-eyebrow { color: var(--payment-accent); font-size: .7rem; font-weight: 750; letter-spacing: .09em; }
+    .payment-status-heading h2 { margin: .2rem 0 .25rem; color: #172f49; font-size: clamp(1.35rem, 2vw, 1.7rem); }
+    .payment-status-heading p { margin: 0; color: #61758b; }
+    .payment-amount-panel { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem 1rem; margin: 1.5rem 0; padding: 1rem 1.15rem; background: var(--payment-soft); border-radius: 12px; color: #526579; }
+    .payment-amount-panel strong { color: #172f49; font-size: clamp(1.75rem, 4vw, 2.3rem); line-height: 1.15; }
+    .payment-receipt-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin: 0; }
+    .payment-receipt-grid div { min-width: 0; padding-bottom: .75rem; border-bottom: 1px solid #e8edf2; }
+    .payment-receipt-grid dt { margin-bottom: .25rem; color: #728196; font-size: .78rem; }
+    .payment-receipt-grid dd { margin: 0; color: #20364c; font-weight: 600; overflow-wrap: anywhere; }
+    .payment-receipt-note, .payment-help-text { margin: 1rem 0 0; color: #718096; font-size: .88rem; }
+    .payment-reference-row { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem .85rem; margin: .85rem 0 1.25rem; padding: .85rem 1rem; border: 1px solid #e1e8ef; border-radius: 12px; background: rgba(255,255,255,.75); color: #68798c; font-size: .82rem; }
+    .payment-reference-row code { color: #334b63; overflow-wrap: anywhere; }
+    .payment-state-pill { margin-left: auto; padding: .3rem .65rem; border-radius: 999px; font-weight: 700; }
+    .payment-state-pill.is-approved { color: #126b5a; background: #e4f4ee; }
+    .payment-state-pill.is-rejected { color: #a52d36; background: #fde9e9; }
+    .payment-state-pill.is-cancelled { color: #566579; background: #edf1f5; }
+    .payment-state-pill.is-pending { color: #8b5b0d; background: #fff2d7; }
+    .payment-result-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .65rem; }
+    .payment-back-link { margin-left: auto; text-decoration: none; font-weight: 600; }
+    @media (max-width: 575.98px) { .payment-result-wrap { margin-top: .75rem; } .payment-receipt-grid { grid-template-columns: 1fr; gap: .7rem; } .payment-result-actions { align-items: stretch; } .payment-result-actions .button { width: 100%; text-align: center; } .payment-back-link { width: 100%; margin: 0; text-align: center; } .payment-state-pill { margin-left: 0; } }
+</style>
 {% endblock %}

@@ -2,14 +2,62 @@
 {% block title %}Nuevo período | Gastos comunes{% endblock %}
 {% block page_title %}Nuevo período mensual{% endblock %}
 {% block content %}
-<div class="card" style="max-width:760px">
+<div class="card period-create-card">
     <h1 class="h4">Crear período de cobro</h1>
-    <p class="text-muted">Elige el condominio y el mes. El sistema preparará un borrador que podrás revisar antes de publicarlo.</p>
-    <form method="post">{% csrf_token %}
+    <p class="text-muted mb-4">Selecciona la comunidad y el período que vas a liquidar. Se creará como borrador para que revises los montos antes de publicarlo.</p>
+    <form method="post" class="period-create-form">{% csrf_token %}
         {{ form.non_field_errors }}
-        {% for field in form %}<div class="mb-3"><label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}{% if field.errors %}<div class="text-danger small">{{ field.errors }}</div>{% endif %}</div>{% endfor %}
-        <p class="small text-muted">El fondo de reserva parte en 5%, de acuerdo con el mínimo general de la Ley de Copropiedad. Confirma la regla vigente en el reglamento/acuerdo del condominio.</p>
-        <button class="button" type="submit">Crear borrador</button> <a class="button button-secondary" href="{% url 'gastos_comunes:lista' %}">Cancelar</a>
+        <div class="row g-3">
+            {% for field in form.visible_fields %}
+                {% if field.name == "condominio" %}
+                <div class="col-12 col-md-6">
+                    <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+                    {% if field.errors %}<div class="text-danger small mt-1">{{ field.errors }}</div>{% endif %}
+                </div>
+                {% elif field.name == "mes" %}
+                <div class="col-12 col-md-6">
+                    <label class="form-label" for="{{ field.id_for_label }}">Período de cobro</label>
+                    <div class="period-selector">
+                        <div class="period-select-field">
+                            <label class="period-sub-label" for="{{ field.id_for_label }}">Mes</label>
+                            {{ field }}
+                        </div>
+                        <div class="period-select-field">
+                            <label class="period-sub-label" for="{{ form.anio.id_for_label }}">Año</label>
+                            {{ form.anio }}
+                        </div>
+                    </div>
+                    {% if field.errors %}<div class="text-danger small mt-1">{{ field.errors }}</div>{% endif %}
+                    {% if form.anio.errors %}<div class="text-danger small mt-1">{{ form.anio.errors }}</div>{% endif %}
+                </div>
+                {% elif field.name == "anio" %}
+                {# El año ya se muestra dentro del selector agrupado del período. #}
+                {% else %}
+                <div class="col-12 col-md-6">
+                    <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+                    {% if field.errors %}<div class="text-danger small mt-1">{{ field.errors }}</div>{% endif %}
+                </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+        <div class="period-reserve-note mt-3"><strong>Fondo de reserva</strong><span>El porcentaje parte en 5%. Confirma la regla vigente en el reglamento o acuerdo del condominio.</span></div>
+        <div class="d-flex flex-wrap gap-2 mt-4"><button class="button" type="submit">Crear borrador</button><a class="button button-secondary" href="{% url 'gastos_comunes:lista' %}">Cancelar</a></div>
     </form>
 </div>
+<style>
+    .period-create-card { max-width: 880px; padding: clamp(1.2rem, 3vw, 2rem); }
+    .period-create-form .form-label { font-weight: 600; color: #30485e; }
+    .period-create-form input[type="date"], .period-create-form select, .period-create-form input[type="number"] { min-height: 44px; }
+    .period-selector { display:grid; grid-template-columns:minmax(0,1.15fr) minmax(130px,.85fr); gap:.7rem; }
+    .period-select-field { min-width:0; }
+    .period-select-field select { height:46px; background-color:#fff; }
+    .period-sub-label { display:block; margin:0 0 .35rem; color:#647789; font-size:.76rem; font-weight:700; letter-spacing:.04em; text-transform:uppercase; }
+    .period-reserve-note { display:flex; flex-direction:column; gap:.2rem; padding:.8rem 1rem; border-left:3px solid #16836f; border-radius:.35rem; background:#f0f8f5; color:#52677a; font-size:.9rem; }
+    .period-reserve-note strong { color:#1c4d44; }
+    @media (max-width: 575.98px) { .period-selector { grid-template-columns:1fr; gap:.75rem; } .period-select-field select { min-height:48px; font-size:1rem; } }
+</style>
 {% endblock %}

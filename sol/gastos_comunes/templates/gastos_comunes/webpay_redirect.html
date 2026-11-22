@@ -1,0 +1,18 @@
+{% extends "core/base.html" %}
+{% block title %}Conectando con Webpay | Gastos comunes{% endblock %}
+{% block page_title %}Pago seguro con Webpay{% endblock %}
+{% block content %}
+<section class="card text-center mx-auto" style="max-width: 620px">
+    <h1 class="h4">Conectando con Webpay</h1>
+    <p>Serás dirigido al formulario seguro de Transbank para pagar con tarjeta. No cierres esta página durante la redirección.</p>
+    <form id="webpay-form" action="{{ url_webpay }}" method="post">
+        <input type="hidden" name="token_ws" value="{{ token_webpay }}">
+        <button class="button" type="submit">Continuar a Webpay</button>
+    </form>
+</section>
+<script>
+    window.addEventListener("DOMContentLoaded", function () {
+        window.setTimeout(function () { document.getElementById("webpay-form").submit(); }, 250);
+    });
+</script>
+{% endblock %}

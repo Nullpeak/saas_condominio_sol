@@ -1,0 +1,77 @@
+{% extends "core/base.html" %}
+{% block title %}Cuentas Webpay | Gastos comunes{% endblock %}
+{% block page_title %}Configuración de Webpay{% endblock %}
+{% block content %}
+<header class="page-intro">
+    <h1>Webpay por condominio</h1>
+    <p>Configura una conexión distinta para cada condominio que administras.</p>
+</header>
+<div class="card mb-4">
+    <h2 class="h5">Antes de configurar</h2>
+    <p class="mb-2">Webpay no vincula una cuenta bancaria mediante un botón. Cada condominio debe contratar Webpay con Transbank y obtener su propio código de comercio y llave API. Los pagos se procesarán con las credenciales de la comunidad a la que pertenece la liquidación.</p>
+    <p class="mb-0">El ambiente de prueba usa credenciales oficiales de integración y no realiza cobros reales. Para producción necesitas las credenciales activadas por Transbank para ese condominio.</p>
+</div>
+{% for condominio in condominios %}
+    <section class="card mb-4">
+        <h2 class="h5">{{ condominio.nombre }}</h2>
+        {% with conexion=condominio.webpay_conexion %}
+        {% if conexion %}
+            <div class="webpay-status {% if conexion.modo_prueba %}webpay-status-test{% else %}webpay-status-live{% endif %}" role="status">
+                <span class="webpay-status-mark" aria-hidden="true">✓</span>
+                <div>
+                    <strong>{% if conexion.modo_prueba %}Configuración guardada · Ambiente de prueba{% else %}Credenciales de producción guardadas{% endif %}</strong>
+                    <div class="small mt-1">
+                        {% if conexion.modo_prueba %}
+                            Este condominio usa las credenciales oficiales de integración de Transbank. No se realizan cobros reales.
+                            {% if conexion.api_key_cifrada %} Las credenciales de producción también están guardadas de forma cifrada.{% endif %}
+                        {% else %}
+                            Código de comercio: <strong>{{ conexion.codigo_comercio }}</strong> · Llave API: <strong>{% if conexion.api_key_cifrada %}guardada y cifrada{% else %}pendiente{% endif %}</strong>. La llave secreta no se muestra en pantalla.
+                        {% endif %}
+                    </div>
+                    <div class="small mt-1">Última actualización: {{ conexion.actualizado|date:"d/m/Y H:i" }}</div>
+                </div>
+            </div>
+        {% else %}
+            <div class="webpay-status webpay-status-unconfigured" role="status">
+                <span class="webpay-status-mark" aria-hidden="true">!</span>
+                <div><strong>Webpay aún no está configurado para este condominio</strong><div class="small mt-1">Guarda la configuración de prueba para hacer pruebas o cambia a producción cuando Transbank te entregue las credenciales.</div></div>
+            </div>
+        {% endif %}
+        <form method="post" action="{% url 'gastos_comunes:webpay_configurar' condominio.id %}">
+            {% csrf_token %}
+            <div class="row g-3">
+                <div class="col-12 col-md-4">
+                    <label class="form-label" for="ambiente-{{ condominio.id }}">Ambiente</label>
+                    <select class="form-select" id="ambiente-{{ condominio.id }}" name="ambiente" required>
+                        <option value="prueba" {% if not conexion or conexion.modo_prueba %}selected{% endif %}>Prueba · sin cobros</option>
+                        <option value="produccion" {% if conexion and not conexion.modo_prueba %}selected{% endif %}>Producción · pagos reales</option>
+                    </select>
+                </div>
+                <div class="col-12 col-md-4">
+                    <label class="form-label" for="codigo-{{ condominio.id }}">Código de comercio</label>
+                    <input class="form-control" id="codigo-{{ condominio.id }}" name="codigo_comercio" inputmode="numeric" autocomplete="off" value="{% if conexion and not conexion.modo_prueba %}{{ conexion.codigo_comercio }}{% endif %}" placeholder="Lo entrega Transbank">
+                </div>
+                <div class="col-12 col-md-4">
+                    <label class="form-label" for="api-key-{{ condominio.id }}">Llave API secreta</label>
+                    <input class="form-control" id="api-key-{{ condominio.id }}" name="api_key" type="password" autocomplete="new-password" placeholder="{% if conexion and conexion.api_key_cifrada %}Guardada · deja vacío para conservarla{% else %}La entrega Transbank{% endif %}">
+                </div>
+            </div>
+            <p class="form-text">En modo de prueba no se usan estos campos: Webpay utiliza credenciales oficiales de integración. En producción, la llave se guarda cifrada y nunca vuelve a mostrarse; si ya estaba guardada, deja el campo vacío para conservarla. Usa las credenciales contratadas para este condominio.</p>
+            <button class="button" type="submit">{% if conexion %}Actualizar configuración{% else %}Guardar configuración{% endif %}</button>
+        </form>
+        {% endwith %}
+    </section>
+{% empty %}
+    <div class="card">No tienes condominios activos asignados para configurar.</div>
+{% endfor %}
+<div class="quick-links mt-0"><a class="button button-secondary" href="{% url 'gastos_comunes:lista' %}">Volver a gastos comunes</a></div>
+<style>
+    .webpay-status { display:flex; align-items:flex-start; gap:.75rem; margin:.75rem 0 1rem; padding:.85rem 1rem; border:1px solid; border-radius:.7rem; }
+    .webpay-status-mark { display:grid; place-items:center; flex:0 0 1.65rem; width:1.65rem; height:1.65rem; border-radius:50%; font-weight:800; }
+    .webpay-status-test { color:#155e50; background:#eef8f4; border-color:#bfe3d6; }
+    .webpay-status-test .webpay-status-mark, .webpay-status-live .webpay-status-mark { color:#fff; background:#16836f; }
+    .webpay-status-live { color:#155e50; background:#edf7f3; border-color:#a8d8c8; }
+    .webpay-status-unconfigured { color:#5d4b1e; background:#fff9e9; border-color:#ead99f; }
+    .webpay-status-unconfigured .webpay-status-mark { color:#fff; background:#a57916; }
+</style>
+{% endblock %}

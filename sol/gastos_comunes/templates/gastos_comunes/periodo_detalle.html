@@ -1,4 +1,5 @@
 {% extends "core/base.html" %}
+{% load humanize %}
 {% block title %}{{ periodo }} | Gastos comunes{% endblock %}
 {% block page_title %}{{ periodo }}{% endblock %}
 {% block content %}
@@ -115,6 +116,14 @@
 {% endif %}
 
 {% if grupos_liquidacion %}
+{% if periodo.estado == "publicado" %}
+<section class="row g-3 mb-3" aria-label="Resumen de cobranza del período">
+    <div class="col-12 col-md-6 col-xl-3"><article class="card h-100 mb-0"><span class="small text-muted">LIQUIDACIONES EMITIDAS</span><strong class="fs-4">${{ total_liquidaciones|floatformat:0|intcomma }}</strong><span class="small text-muted">Incluyen los saldos anteriores informados en cada boleta.</span></article></div>
+    <div class="col-12 col-md-6 col-xl-3"><article class="card h-100 mb-0"><span class="small text-muted">PAGOS VINCULADOS A ESTE PERÍODO</span><strong class="fs-4 text-success">${{ total_pagado_periodo|floatformat:0|intcomma }}</strong><span class="small text-muted">Pagos registrados directamente en estas liquidaciones.</span></article></div>
+    <div class="col-12 col-md-6 col-xl-3"><article class="card h-100 mb-0"><span class="small text-muted">SALDO ACUMULADO DE LAS UNIDADES</span><strong class="fs-4 {% if total_saldo_acumulado > 0 %}text-danger{% else %}text-success{% endif %}">${{ total_saldo_acumulado|floatformat:0|intcomma }}</strong><span class="small text-muted">Deuda total al cierre de este período, incluyendo períodos anteriores.</span></article></div>
+    <div class="col-12 col-md-6 col-xl-3"><article class="card h-100 mb-0"><span class="small text-muted">UNIDADES VENCIDAS</span><strong class="fs-4 {% if unidades_vencidas %}text-danger{% else %}text-success{% endif %}">{{ unidades_vencidas }}</strong><span class="small text-muted">Unidades con saldo y cargos vencidos.</span></article></div>
+</section>
+{% endif %}
 <div class="card" id="vista-previa" tabindex="-1">
     <div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-3">
         <div><span class="text-primary fw-semibold small">PASO 4</span><h2 class="h5 mb-1 mt-1">Vista previa por unidad</h2><p class="text-muted mb-0">Revisa los importes antes de publicar.</p></div>
@@ -130,8 +139,8 @@
                 </button>
             </h3>
             <div id="contenido-edificio-{{ grupo.id }}" class="accordion-collapse collapse" aria-labelledby="encabezado-edificio-{{ grupo.id }}" data-bs-parent="#liquidaciones-por-edificio">
-                <div class="accordion-body p-2 p-lg-3"><div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead><tr><th>Unidad</th><th>Alícuota</th><th>Ordinario</th><th>Reserva</th><th>Extraordinario</th><th>Consumos</th><th>Interés mora</th><th>Saldo anterior</th><th>Total</th>{% if periodo.estado == "publicado" %}<th>Pagado</th><th>Saldo actual</th>{% endif %}</tr></thead><tbody>
-                {% for l in grupo.unidades %}<tr><td>{{ l.unidad.numero_unidad }}</td><td>{{ l.alicuota_usada }}%</td><td>${{ l.total_ordinario|floatformat:0 }}</td><td>${{ l.fondo_reserva|floatformat:0 }}</td><td>${{ l.total_extraordinario|floatformat:0 }}</td><td>${{ l.consumos|floatformat:0 }}</td><td>${{ l.intereses|floatformat:0 }}</td><td>${{ l.saldo_anterior|floatformat:0 }}</td><td><strong>${{ l.total|floatformat:0 }}</strong></td>{% if periodo.estado == "publicado" %}<td>${{ l.pagado_calculado|floatformat:0 }}</td><td>${{ l.saldo_actual|floatformat:0 }}</td>{% endif %}</tr>{% endfor %}
+                <div class="accordion-body p-2 p-lg-3"><div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead><tr><th>Unidad</th><th>Alícuota</th><th>Ordinario</th><th>Reserva</th><th>Extraordinario</th><th>Consumos</th><th>Interés mora</th><th>Saldo anterior</th><th>Total liquidación</th>{% if periodo.estado == "publicado" %}<th>Pagos asociados a esta boleta</th><th>Saldo acumulado al período</th><th>Estado</th><th></th>{% endif %}</tr></thead><tbody>
+                {% for l in grupo.unidades %}<tr class="{% if l.estado_cuenta == 'vencido' %}table-danger{% elif l.estado_cuenta == 'al_dia' and periodo.estado == 'publicado' %}table-success{% endif %}"><td>{{ l.unidad.numero_unidad }}</td><td>{{ l.alicuota_usada }}%</td><td>${{ l.total_ordinario|floatformat:0 }}</td><td>${{ l.fondo_reserva|floatformat:0 }}</td><td>${{ l.total_extraordinario|floatformat:0 }}</td><td>${{ l.consumos|floatformat:0 }}</td><td>${{ l.intereses|floatformat:0 }}</td><td>${{ l.saldo_anterior|floatformat:0 }}</td><td><strong>${{ l.total|floatformat:0 }}</strong></td>{% if periodo.estado == "publicado" %}<td>${{ l.pagado_calculado|floatformat:0 }}</td><td class="{% if l.saldo_actual > 0 %}text-danger fw-semibold{% else %}text-success fw-semibold{% endif %}">${{ l.saldo_actual|floatformat:0 }}</td><td>{% if l.estado_cuenta == 'vencido' %}<span class="badge text-bg-danger">Vencido</span>{% elif l.estado_cuenta == 'pendiente' %}<span class="badge text-bg-warning">Saldo pendiente</span>{% else %}<span class="badge text-bg-success">Al día</span>{% endif %}</td><td><a class="button button-secondary btn-sm" href="{% url 'gastos_comunes:cartola_unidad' l.unidad.id %}">Ver cartola</a></td>{% endif %}</tr>{% endfor %}
                 </tbody></table></div></div>
             </div>
         </div>
@@ -162,9 +171,31 @@
 {% if periodo.estado == "publicado" %}
 <div class="card">
     <h2 class="h5">Registrar pagos recibidos</h2>
-    <p class="text-muted">Registro de pagos recibidos fuera de la plataforma.</p>
-    {{ pago_form.non_field_errors }}
-    {% if puede_registrar_pagos %}{% for l in liquidaciones %}{% if l.saldo_actual > 0 %}<form method="post" class="border-top py-3 d-flex flex-wrap align-items-end gap-2">{% csrf_token %}<input type="hidden" name="accion" value="pago"><input type="hidden" name="liquidacion_id" value="{{ l.id }}"><strong class="me-auto">{{ l.unidad.edificio.nombre }} · {{ l.unidad.numero_unidad }} — saldo ${{ l.saldo_actual|floatformat:0 }}</strong><div><label class="form-label">Monto</label><input class="form-control" type="number" name="monto" min="1" max="{{ l.saldo_actual }}" step="1" required></div><div><label class="form-label">Fecha</label><input class="form-control" type="date" name="fecha" value="{{ today|date:'Y-m-d' }}" required></div><div><label class="form-label">Método</label><input class="form-control" name="metodo" placeholder="Transferencia"></div><div><label class="form-label">Referencia</label><input class="form-control" name="referencia"></div><button class="button" type="submit">Registrar</button></form>{% endif %}{% endfor %}{% else %}<p>Para mantener la cuenta cuadrada, los pagos se registran desde el período publicado más reciente.</p>{% endif %}
+    <p class="text-muted">Registra aquí transferencias y pagos recibidos fuera de la plataforma. Busca una unidad por número, edificio, nombre o RUT; el condominio ya corresponde a este período.</p>
+    {% if puede_registrar_pagos %}
+    <form method="post" id="form-pago-recibido" class="border-top pt-3" data-busqueda-url="{% url 'gastos_comunes:buscar_unidades_pago' periodo.id %}" data-cartola-base="{% url 'gastos_comunes:cartola_unidad' 0 %}">
+        {% csrf_token %}<input type="hidden" name="accion" value="pago">
+        <input type="hidden" name="liquidacion_id" id="pago-liquidacion-id" value="{% if pago_unidad_seleccionada %}{{ pago_unidad_seleccionada.id }}{% endif %}">
+        {{ pago_form.non_field_errors }}
+        <div class="mb-3 position-relative">
+            <label class="form-label" for="buscar-unidad-pago">Unidad que realizó el pago</label>
+            <input class="form-control" type="search" id="buscar-unidad-pago" autocomplete="off" placeholder="Ej.: 1-101, Edificio 1, nombre o RUT" minlength="2" aria-describedby="ayuda-buscar-unidad" aria-controls="resultados-unidad-pago" aria-expanded="false">
+            <div class="form-text" id="ayuda-buscar-unidad">Escribe al menos 2 caracteres. Solo aparecerán unidades con saldo pendiente.</div>
+            <div id="resultados-unidad-pago" class="payment-unit-results" role="list" hidden></div>
+            <div id="unidad-pago-seleccionada" class="payment-unit-selected mt-3" {% if not pago_unidad_seleccionada %}hidden{% endif %} aria-live="polite">
+                {% if pago_unidad_seleccionada %}<div><strong>{{ pago_unidad_seleccionada.unidad.edificio.nombre }} · Unidad {{ pago_unidad_seleccionada.unidad.numero_unidad }}</strong><div class="small text-muted">Saldo pendiente: ${{ saldo_unidad_pago|floatformat:0|intcomma }}</div></div><a class="button button-secondary btn-sm" href="{% url 'gastos_comunes:cartola_unidad' pago_unidad_seleccionada.unidad_id %}" target="_blank" rel="noopener">Abrir cartola</a>{% endif %}
+            </div>
+        </div>
+        <div class="row g-3 align-items-end">
+            <div class="col-12 col-sm-6 col-lg-2"><label class="form-label" for="pago-monto">Monto ($)</label><input class="form-control" id="pago-monto" type="number" name="monto" min="1" max="{% if pago_unidad_seleccionada %}{{ saldo_unidad_pago }}{% endif %}" step="1" value="{{ pago_form.monto.value|default_if_none:'' }}" required aria-describedby="error-pago-monto">{% for error in pago_form.monto.errors %}<div class="invalid-feedback d-block" id="error-pago-monto">{{ error }}</div>{% endfor %}</div>
+            <div class="col-12 col-sm-6 col-lg-2"><label class="form-label" for="pago-fecha">Fecha</label><input class="form-control" id="pago-fecha" type="date" name="fecha" value="{{ pago_form.fecha.value|default:today|date:'Y-m-d' }}" required></div>
+            <div class="col-12 col-sm-6 col-lg-3"><label class="form-label" for="pago-metodo">Método</label><input class="form-control" id="pago-metodo" name="metodo" maxlength="30" value="{{ pago_form.metodo.value|default:'Transferencia' }}" placeholder="Transferencia"></div>
+            <div class="col-12 col-sm-6 col-lg-3"><label class="form-label" for="pago-referencia">Referencia (opcional)</label><input class="form-control" id="pago-referencia" name="referencia" maxlength="100" value="{{ pago_form.referencia.value|default:'' }}" placeholder="N.º de operación"></div>
+            <div class="col-12 col-lg-2"><button class="button w-100" id="guardar-pago-recibido" type="submit" {% if not pago_unidad_seleccionada %}disabled{% endif %}>Registrar pago</button></div>
+        </div>
+        <div class="small text-danger mt-2" id="estado-busqueda-pago" role="status" aria-live="polite"></div>
+    </form>
+    {% else %}<p class="mb-0">Para mantener la cuenta cuadrada, los pagos se registran desde el período publicado más reciente.</p>{% endif %}
 </div>
 {% endif %}
 {% endblock %}
@@ -174,6 +205,11 @@
     .periodo-sticky-actions { position: sticky; bottom: 0; z-index: 20; padding: .75rem 0; margin: 1rem -1rem -1rem; background: rgba(255,255,255,.97); border-top: 1px solid #d9e0ea; box-shadow: 0 -5px 18px rgba(20,35,60,.08); }
     .periodo-sticky-actions form { margin: 0; }
     #vista-previa { scroll-margin-top: 1rem; }
+    .payment-unit-results { position: absolute; z-index: 30; top: 100%; left: 0; right: 0; max-height: 19rem; overflow-y: auto; border: 1px solid #cbd5e1; border-radius: .65rem; background: #fff; box-shadow: 0 12px 28px rgba(22, 38, 58, .15); }
+    .payment-unit-result { display: block; width: 100%; padding: .75rem 1rem; border: 0; border-bottom: 1px solid #e7edf2; background: #fff; color: #18344a; text-align: left; }
+    .payment-unit-result:hover, .payment-unit-result:focus { background: #edf7f3; outline: none; }
+    .payment-unit-result:last-child { border-bottom: 0; }
+    .payment-unit-selected { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .75rem; padding: .85rem 1rem; border: 1px solid #cce6dc; border-radius: .65rem; background: #f0f8f5; color: #18344a; }
     @media (max-width: 575.98px) { .periodo-sticky-actions .container-fluid { align-items: stretch !important; } .periodo-sticky-actions .d-flex { width: 100%; } .periodo-sticky-actions form, .periodo-sticky-actions button { flex: 1; } }
 </style>
 <script>
@@ -192,6 +228,103 @@
     };
     alcance.addEventListener("change", actualizarAlcance);
     actualizarAlcance();
+})();
+</script>
+<script>
+(() => {
+    const form = document.getElementById("form-pago-recibido");
+    if (!form) return;
+    const buscar = document.getElementById("buscar-unidad-pago");
+    const resultados = document.getElementById("resultados-unidad-pago");
+    const seleccionada = document.getElementById("unidad-pago-seleccionada");
+    const liquidacion = document.getElementById("pago-liquidacion-id");
+    const monto = document.getElementById("pago-monto");
+    const guardar = document.getElementById("guardar-pago-recibido");
+    const estado = document.getElementById("estado-busqueda-pago");
+    let temporizador;
+    let solicitud;
+
+    const escapar = (valor) => {
+        const nodo = document.createElement("span");
+        nodo.textContent = valor || "";
+        return nodo.innerHTML;
+    };
+    const cerrarResultados = () => {
+        resultados.hidden = true;
+        buscar.setAttribute("aria-expanded", "false");
+    };
+    const mostrarSeleccion = (unidad) => {
+        liquidacion.value = unidad.liquidacion_id;
+        monto.max = unidad.saldo;
+        seleccionada.innerHTML = `<div><strong>${escapar(unidad.etiqueta)}</strong><div class="small text-muted">${escapar(unidad.residentes)}${unidad.residentes ? " · " : ""}Saldo pendiente: $${Number(unidad.saldo).toLocaleString("es-CL")}</div></div><a class="button button-secondary btn-sm" href="${escapar(unidad.cartola_url)}" target="_blank" rel="noopener">Abrir cartola</a>`;
+        seleccionada.hidden = false;
+        guardar.disabled = false;
+        estado.textContent = "Unidad seleccionada. Revisa el saldo antes de registrar el abono.";
+        buscar.value = unidad.etiqueta;
+        cerrarResultados();
+    };
+    const consultar = async () => {
+        const consulta = buscar.value.trim();
+        liquidacion.value = "";
+        seleccionada.hidden = true;
+        guardar.disabled = true;
+        monto.removeAttribute("max");
+        resultados.replaceChildren();
+        if (consulta.length < 2) {
+            cerrarResultados();
+            estado.textContent = consulta ? "Escribe al menos 2 caracteres para buscar." : "";
+            return;
+        }
+        if (solicitud) solicitud.abort();
+        solicitud = new AbortController();
+        estado.textContent = "Buscando unidades con saldo…";
+        try {
+            const respuesta = await fetch(`${form.dataset.busquedaUrl}?q=${encodeURIComponent(consulta)}`, {
+                headers: { "Accept": "application/json" },
+                credentials: "same-origin",
+                signal: solicitud.signal,
+            });
+            const datos = await respuesta.json();
+            if (!respuesta.ok) throw new Error(datos.error || "No se pudo completar la búsqueda.");
+            if (!datos.results.length) {
+                estado.textContent = "No encontramos unidades con saldo que coincidan. Prueba con otro dato.";
+                cerrarResultados();
+                return;
+            }
+            datos.results.forEach((unidad) => {
+                const opcion = document.createElement("button");
+                opcion.type = "button";
+                opcion.className = "payment-unit-result";
+                opcion.innerHTML = `<strong>${escapar(unidad.etiqueta)}</strong><span class="d-block small text-muted">${escapar(unidad.residentes)}${unidad.residentes ? " · " : ""}Saldo pendiente: $${Number(unidad.saldo).toLocaleString("es-CL")}</span>`;
+                opcion.addEventListener("click", () => mostrarSeleccion(unidad));
+                resultados.append(opcion);
+            });
+            resultados.hidden = false;
+            buscar.setAttribute("aria-expanded", "true");
+            estado.textContent = datos.results.length === 10
+                ? "Mostramos hasta 10 coincidencias; agrega más caracteres para precisar la búsqueda."
+                : `${datos.results.length} ${datos.results.length === 1 ? "unidad encontrada" : "unidades encontradas"}.`;
+        } catch (error) {
+            if (error.name !== "AbortError") {
+                estado.textContent = error.message || "No se pudo completar la búsqueda.";
+                cerrarResultados();
+            }
+        }
+    };
+    buscar.addEventListener("input", () => {
+        clearTimeout(temporizador);
+        temporizador = setTimeout(consultar, 250);
+    });
+    document.addEventListener("click", (evento) => {
+        if (!form.contains(evento.target)) cerrarResultados();
+    });
+    form.addEventListener("submit", (evento) => {
+        if (!liquidacion.value) {
+            evento.preventDefault();
+            estado.textContent = "Busca y selecciona una unidad antes de registrar el pago.";
+            buscar.focus();
+        }
+    });
 })();
 </script>
 {% endblock %}
