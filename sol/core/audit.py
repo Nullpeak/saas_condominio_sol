@@ -17,7 +17,7 @@ _omitir_auditoria_liquidaciones = ContextVar("omitir_auditoria_liquidaciones", d
 _MODELOS = {}
 _CAMPOS_EXCLUIDOS = {
     "password", "access_token", "refresh_token", "token", "secret",
-    "client_secret", "clave", "contrasena", "webhook_secret",
+    "client_secret", "clave", "contrasena", "webhook_secret", "api_key_cifrada",
 }
 
 
@@ -164,13 +164,13 @@ _MODELOS_TRACKING = (
 def registrar_modelos_adicionales():
     """Called by CoreConfig.ready after every Django app has loaded its models."""
     from anuncios.models import AnuncioOficial, AnuncioResidente
-    from gastos_comunes.models import ItemGasto, Liquidacion, PagoRegistrado, Periodo
+    from gastos_comunes.models import ItemGasto, Liquidacion, PagoRegistrado, Periodo, WebpayConexion
     from mantenimientos.models import ElementoMantenimiento, RegistroMantenimiento
     from tickets.models import Ticket
     from visitas.models import Visita
 
     return _MODELOS_TRACKING + (
-        AnuncioOficial, AnuncioResidente, ItemGasto, Liquidacion, PagoRegistrado,
+        AnuncioOficial, AnuncioResidente, ItemGasto, Liquidacion, PagoRegistrado, WebpayConexion,
         Periodo, ElementoMantenimiento, RegistroMantenimiento, Ticket,
         Visita,
     )

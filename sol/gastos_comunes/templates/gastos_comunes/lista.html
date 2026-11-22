@@ -7,37 +7,100 @@
     <p>{% if es_gestion %}Períodos, liquidaciones y pagos de tus condominios.{% else %}Liquidaciones e historial de tu unidad.{% endif %}</p>
 </header>
 {% if es_gestion %}
-    <div class="quick-links mt-0"><a class="button" href="{% url 'gastos_comunes:periodo_nuevo' %}">Crear período mensual</a>{% if puede_configurar_mp %}<a class="button button-secondary" href="{% url 'gastos_comunes:mercadopago_cuentas' %}">Cuentas Mercado Pago</a>{% endif %}</div>
-    <div class="card">
-        <div class="table-responsive"><table class="table align-middle mb-0">
-            <thead><tr><th>Período</th><th>Condominio</th><th>Vencimiento</th><th>Estado</th><th></th></tr></thead>
+    {% load humanize %}
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+        <p class="text-muted mb-0">Consulta liquidaciones, cobranza y períodos de cada comunidad.</p>
+        <div class="d-flex flex-wrap gap-2"><a class="button" href="{% url 'gastos_comunes:periodo_nuevo' %}">＋ Crear período</a>{% if puede_configurar_webpay %}<a class="button button-secondary" href="{% url 'gastos_comunes:webpay_cuentas' %}">Configurar Webpay</a>{% endif %}</div>
+    </div>
+    <section class="row g-3 mb-4" aria-label="Resumen de períodos">
+        <div class="col-12 col-sm-4"><article class="card period-summary-card h-100 mb-0"><span class="small text-muted">PERÍODOS REGISTRADOS</span><strong>{{ total_periodos|intcomma }}</strong><span class="small text-muted">En tus condominios</span></article></div>
+        <div class="col-12 col-sm-4"><article class="card period-summary-card period-summary-published h-100 mb-0"><span class="small text-muted">PUBLICADOS</span><strong>{{ periodos_publicados|intcomma }}</strong><span class="small text-muted">Visibles para residentes</span></article></div>
+        <div class="col-12 col-sm-4"><article class="card period-summary-card period-summary-draft h-100 mb-0"><span class="small text-muted">BORRADORES</span><strong>{{ periodos_borrador|intcomma }}</strong><span class="small text-muted">Pendientes de publicar</span></article></div>
+    </section>
+    <section class="card period-list-card">
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+            <div><h2 class="h5 mb-1">Períodos de gastos comunes</h2><p class="text-muted small mb-0">Filtra para encontrar una liquidación sin recorrer toda la lista.</p></div>
+            <span class="badge rounded-pill text-bg-light border">{{ page_obj.paginator.count|intcomma }} resultado{{ page_obj.paginator.count|pluralize:"s" }}</span>
+        </div>
+        <form method="get" class="period-filters mb-3" role="search" aria-label="Filtrar períodos">
+            <div><label class="form-label" for="filtro-condominio">Condominio</label><select class="form-select" id="filtro-condominio" name="condominio"><option value="">Todos</option>{% for condominio in condominios_filtro %}<option value="{{ condominio.id }}" {% if filtro_condominio == condominio.id|stringformat:"s" %}selected{% endif %}>{{ condominio.nombre }}</option>{% endfor %}</select></div>
+            <div><label class="form-label" for="filtro-anio">Año</label><input class="form-control" id="filtro-anio" type="number" name="anio" min="2000" max="2100" step="1" value="{{ filtro_anio }}" placeholder="Ej. 2026"></div>
+            <div><label class="form-label" for="filtro-mes">Mes</label><select class="form-select" id="filtro-mes" name="mes"><option value="">Todos</option>{% for numero,nombre in meses %}<option value="{{ numero }}" {% if filtro_mes == numero|stringformat:"s" %}selected{% endif %}>{{ nombre }}</option>{% endfor %}</select></div>
+            <div><label class="form-label" for="filtro-estado">Estado</label><select class="form-select" id="filtro-estado" name="estado"><option value="">Todos</option><option value="borrador" {% if filtro_estado == "borrador" %}selected{% endif %}>Borrador</option><option value="publicado" {% if filtro_estado == "publicado" %}selected{% endif %}>Publicado</option></select></div>
+            <div class="period-filter-actions"><button class="button" type="submit">Filtrar</button>{% if filtros_activos %}<a class="button button-secondary" href="{% url 'gastos_comunes:lista' %}">Limpiar</a>{% endif %}</div>
+        </form>
+        <div class="table-responsive"><table class="table align-middle period-table mb-0">
+            <thead><tr><th>Período</th><th>Condominio</th><th>Vencimiento</th><th>Estado</th><th class="text-end">Acción</th></tr></thead>
             <tbody>
             {% for periodo in periodos %}<tr>
-                <td>{{ periodo.mes|stringformat:"02d" }}/{{ periodo.anio }}</td><td>{{ periodo.condominio.nombre }}</td>
-                <td>{{ periodo.vencimiento|date:"d/m/Y" }}</td><td>{{ periodo.get_estado_display }}</td>
-                <td><a class="button button-secondary" href="{% url 'gastos_comunes:detalle' periodo.id %}">Abrir</a></td>
-            </tr>{% empty %}<tr><td colspan="5" class="text-center text-muted py-4">Todavía no hay períodos registrados.</td></tr>{% endfor %}
+                <td><strong class="period-month">{{ periodo.mes|stringformat:"02d" }}/{{ periodo.anio }}</strong></td>
+                <td><span class="period-condo-name">{{ periodo.condominio.nombre }}</span></td>
+                <td>{{ periodo.vencimiento|date:"d/m/Y" }}</td>
+                <td>{% if periodo.estado == "publicado" %}<span class="badge rounded-pill text-bg-success">Publicado</span>{% else %}<span class="badge rounded-pill text-bg-warning">Borrador</span>{% endif %}</td>
+                <td class="text-end"><a class="button button-secondary" href="{% url 'gastos_comunes:detalle' periodo.id %}">Abrir período <span aria-hidden="true">→</span></a></td>
+            </tr>{% empty %}<tr><td colspan="5"><div class="period-empty"><strong>{% if filtros_activos %}No encontramos períodos con esos filtros{% else %}Aún no hay períodos registrados{% endif %}</strong><span>{% if filtros_activos %}Prueba cambiar los criterios o limpia los filtros.{% else %}Crea el primer período mensual para comenzar.{% endif %}</span>{% if filtros_activos %}<a class="button button-secondary" href="{% url 'gastos_comunes:lista' %}">Limpiar filtros</a>{% endif %}</div></td></tr>{% endfor %}
             </tbody>
         </table></div>
-    </div>
+    </section>
     {% include "core/_paginacion.html" %}
+    <style>
+        .period-summary-card { display:flex; gap:.2rem; padding:1rem 1.15rem; border-top:3px solid #d9e4ed; }
+        .period-summary-card strong { color:#18344a; font-size:1.8rem; line-height:1.2; }
+        .period-summary-published { border-top-color:#17836d; }
+        .period-summary-draft { border-top-color:#d4a53a; }
+        .period-list-card { padding:1.25rem; }
+        .period-filters { display:grid; grid-template-columns:minmax(190px,2fr) minmax(120px,1fr) minmax(140px,1fr) minmax(150px,1fr) auto; gap:.8rem; align-items:end; padding:1rem; border:1px solid #e1e8ef; border-radius:.75rem; background:#f8fafb; }
+        .period-filters .form-label { margin-bottom:.35rem; font-size:.85rem; font-weight:600; color:#40556a; }
+        .period-filter-actions { display:flex; gap:.5rem; }
+        .period-table thead th { color:#53677b; font-size:.82rem; font-weight:650; white-space:nowrap; }
+        .period-table tbody tr:hover { background:#f4f9f7; }
+        .period-month { color:#17384e; font-size:1.03rem; white-space:nowrap; }
+        .period-condo-name { font-weight:600; }
+        .period-empty { display:flex; min-height:150px; flex-direction:column; align-items:center; justify-content:center; gap:.55rem; color:#607286; text-align:center; }
+        .period-empty strong { color:#243b50; }
+        @media (max-width: 850px) { .period-filters { grid-template-columns:repeat(2,minmax(0,1fr)); } .period-filter-actions { grid-column:1/-1; } }
+        @media (max-width: 480px) { .period-filters { grid-template-columns:1fr; } .period-filter-actions { grid-column:auto; } .period-filter-actions .button { flex:1; text-align:center; } }
+    </style>
 {% else %}
-    <div class="card">
-        <div class="table-responsive"><table class="table align-middle mb-0">
-            <thead><tr><th>Período</th><th>Unidad</th><th>Total</th><th>Pagado</th><th>Saldo</th><th></th></tr></thead>
-            <tbody>{% for liquidacion in liquidaciones %}
-                {% with pagado=liquidacion.pagos.all %}
-                <tr>
-                    <td>{{ liquidacion.periodo.mes|stringformat:"02d" }}/{{ liquidacion.periodo.anio }}</td>
-                    <td>{{ liquidacion.unidad.edificio.nombre }} · {{ liquidacion.unidad.numero_unidad }}</td>
-                    <td>${{ liquidacion.total|floatformat:0 }}</td>
-                    <td>{% for pago in pagado %}${{ pago.monto|floatformat:0 }}{% if not forloop.last %}, {% endif %}{% empty %}$0{% endfor %}</td>
-                    <td>${{ liquidacion.saldo_actual|default:liquidacion.total|floatformat:0 }}</td>
-                    <td><a class="button button-secondary" href="{% url 'gastos_comunes:detalle' liquidacion.periodo.id %}">Ver desglose</a></td>
-                </tr>{% endwith %}
-            {% empty %}<tr><td colspan="6" class="text-center text-muted py-4">Aún no hay liquidaciones publicadas para tus unidades.</td></tr>{% endfor %}</tbody>
-        </table></div>
+    {% load humanize %}
+    <section class="card account-summary-card">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+            <div><span class="text-primary fw-semibold small">ESTADO DE CUENTA</span><h2 class="h4 mb-1 mt-1">Saldo pendiente total</h2><p class="text-muted mb-0">Suma de cargos publicados menos pagos recibidos en tus unidades.</p></div>
+            <div class="text-end"><strong class="fs-2 {% if saldo_total > 0 %}text-danger{% else %}text-success{% endif %}">${{ saldo_total|floatformat:0|intcomma }}</strong><div>{% if saldo_total > 0 %}<span class="badge text-bg-danger">Pendiente de pago</span>{% else %}<span class="badge text-bg-success">Al día</span>{% endif %}</div></div>
+        </div>
+    </section>
+
+    {% if unidades_resumen %}
+    <div class="row g-3 mb-4">
+        {% for resumen in unidades_resumen %}
+        <div class="col-12 col-xl-6"><article class="card h-100 mb-0">
+            <div class="d-flex flex-wrap justify-content-between gap-2"><div><span class="small text-muted">{{ resumen.unidad.edificio.condominio.nombre }}</span><h3 class="h5 mb-1">{{ resumen.unidad.edificio.nombre }} · Unidad {{ resumen.unidad.numero_unidad }}</h3>
+                {% if resumen.ultima_liquidacion %}<p class="small text-muted mb-0">Último período: {{ resumen.ultima_liquidacion.periodo.mes|stringformat:"02d" }}/{{ resumen.ultima_liquidacion.periodo.anio }} · Vence {{ resumen.ultima_liquidacion.periodo.vencimiento|date:"d/m/Y" }}</p>{% else %}<p class="small text-muted mb-0">Aún no hay liquidaciones publicadas.</p>{% endif %}</div>
+                <div class="text-end"><span class="small text-muted d-block">Saldo acumulado</span><strong class="fs-4 {% if resumen.saldo > 0 %}text-danger{% else %}text-success{% endif %}">${{ resumen.saldo|floatformat:0|intcomma }}</strong></div></div>
+            <div class="d-flex flex-wrap gap-2 mt-3"><a class="button button-secondary" href="{% url 'gastos_comunes:cartola_unidad' resumen.unidad.id %}">Ver cartola</a>
+                {% if resumen.webpay_disponible %}<form method="post" action="{% url 'gastos_comunes:pago_iniciar' resumen.ultima_liquidacion.id %}">{% csrf_token %}<button class="button" type="submit">Pagar saldo total · ${{ resumen.saldo|floatformat:0|intcomma }}</button></form>{% endif %}
+                {% if resumen.webpay_disponible %}<span class="small text-muted align-self-center">{% if resumen.modo_prueba %}Prueba: no se cobrará dinero real.{% else %}Pago con tarjeta mediante Webpay.{% endif %}</span>{% endif %}
+            </div>
+        </article></div>
+        {% endfor %}
     </div>
+    {% endif %}
+
+    <section class="card">
+        <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-3"><div><h2 class="h5 mb-1">Estado de cada liquidación</h2><p class="text-muted small mb-0">Cada gasto aparece una vez con los pagos aplicados y el saldo que queda en esa liquidación.</p></div>
+            <form method="get" class="d-flex flex-wrap gap-2 align-items-end"><div><label class="form-label small mb-1" for="filtro-unidad">Unidad</label><select class="form-select" name="unidad" id="filtro-unidad"><option value="">Todas mis unidades</option>{% for unidad in opciones_unidad %}<option value="{{ unidad.id }}" {% if filtro_unidad == unidad.id|stringformat:"s" %}selected{% endif %}>{{ unidad.edificio.condominio.nombre }} · {{ unidad.edificio.nombre }} · {{ unidad.numero_unidad }}</option>{% endfor %}</select></div><button class="button button-secondary" type="submit">Filtrar</button></form>
+        </div>
+        <div class="table-responsive"><table class="table align-middle mb-0">
+            <thead><tr><th>Fecha</th><th>Unidad</th><th>Liquidación</th><th class="text-end">Cargo</th><th class="text-end">Abono aplicado</th><th class="text-end">Saldo de esta liquidación</th><th>Estado</th><th>Respaldo</th></tr></thead>
+            <tbody>{% for movimiento in movimientos %}<tr class="{% if movimiento.estado == 'vencido' %}table-danger{% elif movimiento.estado == 'pagado' %}table-success{% endif %}">
+                <td class="text-nowrap">{{ movimiento.fecha|date:"d/m/Y" }}</td><td><span class="d-block">{{ movimiento.unidad.edificio.condominio.nombre }}</span><span class="small text-muted">{{ movimiento.unidad.edificio.nombre }} · {{ movimiento.unidad.numero_unidad }}</span></td>
+                <td>Gasto común · {{ movimiento.periodo.mes|stringformat:"02d" }}/{{ movimiento.periodo.anio }}<div class="small text-muted">Vence {{ movimiento.vencimiento|date:"d/m/Y" }}</div></td>
+                <td class="text-end"><strong>${{ movimiento.monto|floatformat:0|intcomma }}</strong></td><td class="text-end">{% if movimiento.monto_pagado %}<strong class="text-success">− ${{ movimiento.monto_pagado|floatformat:0|intcomma }}</strong>{% else %}—{% endif %}</td>
+                <td class="text-end">${{ movimiento.saldo_pendiente|floatformat:0|intcomma }}</td><td>{% if movimiento.estado == 'vencido' %}<span class="badge text-bg-danger">Vencido</span>{% elif movimiento.estado == 'abono' %}<span class="badge text-bg-warning">Abono · pendiente</span>{% elif movimiento.estado == 'pendiente' %}<span class="badge text-bg-secondary">Pendiente</span>{% else %}<span class="badge text-bg-success">Pagado</span>{% endif %}</td>
+                <td><a class="button button-secondary btn-sm" href="{% url 'gastos_comunes:detalle' movimiento.periodo.id %}?unidad={{ movimiento.unidad.id }}">Ver boleta</a></td>
+            </tr>{% empty %}<tr><td colspan="8" class="text-center text-muted py-4">Aún no hay movimientos publicados para esta unidad.</td></tr>{% endfor %}</tbody>
+        </table></div>
+    </section>
     {% include "core/_paginacion.html" %}
 {% endif %}
 {% endblock %}

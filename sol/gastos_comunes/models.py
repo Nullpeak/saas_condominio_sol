@@ -163,6 +163,10 @@ class Liquidacion(models.Model):
 
 
 class PagoOnline(models.Model):
+    class Proveedor(models.TextChoices):
+        MERCADOPAGO = "mercadopago", "Mercado Pago"
+        WEBPAY = "webpay", "Webpay Plus"
+
     class Estado(models.TextChoices):
         CREADO = "creado", "Creado"
         PENDIENTE = "pendiente", "Pendiente"
@@ -173,10 +177,12 @@ class PagoOnline(models.Model):
 
     liquidacion = models.ForeignKey(Liquidacion, on_delete=models.PROTECT, related_name="pagos_online")
     usuario = models.ForeignKey(Usuario, on_delete=models.PROTECT, related_name="pagos_online")
+    proveedor = models.CharField(max_length=20, choices=Proveedor.choices, default=Proveedor.WEBPAY)
     referencia_externa = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     clave_idempotencia = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     orden_proveedor = models.CharField(max_length=80, unique=True, null=True, blank=True)
     preferencia_proveedor = models.CharField(max_length=80, blank=True)
+    token_webpay = models.CharField(max_length=80, unique=True, null=True, blank=True)
     url_pago = models.URLField(max_length=1000, blank=True)
     monto = models.DecimalField(max_digits=14, decimal_places=0, validators=[MinValueValidator(1)])
     estado = models.CharField(max_length=12, choices=Estado.choices, default=Estado.CREADO)
@@ -184,6 +190,7 @@ class PagoOnline(models.Model):
     creado = models.DateTimeField(auto_now_add=True)
     actualizado = models.DateTimeField(auto_now=True)
     pagado = models.DateTimeField(null=True, blank=True)
+    codigo_autorizacion = models.CharField(max_length=20, blank=True)
 
     class Meta:
         ordering = ["-creado", "-id"]
@@ -206,6 +213,20 @@ class MercadoPagoConexion(models.Model):
 
     def __str__(self):
         return f"Mercado Pago · {self.condominio} · vendedor {self.vendedor_id}"
+
+
+class WebpayConexion(models.Model):
+    """Credenciales de Webpay Plus contratadas por un condominio."""
+    condominio = models.OneToOneField(Condominio, on_delete=models.CASCADE, related_name="webpay_conexion")
+    codigo_comercio = models.CharField(max_length=20, blank=True)
+    api_key_cifrada = models.TextField(blank=True)
+    modo_prueba = models.BooleanField(default=True)
+    configurado_por = models.ForeignKey(Usuario, on_delete=models.PROTECT, related_name="conexiones_webpay")
+    actualizado = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        ambiente = "integración" if self.modo_prueba else "producción"
+        return f"Webpay Plus · {self.condominio} · {ambiente}"
 
 
 class MercadoPagoIntentoOAuth(models.Model):

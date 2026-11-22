@@ -10,22 +10,28 @@ from django.core.exceptions import ValidationError
 from core.paginacion import paginar
 from django.db import OperationalError, transaction
 from django.db.models import Q
-from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden, HttpResponseServerError
+from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden, HttpResponseServerError, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.text import slugify
 from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
 from core.models import Condominio, Unidad, Usuario
 from .forms import ItemGastoForm, PagoForm, PeriodoForm
-from .models import ItemGasto, LecturaMedidor, Liquidacion, MercadoPagoConexion, MercadoPagoIntentoOAuth, PagoOnline, PagoRegistrado, Periodo
-from .services import calcular_periodo, publicar_periodo, resumen_mora, saldos_acumulados
+from .models import ItemGasto, LecturaMedidor, Liquidacion, MercadoPagoConexion, MercadoPagoIntentoOAuth, PagoOnline, PagoRegistrado, Periodo, WebpayConexion
+from .services import calcular_periodo, movimientos_cartola, publicar_periodo, resumen_mora, saldos_acumulados
 from .excel import crear_plantilla, leer_tabla
 from .mercadopago import MercadoPagoError, crear_checkout, crear_intento_oauth, completar_oauth, es_modo_prueba, localizar_pago_webhook, secreto_webhook_actual, sincronizar_pago, verificar_firma_webhook
+from .webpay import WebpayError, actualizar_estado_pago as actualizar_estado_webpay, cifrar_api_key, consultar_transaccion as consultar_webpay, confirmar_transaccion as confirmar_webpay, crear_transaccion as crear_transaccion_webpay, validar_api_key, validar_codigo_comercio
 
 ROLES_GESTION = {Usuario.Rol.SUPER, Usuario.Rol.ADMINISTRADOR, Usuario.Rol.GESTOR}
+MESES_NOMBRE = [
+    (1, "Enero"), (2, "Febrero"), (3, "Marzo"), (4, "Abril"),
+    (5, "Mayo"), (6, "Junio"), (7, "Julio"), (8, "Agosto"),
+    (9, "Septiembre"), (10, "Octubre"), (11, "Noviembre"), (12, "Diciembre"),
+]
 
 
 def perfil(request):
@@ -44,23 +50,146 @@ def error_formulario(exc):
 def lista(request):
     usuario = perfil(request)
     if usuario.rol in ROLES_GESTION:
-        periodos = Periodo.objects.filter(condominio__in=condominios_permitidos(usuario)).select_related("condominio").order_by("-anio", "-mes", "condominio__nombre", "-pk")
-        paginacion = paginar(request, periodos)
-        return render(request, "gastos_comunes/lista.html", {"usuario": usuario, "periodos": paginacion["page_obj"], "es_gestion": True, "puede_configurar_mp": usuario.rol in (Usuario.Rol.ADMINISTRADOR, Usuario.Rol.SUPER), **paginacion})
-    unidades = Unidad.objects.filter(Q(dueno=usuario) | Q(arrendatario=usuario)).distinct()
-    liquidaciones_qs = Liquidacion.objects.filter(unidad__in=unidades, periodo__estado=Periodo.Estado.PUBLICADO).select_related("periodo", "unidad", "unidad__edificio", "periodo__condominio").prefetch_related("pagos").order_by("-periodo__anio", "-periodo__mes", "-pk")
-    paginacion = paginar(request, liquidaciones_qs)
-    liquidaciones = paginacion["page_obj"]
-    condominios_mora = {liq.periodo.condominio_id: liq.periodo.condominio for liq in liquidaciones}
-    moras_por_condominio = {pk: resumen_mora(condominio) for pk, condominio in condominios_mora.items()}
-    for liquidacion in liquidaciones.object_list:
-        liquidacion.saldo_actual = saldos_acumulados(liquidacion.periodo.condominio, liquidacion.periodo).get(liquidacion.unidad_id, Decimal("0"))
-        mora = moras_por_condominio.get(liquidacion.periodo.condominio_id, {}).get(liquidacion.unidad_id, {})
-        liquidacion.en_mora = liquidacion.saldo_actual > 0 and (
-            mora.get("principal_vencido", Decimal("0")) > 0
-            or mora.get("interes_devengado", Decimal("0")) > 0
+        condominios = condominios_permitidos(usuario).order_by("nombre")
+        periodos_todos = Periodo.objects.filter(condominio__in=condominios)
+        periodos = periodos_todos.select_related("condominio").order_by(
+            "-anio", "-mes", "condominio__nombre", "-pk"
         )
-    return render(request, "gastos_comunes/lista.html", {"usuario": usuario, "liquidaciones": liquidaciones, "es_gestion": False, **paginacion})
+        filtro_condominio = request.GET.get("condominio", "").strip()
+        filtro_anio = request.GET.get("anio", "").strip()
+        filtro_mes = request.GET.get("mes", "").strip()
+        filtro_estado = request.GET.get("estado", "").strip()
+        if filtro_condominio.isdigit():
+            periodos = periodos.filter(condominio_id=filtro_condominio)
+        if filtro_anio.isdigit() and 2000 <= int(filtro_anio) <= 2100:
+            periodos = periodos.filter(anio=int(filtro_anio))
+        if filtro_mes.isdigit() and 1 <= int(filtro_mes) <= 12:
+            periodos = periodos.filter(mes=int(filtro_mes))
+        if filtro_estado in Periodo.Estado.values:
+            periodos = periodos.filter(estado=filtro_estado)
+
+        paginacion = paginar(request, periodos, por_pagina=20)
+        return render(request, "gastos_comunes/lista.html", {
+            "usuario": usuario,
+            "periodos": paginacion["page_obj"],
+            "es_gestion": True,
+            "puede_configurar_webpay": usuario.rol in (Usuario.Rol.ADMINISTRADOR, Usuario.Rol.SUPER),
+            "condominios_filtro": condominios,
+            "filtro_condominio": filtro_condominio,
+            "filtro_anio": filtro_anio,
+            "filtro_mes": filtro_mes,
+            "filtro_estado": filtro_estado,
+            "meses": MESES_NOMBRE,
+            "total_periodos": periodos_todos.count(),
+            "periodos_publicados": periodos_todos.filter(estado=Periodo.Estado.PUBLICADO).count(),
+            "periodos_borrador": periodos_todos.filter(estado=Periodo.Estado.BORRADOR).count(),
+            "filtros_activos": bool(filtro_condominio or filtro_anio or filtro_mes or filtro_estado),
+            **paginacion,
+        })
+    unidades = Unidad.objects.filter(Q(dueno=usuario) | Q(arrendatario=usuario)).select_related(
+        "edificio__condominio"
+    ).distinct().order_by("edificio__condominio__nombre", "edificio__numero", "numero_unidad")
+    unidad_param = request.GET.get("unidad", "").strip()
+    if unidad_param.isdigit():
+        unidades = unidades.filter(pk=unidad_param)
+
+    resumen_unidades = []
+    movimientos = []
+    for unidad in unidades:
+        cartola = movimientos_cartola(unidad)
+        movimientos.extend(cartola["movimientos"])
+        ultimo_periodo = Periodo.objects.filter(
+            condominio=unidad.edificio.condominio, estado=Periodo.Estado.PUBLICADO
+        ).order_by("-anio", "-mes").first()
+        saldo = saldos_acumulados(unidad.edificio.condominio, ultimo_periodo).get(
+            unidad.pk, Decimal("0")
+        ) if ultimo_periodo else Decimal("0")
+        ultima_liquidacion = Liquidacion.objects.filter(
+            unidad=unidad, periodo__estado=Periodo.Estado.PUBLICADO
+        ).select_related("periodo").order_by("-periodo__anio", "-periodo__mes").first()
+        conexion = WebpayConexion.objects.filter(condominio=unidad.edificio.condominio).first()
+        resumen_unidades.append({
+            "unidad": unidad,
+            "saldo": saldo,
+            "ultima_liquidacion": ultima_liquidacion,
+            "webpay_disponible": bool(conexion and ultima_liquidacion and saldo > 0),
+            "modo_prueba": conexion.modo_prueba if conexion else True,
+        })
+    movimientos.sort(key=lambda e: (e["fecha"], e["orden"]), reverse=True)
+    paginacion = paginar(request, movimientos, por_pagina=20)
+    return render(request, "gastos_comunes/lista.html", {
+        "usuario": usuario,
+        "es_gestion": False,
+        "unidades_resumen": resumen_unidades,
+        "saldo_total": sum((u["saldo"] for u in resumen_unidades), Decimal("0")),
+        "filtro_unidad": unidad_param,
+        "opciones_unidad": Unidad.objects.filter(
+            Q(dueno=usuario) | Q(arrendatario=usuario)
+        ).select_related("edificio", "edificio__condominio").distinct().order_by(
+            "edificio__condominio__nombre", "edificio__numero", "numero_unidad"
+        ),
+        "movimientos": paginacion["page_obj"],
+        **paginacion,
+    })
+
+
+@login_required
+def cartola_unidad(request, unidad_id):
+    usuario = perfil(request)
+    unidad = get_object_or_404(
+        Unidad.objects.select_related("edificio__condominio", "dueno", "arrendatario"),
+        pk=unidad_id,
+    )
+    es_gestion = usuario.rol in ROLES_GESTION
+    if es_gestion:
+        if not usuario.puede_acceder_condominio(unidad.edificio.condominio_id):
+            return HttpResponseForbidden("No tienes acceso a la cartola de este condominio.")
+    elif usuario.rol != Usuario.Rol.RESIDENTE or usuario.pk not in (unidad.dueno_id, unidad.arrendatario_id):
+        return HttpResponseForbidden("No tienes acceso a la cartola de esta unidad.")
+
+    cartola = movimientos_cartola(unidad)
+    movimientos_paginados = paginar(
+        request, cartola["movimientos"], por_pagina=20, parametro="movimientos_page"
+    )
+    cartola["movimientos"] = movimientos_paginados["page_obj"]
+    ultimo_periodo = Periodo.objects.filter(
+        condominio=unidad.edificio.condominio, estado=Periodo.Estado.PUBLICADO
+    ).order_by("-anio", "-mes").first()
+    saldo = saldos_acumulados(unidad.edificio.condominio, ultimo_periodo).get(
+        unidad.pk, Decimal("0")
+    ) if ultimo_periodo else Decimal("0")
+    ultima_liquidacion = Liquidacion.objects.filter(
+        unidad=unidad, periodo__estado=Periodo.Estado.PUBLICADO
+    ).select_related("periodo").order_by("-periodo__anio", "-periodo__mes").first()
+    conexion = WebpayConexion.objects.filter(condominio=unidad.edificio.condominio).first()
+    intentos_online = PagoOnline.objects.filter(
+        liquidacion__unidad=unidad
+    ).select_related("liquidacion__periodo", "usuario")
+    if not es_gestion:
+        intentos_online = intentos_online.filter(usuario=usuario)
+    pagos_paginados = paginar(
+        request, intentos_online.order_by("-creado"), por_pagina=20,
+        parametro="intentos_page",
+    )
+    return render(request, "gastos_comunes/cartola_unidad.html", {
+        "unidad": unidad,
+        "cartola": cartola,
+        "saldo": saldo,
+        "ultima_liquidacion": ultima_liquidacion,
+        "es_gestion": es_gestion,
+        "puede_pagar": bool(
+            not es_gestion and saldo > 0 and ultima_liquidacion and conexion
+        ),
+        "webpay_modo_prueba": conexion.modo_prueba if conexion else True,
+        "pagos_online": pagos_paginados["page_obj"],
+        "movimientos_page_obj": movimientos_paginados["page_obj"],
+        "movimientos_page_range": movimientos_paginados["page_range"],
+        "movimientos_querystring": movimientos_paginados["querystring"],
+        "intentos_page_obj": pagos_paginados["page_obj"],
+        "intentos_page_range": pagos_paginados["page_range"],
+        "intentos_querystring": pagos_paginados["querystring"],
+        "hoy": timezone.localdate(),
+    })
 
 
 @login_required
@@ -113,13 +242,34 @@ def detalle(request, periodo_id):
         return redirect("gastos_comunes:lista")
     es_gestion = usuario.rol in ROLES_GESTION
     if not es_gestion:
-        unidad_ids = Unidad.objects.filter(dueno=usuario).values_list("id", flat=True)
-        unidad_ids = list(unidad_ids) + list(Unidad.objects.filter(arrendatario=usuario).values_list("id", flat=True))
+        unidades_residente = Unidad.objects.filter(Q(dueno=usuario) | Q(arrendatario=usuario)).distinct()
+        unidad_param = request.GET.get("unidad", "").strip()
+        unidad_seleccionada = None
+        if unidad_param:
+            if not unidad_param.isdigit():
+                return HttpResponseForbidden("La unidad indicada no es válida.")
+            unidad_seleccionada = unidades_residente.filter(
+                pk=unidad_param, edificio__condominio=periodo.condominio
+            ).first()
+            if unidad_seleccionada is None:
+                return HttpResponseForbidden("No tienes acceso a esa unidad.")
+            unidades_residente = unidades_residente.filter(pk=unidad_seleccionada.pk)
+        unidad_ids = unidades_residente.values_list("id", flat=True)
         liquidaciones = Liquidacion.objects.filter(periodo=periodo, unidad_id__in=unidad_ids, periodo__estado=Periodo.Estado.PUBLICADO).prefetch_related("detalles", "pagos")
         liquidaciones = list(liquidaciones)
+        cartolas_por_unidad = {}
         saldos = saldos_acumulados(periodo.condominio, periodo)
         moras = resumen_mora(periodo.condominio)
         for liquidacion in liquidaciones:
+            if liquidacion.unidad_id not in cartolas_por_unidad:
+                cartolas_por_unidad[liquidacion.unidad_id] = movimientos_cartola(liquidacion.unidad)
+            movimiento_boleta = next(
+                (m for m in cartolas_por_unidad[liquidacion.unidad_id]["movimientos"]
+                 if m["liquidacion"].pk == liquidacion.pk),
+                None,
+            )
+            liquidacion.abonos_aplicados = movimiento_boleta["abonos"] if movimiento_boleta else []
+            liquidacion.total_abonado = movimiento_boleta["monto_pagado"] if movimiento_boleta else Decimal("0")
             liquidacion.saldo_actual = saldos.get(liquidacion.unidad_id, Decimal("0"))
             mora = moras.get(liquidacion.unidad_id, {})
             liquidacion.en_mora = liquidacion.saldo_actual > 0 and (
@@ -133,12 +283,14 @@ def detalle(request, periodo_id):
         pagos_online = PagoOnline.objects.filter(
             liquidacion_id__in=liquidacion_ids, usuario=usuario
         ).order_by("-creado")[:10]
-        cuenta_conectada = MercadoPagoConexion.objects.filter(condominio=periodo.condominio).exists()
+        conexion_webpay = WebpayConexion.objects.filter(condominio=periodo.condominio).first()
+        cuenta_conectada = conexion_webpay is not None
         return render(request, "gastos_comunes/residente_detalle.html", {
             "periodo": periodo,
             "liquidaciones": liquidaciones,
+            "unidad_seleccionada": unidad_seleccionada,
             "es_ultimo_periodo": periodo == ultimo_periodo,
-            "mercadopago_modo_prueba": getattr(settings, "MERCADOPAGO_ENVIRONMENT", "production") in {"test", "sandbox"},
+            "webpay_modo_prueba": conexion_webpay.modo_prueba if conexion_webpay else True,
             "puede_pagar_en_linea": periodo == ultimo_periodo and cuenta_conectada,
             "pagos_online_configurados": cuenta_conectada,
             "pagos_online": pagos_online,
@@ -146,6 +298,8 @@ def detalle(request, periodo_id):
 
     item_form = ItemGastoForm(periodo=periodo)
     pago_form = PagoForm()
+    pago_unidad_seleccionada = None
+    saldo_unidad_pago = Decimal("0")
     if request.method == "POST":
         accion = request.POST.get("accion")
         if accion == "agregar_gasto" and periodo.estado == Periodo.Estado.BORRADOR:
@@ -174,17 +328,28 @@ def detalle(request, periodo_id):
             except ValidationError as exc:
                 messages.error(request, error_formulario(exc))
         elif accion == "pago" and periodo.estado == Periodo.Estado.PUBLICADO:
-            liquidacion = get_object_or_404(Liquidacion, pk=request.POST.get("liquidacion_id"), periodo=periodo)
+            liquidacion = get_object_or_404(
+                Liquidacion.objects.select_related("unidad__edificio"),
+                pk=request.POST.get("liquidacion_id"), periodo=periodo,
+                unidad__activo=True, unidad__edificio__activo=True,
+            )
+            pago_unidad_seleccionada = liquidacion
             pago_form = PagoForm(request.POST)
+            ultimo_periodo = Periodo.objects.filter(
+                condominio=periodo.condominio,
+                estado=Periodo.Estado.PUBLICADO,
+            ).order_by("-anio", "-mes").first()
+            saldos = saldos_acumulados(periodo.condominio, ultimo_periodo) if ultimo_periodo else {}
+            saldo_unidad_pago = saldos.get(liquidacion.unidad_id, Decimal("0"))
             if pago_form.is_valid():
                 pago = pago_form.save(commit=False)
                 pago.liquidacion = liquidacion
                 pago.registrado_por = usuario
-                ultimo_periodo = Periodo.objects.filter(condominio=periodo.condominio, estado=Periodo.Estado.PUBLICADO).order_by("-anio", "-mes").first()
-                saldo = saldos_acumulados(periodo.condominio, ultimo_periodo).get(liquidacion.unidad_id, Decimal("0"))
                 if ultimo_periodo != periodo:
                     pago_form.add_error(None, "Registra los pagos desde el período publicado más reciente para mantener correcto el saldo acumulado.")
-                elif pago.monto > saldo:
+                elif saldo_unidad_pago <= 0:
+                    pago_form.add_error(None, "Esta unidad ya no tiene saldo pendiente.")
+                elif pago.monto > saldo_unidad_pago:
                     pago_form.add_error("monto", "El pago supera el saldo pendiente de esta unidad.")
                 else:
                     pago.save()
@@ -233,6 +398,10 @@ def detalle(request, periodo_id):
     saldos = saldos_acumulados(periodo.condominio, periodo) if periodo.estado == Periodo.Estado.PUBLICADO else {}
     moras = resumen_mora(periodo.condominio) if periodo.estado == Periodo.Estado.PUBLICADO else {}
     grupos_por_edificio = {}
+    total_pagado_periodo = Decimal("0")
+    total_saldo_acumulado = Decimal("0")
+    unidades_con_saldo = 0
+    unidades_vencidas = 0
     for liq in liquidaciones:
         liq.pagado_calculado = sum((p.monto for p in liq.pagos.all()), Decimal("0"))
         liq.saldo_actual = saldos.get(liq.unidad_id, Decimal("0"))
@@ -241,6 +410,11 @@ def detalle(request, periodo_id):
             mora.get("principal_vencido", Decimal("0")) > 0
             or mora.get("interes_devengado", Decimal("0")) > 0
         )
+        liq.estado_cuenta = "vencido" if liq.saldo_actual > 0 and liq.en_mora else "pendiente" if liq.saldo_actual > 0 else "al_dia"
+        total_pagado_periodo += liq.pagado_calculado
+        total_saldo_acumulado += liq.saldo_actual
+        unidades_con_saldo += int(liq.saldo_actual > 0)
+        unidades_vencidas += int(liq.estado_cuenta == "vencido")
         grupo = grupos_por_edificio.setdefault(liq.unidad.edificio_id, {
             "id": liq.unidad.edificio_id, "nombre": liq.unidad.edificio.nombre,
             "unidades": [], "total": Decimal("0"),
@@ -263,6 +437,10 @@ def detalle(request, periodo_id):
         "lecturas": lecturas, "liquidaciones": liquidaciones,
         "grupos_liquidacion": grupos_liquidacion,
         "total_liquidaciones": sum((liq.total for liq in liquidaciones), Decimal("0")),
+        "total_pagado_periodo": total_pagado_periodo,
+        "total_saldo_acumulado": total_saldo_acumulado,
+        "unidades_con_saldo": unidades_con_saldo,
+        "unidades_vencidas": unidades_vencidas,
         "item_form": item_form, "pago_form": pago_form,
         "es_gestion": True, "unidades_sin_alicuota": Unidad.objects.filter(edificio__condominio=periodo.condominio, edificio__activo=True, activo=True, alicuota__isnull=True).count(),
         "unidades_activas_count": len(unidades_activas),
@@ -270,7 +448,96 @@ def detalle(request, periodo_id):
         "suma_alicuotas": suma_alicuotas,
         "today": timezone.localdate(),
         "puede_registrar_pagos": ultimo_periodo == periodo,
+        "pago_unidad_seleccionada": pago_unidad_seleccionada,
+        "saldo_unidad_pago": saldo_unidad_pago,
     })
+
+
+@login_required
+@require_GET
+def buscar_unidades_pago(request, periodo_id):
+    """Busca unidades con deuda del condominio/período actual para registrar un abono."""
+    usuario = perfil(request)
+    if usuario.rol not in ROLES_GESTION:
+        return JsonResponse({"results": []}, status=403)
+
+    periodo = get_object_or_404(
+        Periodo.objects.select_related("condominio"),
+        pk=periodo_id,
+        estado=Periodo.Estado.PUBLICADO,
+    )
+    if not usuario.puede_acceder_condominio(periodo.condominio_id):
+        return JsonResponse({"results": []}, status=403)
+
+    ultimo_periodo = Periodo.objects.filter(
+        condominio=periodo.condominio,
+        estado=Periodo.Estado.PUBLICADO,
+    ).order_by("-anio", "-mes").first()
+    if ultimo_periodo != periodo:
+        return JsonResponse({"results": [], "error": "Registra pagos desde el período publicado más reciente."}, status=409)
+
+    consulta = request.GET.get("q", "").strip()
+    if len(consulta) < 2:
+        return JsonResponse({"results": []})
+
+    coincidencia = (
+        Q(unidad__numero_unidad__icontains=consulta)
+        | Q(unidad__edificio__nombre__icontains=consulta)
+        | Q(unidad__dueno__nombre__icontains=consulta)
+        | Q(unidad__dueno__nombre2__icontains=consulta)
+        | Q(unidad__dueno__apellido__icontains=consulta)
+        | Q(unidad__dueno__apellido2__icontains=consulta)
+        | Q(unidad__dueno__rut__icontains=consulta)
+        | Q(unidad__arrendatario__nombre__icontains=consulta)
+        | Q(unidad__arrendatario__nombre2__icontains=consulta)
+        | Q(unidad__arrendatario__apellido__icontains=consulta)
+        | Q(unidad__arrendatario__apellido2__icontains=consulta)
+        | Q(unidad__arrendatario__rut__icontains=consulta)
+    )
+    if consulta.isdigit():
+        coincidencia |= Q(unidad__edificio__numero=consulta)
+
+    liquidaciones_coincidentes = Liquidacion.objects.filter(
+        periodo=periodo,
+        unidad__activo=True,
+        unidad__edificio__activo=True,
+    ).filter(coincidencia).select_related(
+        "unidad__edificio", "unidad__dueno", "unidad__arrendatario"
+    ).order_by("unidad__edificio__numero", "unidad__numero_unidad")
+    saldos = saldos_acumulados(periodo.condominio, periodo)
+    resultados = []
+    for liquidacion in liquidaciones_coincidentes.iterator(chunk_size=100):
+        saldo = saldos.get(liquidacion.unidad_id, Decimal("0"))
+        if saldo <= 0:
+            continue
+        unidad = liquidacion.unidad
+        residentes = []
+        for etiqueta, residente in (("Dueño", unidad.dueno), ("Arrendatario", unidad.arrendatario)):
+            if residente:
+                nombre = " ".join(
+                    parte for parte in (
+                        residente.nombre, residente.nombre2,
+                        residente.apellido, residente.apellido2,
+                    ) if parte
+                )
+                rut = (residente.rut or "").strip()
+                detalle_residente = f"{etiqueta}: {nombre}"
+                if rut:
+                    detalle_residente += f" · RUT: {rut}"
+                if not any(nombre == existente for existente in residentes):
+                    residentes.append(detalle_residente)
+        resultados.append({
+            "liquidacion_id": liquidacion.pk,
+            "unidad_id": unidad.pk,
+            "etiqueta": f"{unidad.edificio.nombre} · Unidad {unidad.numero_unidad}",
+            "residentes": " · ".join(residentes),
+            "saldo": str(saldo),
+            "cartola_url": reverse("gastos_comunes:cartola_unidad", args=[unidad.pk]),
+        })
+        if len(resultados) == 10:
+            break
+
+    return JsonResponse({"results": resultados, "limit": 10})
 
 
 @login_required
@@ -287,8 +554,9 @@ def iniciar_pago_online(request, liquidacion_id):
     )
     if liquidacion.unidad.dueno_id != usuario.pk and liquidacion.unidad.arrendatario_id != usuario.pk:
         return HttpResponseForbidden("No tienes permiso para pagar esta unidad.")
-    if not MercadoPagoConexion.objects.filter(condominio=liquidacion.periodo.condominio).exists():
-        messages.error(request, "El condominio todavía no tiene una cuenta vendedora de Mercado Pago conectada.")
+    conexion = WebpayConexion.objects.filter(condominio=liquidacion.periodo.condominio).first()
+    if not conexion:
+        messages.error(request, "El condominio todavía no tiene Webpay Plus configurado por su administrador.")
         return redirect("gastos_comunes:detalle", periodo_id=liquidacion.periodo_id)
 
     ultimo_periodo = Periodo.objects.filter(
@@ -308,55 +576,52 @@ def iniciar_pago_online(request, liquidacion_id):
 
     intento_abierto = PagoOnline.objects.filter(
         liquidacion=liquidacion,
-        usuario=usuario,
+        proveedor=PagoOnline.Proveedor.WEBPAY,
         estado__in=[PagoOnline.Estado.CREADO, PagoOnline.Estado.PENDIENTE],
     ).order_by("-creado").first()
     if intento_abierto:
+        if intento_abierto.usuario_id != usuario.pk:
+            messages.info(request, "Ya hay un intento de pago abierto para esta liquidación. Espera su resultado antes de iniciar otro.")
+            return redirect("gastos_comunes:detalle", periodo_id=liquidacion.periodo_id)
         if intento_abierto.monto != monto:
             messages.error(request, "Ya hay un pago en línea pendiente para esta unidad. Revisa su estado antes de iniciar otro.")
             return redirect("gastos_comunes:detalle", periodo_id=liquidacion.periodo_id)
-        # Reutilizar sólo una orden en curso. Las preferencias antiguas con
-        # error en el checkout deben generar un intento nuevo.
-        if intento_abierto.url_pago and intento_abierto.orden_proveedor:
-            return redirect(intento_abierto.url_pago)
-        if not intento_abierto.preferencia_proveedor:
+        # Reutilizar una orden únicamente mientras siga abierta.
+        if intento_abierto.url_pago and intento_abierto.token_webpay:
+            return render(request, "gastos_comunes/webpay_redirect.html", {
+                "url_webpay": intento_abierto.url_pago,
+                "token_webpay": intento_abierto.token_webpay,
+            })
+        if not intento_abierto.token_webpay:
             pago = intento_abierto
         else:
-            pago = PagoOnline.objects.create(liquidacion=liquidacion, usuario=usuario, monto=monto)
+            pago = PagoOnline.objects.create(liquidacion=liquidacion, usuario=usuario, monto=monto, proveedor=PagoOnline.Proveedor.WEBPAY)
     else:
-        pago = PagoOnline.objects.create(liquidacion=liquidacion, usuario=usuario, monto=monto)
+        pago = PagoOnline.objects.create(liquidacion=liquidacion, usuario=usuario, monto=monto, proveedor=PagoOnline.Proveedor.WEBPAY)
 
     sitio_url = getattr(settings, "SITIO_URL", "")
-    webhook_url = getattr(settings, "MERCADOPAGO_WEBHOOK_URL", "")
-    try:
-        webhook_secret = secreto_webhook_actual()
-    except MercadoPagoError as exc:
-        messages.error(request, str(exc))
-        return redirect("gastos_comunes:detalle", periodo_id=liquidacion.periodo_id)
-    if (not sitio_url.startswith("https://") or not webhook_url.startswith("https://")
-            or not webhook_secret):
+    if not sitio_url.startswith("https://"):
         pago.estado = PagoOnline.Estado.ERROR
-        pago.detalle_estado = "https_urls_not_configured"
+        pago.detalle_estado = "https_return_url_not_configured"
         pago.save(update_fields=["estado", "detalle_estado", "actualizado"])
-        messages.error(request, "El pago en línea requiere SITIO_URL, MERCADOPAGO_WEBHOOK_URL y la clave secreta del webhook del ambiente seleccionado.")
+        messages.error(request, "Webpay requiere configurar SITIO_URL con la dirección HTTPS pública del sitio, por ejemplo la URL actual de ngrok.")
         return redirect("gastos_comunes:detalle", periodo_id=liquidacion.periodo_id)
-    resultado_url = sitio_url + reverse(
-        "gastos_comunes:pago_resultado", kwargs={"pago_id": pago.referencia_externa}
-    )
+    return_url = sitio_url + reverse("gastos_comunes:webpay_retorno", kwargs={"pago_id": pago.referencia_externa})
     try:
-        checkout_url = crear_checkout(pago, {
-            "success": resultado_url,
-            "failure": resultado_url,
-            "pending": resultado_url,
-            "notification": webhook_url,
-        })
-    except MercadoPagoError as exc:
+        pago.orden_proveedor = f"GDC{pago.referencia_externa.hex[:23]}"
+        token, checkout_url = crear_transaccion_webpay(conexion, pago, return_url)
+        pago.token_webpay = token
+        pago.url_pago = checkout_url
+        pago.estado = PagoOnline.Estado.PENDIENTE
+        pago.detalle_estado = "webpay_checkout_created"
+        pago.save(update_fields=["orden_proveedor", "token_webpay", "url_pago", "estado", "detalle_estado", "actualizado"])
+    except WebpayError as exc:
         pago.estado = PagoOnline.Estado.ERROR
         pago.detalle_estado = str(exc)[:100]
         pago.save(update_fields=["estado", "detalle_estado", "actualizado"])
         messages.error(request, str(exc))
         return redirect("gastos_comunes:detalle", periodo_id=liquidacion.periodo_id)
-    return redirect(checkout_url)
+    return render(request, "gastos_comunes/webpay_redirect.html", {"url_webpay": checkout_url, "token_webpay": token})
 
 
 @login_required
@@ -368,21 +633,94 @@ def resultado_pago_online(request, pago_id):
     )
     if pago.usuario_id != usuario.pk:
         return HttpResponseForbidden("No tienes permiso para ver este pago.")
-    payment_id = request.GET.get("payment_id") or request.GET.get("collection_id")
-    order_id = request.GET.get("order_id")
-    if (payment_id or order_id or pago.orden_proveedor) and pago.estado != PagoOnline.Estado.APROBADO:
+    if pago.proveedor == PagoOnline.Proveedor.WEBPAY and pago.token_webpay and pago.estado == PagoOnline.Estado.PENDIENTE:
+        conexion = WebpayConexion.objects.filter(condominio=pago.liquidacion.periodo.condominio).first()
         try:
-            # El regreso del checkout por sí solo nunca confirma un pago.
-            pago = sincronizar_pago(pago, payment_id=payment_id, order_id=order_id)
-        except MercadoPagoError:
+            if conexion:
+                estado = consultar_webpay(conexion, pago.token_webpay)
+                if estado.get("status") == "AUTHORIZED":
+                    estado = confirmar_webpay(conexion, pago.token_webpay)
+                pago = actualizar_estado_webpay(pago, estado)
+        except WebpayError:
             pass
-        except OperationalError:
-            # Si la notificación sigue guardando el mismo pago, muestra el estado
-            # que alcanzó a cargar la página y evita convertir el retorno en 500.
+    elif pago.proveedor == PagoOnline.Proveedor.MERCADOPAGO:
+        payment_id = request.GET.get("payment_id") or request.GET.get("collection_id")
+        order_id = request.GET.get("order_id")
+        if (payment_id or order_id or pago.orden_proveedor) and pago.estado != PagoOnline.Estado.APROBADO:
             try:
-                pago.refresh_from_db()
-            except OperationalError:
+                pago = sincronizar_pago(pago, payment_id=payment_id, order_id=order_id)
+            except MercadoPagoError:
                 pass
+            except OperationalError:
+                # Si la notificación sigue guardando el mismo pago, muestra el estado
+                # que alcanzó a cargar la página y evita convertir el retorno en 500.
+                try:
+                    pago.refresh_from_db()
+                except OperationalError:
+                    pass
+    return render(request, "gastos_comunes/pago_resultado.html", {"pago": pago})
+
+
+@csrf_exempt
+def webpay_retorno(request, pago_id):
+    """Retorno firmado operacionalmente mediante el token opaco de Transbank."""
+    if request.method not in ("GET", "POST"):
+        return HttpResponseBadRequest("Método no permitido.")
+    pago = get_object_or_404(
+        PagoOnline.objects.select_related("liquidacion__periodo__condominio"),
+        referencia_externa=pago_id,
+        proveedor=PagoOnline.Proveedor.WEBPAY,
+    )
+    datos = request.POST if request.method == "POST" else request.GET
+    token = datos.get("token_ws", "")
+    token_abortado = datos.get("TBK_TOKEN", "")
+    orden = datos.get("TBK_ORDEN_COMPRA", "")
+    sesion = datos.get("TBK_ID_SESION", "")
+    if orden and orden != pago.orden_proveedor:
+        return HttpResponseForbidden("La orden recibida no corresponde al pago.")
+    if sesion and sesion != str(pago.referencia_externa):
+        return HttpResponseForbidden("La sesión recibida no corresponde al pago.")
+    if token and token != pago.token_webpay:
+        return HttpResponseForbidden("El token recibido no corresponde al pago.")
+    if token_abortado and token_abortado != pago.token_webpay:
+        return HttpResponseForbidden("El token recibido no corresponde al pago.")
+    # Webpay regresa desde un sitio externo y algunos navegadores no envían la
+    # cookie de sesión original en ese retorno. Solo permitimos mostrar el
+    # resultado desde esta ruta después de validar el token/orden de Transbank.
+    if pago.estado == PagoOnline.Estado.APROBADO:
+        if not (token or token_abortado or (orden and sesion)):
+            return HttpResponseForbidden("Faltan datos para validar el retorno del pago.")
+        return render(request, "gastos_comunes/pago_resultado.html", {"pago": pago})
+    conexion = WebpayConexion.objects.filter(condominio=pago.liquidacion.periodo.condominio).first()
+    if not conexion:
+        return HttpResponseServerError("La conexión Webpay del condominio ya no está disponible.")
+    try:
+        if token:
+            resultado = confirmar_webpay(conexion, token)
+            pago = actualizar_estado_webpay(pago, resultado)
+        elif token_abortado:
+            pago.estado = PagoOnline.Estado.CANCELADO
+            pago.detalle_estado = "webpay_buyer_cancelled"
+            pago.save(update_fields=["estado", "detalle_estado", "actualizado"])
+        elif orden and pago.token_webpay:
+            # En timeout no llega token de retorno. Consultar estado evita declarar
+            # pagado un intento que solo quedó abierto en la sesión del comprador.
+            resultado = consultar_webpay(conexion, pago.token_webpay)
+            if resultado.get("status") == "AUTHORIZED":
+                resultado = confirmar_webpay(conexion, pago.token_webpay)
+                pago = actualizar_estado_webpay(pago, resultado)
+            else:
+                pago.estado = PagoOnline.Estado.CANCELADO
+                pago.detalle_estado = "webpay_checkout_timeout"
+                pago.save(update_fields=["estado", "detalle_estado", "actualizado"])
+        else:
+            pago.estado = PagoOnline.Estado.CANCELADO
+            pago.detalle_estado = "webpay_checkout_incomplete"
+            pago.save(update_fields=["estado", "detalle_estado", "actualizado"])
+    except WebpayError as exc:
+        messages.error(request, f"No pudimos confirmar el pago con Transbank: {exc}")
+    # Renderizar aquí evita que un retorno legítimo termine en /login/ cuando
+    # Opera u otro navegador no conserva la sesión al volver desde Transbank.
     return render(request, "gastos_comunes/pago_resultado.html", {"pago": pago})
 
 
@@ -507,6 +845,69 @@ def mercadopago_desconectar(request, condominio_id):
     MercadoPagoConexion.objects.filter(condominio_id=condominio_id).delete()
     messages.success(request, "Se desconectó la cuenta vendedora del condominio.")
     return redirect("gastos_comunes:mercadopago_cuentas")
+
+
+@login_required
+def webpay_cuentas(request):
+    usuario = perfil(request)
+    if usuario.rol not in (Usuario.Rol.ADMINISTRADOR, Usuario.Rol.SUPER):
+        return HttpResponseForbidden("Solo un administrador autorizado puede configurar Webpay.")
+    condominios = list(condominios_permitidos(usuario).select_related("webpay_conexion").order_by("nombre"))
+    return render(request, "gastos_comunes/webpay_cuentas.html", {
+        "condominios": condominios,
+    })
+
+
+@login_required
+@require_POST
+def webpay_configurar(request, condominio_id):
+    usuario = perfil(request)
+    if usuario.rol not in (Usuario.Rol.ADMINISTRADOR, Usuario.Rol.SUPER) or not usuario.puede_acceder_condominio(condominio_id):
+        return HttpResponseForbidden("No tienes permiso para gestionar este condominio.")
+    condominio = get_object_or_404(Condominio, pk=condominio_id, activo=True)
+    modo_prueba = request.POST.get("ambiente") == "prueba"
+    if not modo_prueba and request.POST.get("ambiente") != "produccion":
+        messages.error(request, "Selecciona un ambiente válido para Webpay.")
+        return redirect("gastos_comunes:webpay_cuentas")
+
+    conexion = WebpayConexion.objects.filter(condominio=condominio).first()
+    codigo = request.POST.get("codigo_comercio", "").strip()
+    api_key = request.POST.get("api_key", "").strip()
+    if not modo_prueba:
+        if not validar_codigo_comercio(codigo):
+            messages.error(request, "El código de comercio debe contener solo números y tener entre 8 y 20 dígitos.")
+            return redirect("gastos_comunes:webpay_cuentas")
+        if not api_key and not (conexion and conexion.api_key_cifrada):
+            messages.error(request, "Ingresa la llave API entregada por Transbank para este condominio.")
+            return redirect("gastos_comunes:webpay_cuentas")
+        if api_key and not validar_api_key(api_key):
+            messages.error(request, "La llave API no tiene un formato válido.")
+            return redirect("gastos_comunes:webpay_cuentas")
+        try:
+            api_key_cifrada = cifrar_api_key(api_key) if api_key else conexion.api_key_cifrada
+        except WebpayError as exc:
+            messages.error(request, str(exc))
+            return redirect("gastos_comunes:webpay_cuentas")
+    else:
+        codigo = conexion.codigo_comercio if conexion else ""
+        api_key_cifrada = conexion.api_key_cifrada if conexion else ""
+
+    if conexion:
+        conexion.codigo_comercio = codigo
+        conexion.api_key_cifrada = api_key_cifrada
+        conexion.modo_prueba = modo_prueba
+        conexion.configurado_por = usuario
+        conexion.save(update_fields=["codigo_comercio", "api_key_cifrada", "modo_prueba", "configurado_por", "actualizado"])
+    else:
+        WebpayConexion.objects.create(
+            condominio=condominio,
+            codigo_comercio=codigo,
+            api_key_cifrada=api_key_cifrada,
+            modo_prueba=modo_prueba,
+            configurado_por=usuario,
+        )
+    messages.success(request, f"Webpay Plus quedó configurado para {condominio.nombre} en ambiente de {'prueba' if modo_prueba else 'producción'}.")
+    return redirect("gastos_comunes:webpay_cuentas")
 
 
 @login_required

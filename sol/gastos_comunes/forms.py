@@ -12,18 +12,28 @@ class PeriodoForm(forms.ModelForm):
     def __init__(self, *args, condominios=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["condominio"].widget.attrs["class"] = "form-select"
-        self.fields["anio"].label = "Año"
-        self.fields["anio"].help_text = "Escribe el año completo, por ejemplo 2026."
-        self.fields["anio"].widget.attrs.update({"class": "form-control", "min": "2000", "max": "2100", "step": "1"})
+        self.fields["anio"] = forms.TypedChoiceField(
+            label="Año",
+            choices=[("", "Seleccionar")] + [(year, str(year)) for year in range(2000, 2101)],
+            coerce=int,
+            empty_value=None,
+            widget=forms.Select(attrs={"class": "form-select"}),
+        )
         self.fields["mes"].label = "Mes"
-        self.fields["mes"].help_text = "Número de mes: 1 para enero y 12 para diciembre."
-        self.fields["mes"].widget.attrs.update({"class": "form-control", "min": "1", "max": "12", "step": "1"})
+        self.fields["mes"].help_text = ""
+        self.fields["mes"].widget = forms.Select(choices=[
+            ("", "Seleccionar"),
+            (1, "Enero"), (2, "Febrero"), (3, "Marzo"), (4, "Abril"),
+            (5, "Mayo"), (6, "Junio"), (7, "Julio"), (8, "Agosto"),
+            (9, "Septiembre"), (10, "Octubre"), (11, "Noviembre"), (12, "Diciembre"),
+        ], attrs={"class": "form-select"})
         self.fields["vencimiento"].label = "Fecha de vencimiento"
         self.fields["vencimiento"].help_text = "Último día para pagar antes de marcar saldo como vencido."
         self.fields["vencimiento"].widget.attrs["class"] = "form-control"
         self.fields["recargo_reserva"].label = "Fondo de reserva (%)"
         self.fields["recargo_reserva"].help_text = "Porcentaje aplicado a la parte de los gastos ordinarios compartidos; mínimo 5%."
         self.fields["recargo_reserva"].widget.attrs.update({"class": "form-control", "min": "5", "step": "0.01"})
+        self.order_fields(["condominio", "mes", "anio", "vencimiento", "recargo_reserva"])
         if condominios is not None:
             self.fields["condominio"].queryset = condominios
 
