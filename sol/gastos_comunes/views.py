@@ -417,10 +417,14 @@ def detalle(request, periodo_id):
         unidades_vencidas += int(liq.estado_cuenta == "vencido")
         grupo = grupos_por_edificio.setdefault(liq.unidad.edificio_id, {
             "id": liq.unidad.edificio_id, "nombre": liq.unidad.edificio.nombre,
-            "unidades": [], "total": Decimal("0"),
+            "unidades": [], "cargo_periodo": Decimal("0"),
+            "saldo_anterior": Decimal("0"), "total_a_pagar": Decimal("0"),
         })
+        liq.cargo_periodo = liq.total - liq.saldo_anterior
         grupo["unidades"].append(liq)
-        grupo["total"] += liq.total
+        grupo["cargo_periodo"] += liq.cargo_periodo
+        grupo["saldo_anterior"] += liq.saldo_anterior
+        grupo["total_a_pagar"] += liq.total
     grupos_liquidacion = list(grupos_por_edificio.values())
     gastos = list(periodo.gastos.select_related("edificio", "unidad"))
     lecturas = list(periodo.lecturas.select_related("unidad", "unidad__edificio").order_by("unidad__edificio__numero", "unidad__numero_unidad", "tipo"))
@@ -437,6 +441,8 @@ def detalle(request, periodo_id):
         "lecturas": lecturas, "liquidaciones": liquidaciones,
         "grupos_liquidacion": grupos_liquidacion,
         "total_liquidaciones": sum((liq.total for liq in liquidaciones), Decimal("0")),
+        "total_cargo_periodo": sum((liq.total - liq.saldo_anterior for liq in liquidaciones), Decimal("0")),
+        "total_saldos_anteriores": sum((liq.saldo_anterior for liq in liquidaciones), Decimal("0")),
         "total_pagado_periodo": total_pagado_periodo,
         "total_saldo_acumulado": total_saldo_acumulado,
         "unidades_con_saldo": unidades_con_saldo,
