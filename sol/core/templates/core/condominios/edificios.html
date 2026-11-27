@@ -28,7 +28,7 @@
                             <div class="d-flex flex-wrap gap-2 mt-auto">
                                 <a class="button" href="{% url 'unidades_lista' edificio.id %}">Ver unidades</a>
                                 <a class="btn btn-outline-secondary" href="{% url 'edificio_editar' edificio.id %}">Configurar</a>
-                                <form method="post" action="{% url 'edificio_cambiar_estado' edificio.id %}" class="d-inline">{% csrf_token %}<button class="btn {% if edificio.activo %}btn-outline-danger{% else %}btn-outline-success{% endif %}" type="submit">{% if edificio.activo %}Desactivar{% else %}Reactivar{% endif %}</button></form>
+                                <form method="post" action="{% url 'edificio_cambiar_estado' edificio.id %}" class="d-inline"{% if edificio.activo and edificio.unidades_activas %} onsubmit="return confirm('Se desactivará {{ edificio.nombre|escapejs }} junto con sus {{ edificio.unidades_activas }} unidades activas. Al reactivarlo volverán a activarse. ¿Continuar?');"{% endif %}>{% csrf_token %}<button class="btn {% if edificio.activo %}btn-outline-danger{% else %}btn-outline-success{% endif %}" type="submit">{% if edificio.activo %}Desactivar{% else %}Reactivar{% endif %}</button></form>
                             </div>
                         </div>
                     </article>

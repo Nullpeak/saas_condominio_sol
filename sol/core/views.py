@@ -1816,6 +1816,7 @@ def edificios_lista(request, condominio_id):
 
     edificios = condominio.edificios_set.annotate(
         total_unidades=Count("unidades", distinct=True),
+        unidades_activas=Count("unidades", filter=Q(unidades__activo=True), distinct=True),
     ).order_by("numero", "pk")
 
     return render(request, "core/condominios/edificios.html", {
@@ -4750,9 +4751,12 @@ def edificio_cambiar_estado(request, edificio_id):
     edificio = get_object_or_404(Edificio.objects.select_related("condominio"), pk=edificio_id)
     if not usuario.puede_acceder_condominio(edificio.condominio_id):
         return redirect("condominios_lista")
-    edificio.activo = not edificio.activo
-    edificio.save(update_fields=["activo"])
-    messages.success(request, "Edificio reactivado." if edificio.activo else "Edificio desactivado.")
+    if edificio.activo:
+        n = edificio.desactivar()
+        messages.success(request, f"Edificio desactivado junto con {n} unidad{'es' if n != 1 else ''}.")
+    else:
+        n = edificio.reactivar()
+        messages.success(request, f"Edificio reactivado junto con {n} unidad{'es' if n != 1 else ''}.")
     return redirect("edificios_lista", condominio_id=edificio.condominio_id)
 
 
@@ -4789,6 +4793,7 @@ def unidad_cambiar_estado(request, unidad_id):
             )
             return redirect("unidades_lista", edificio_id=edificio.pk)
     unidad.activo = not unidad.activo
-    unidad.save(update_fields=["activo"])
+    unidad.desactivada_por_edificio = False  # un cambio a mano manda sobre el del edificio
+    unidad.save(update_fields=["activo", "desactivada_por_edificio"])
     messages.success(request, "Unidad reactivada." if unidad.activo else "Unidad desactivada.")
     return redirect("unidades_lista", edificio_id=unidad.edificio_id)

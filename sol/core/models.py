@@ -133,6 +133,29 @@ class Edificio(models.Model):
             ):
                 self.generar_unidades()
 
+    @transaction.atomic
+    def desactivar(self):
+        """Desactiva el edificio y todas sus unidades activas. Devuelve cuántas unidades se desactivaron."""
+        self.activo = False
+        self.save(update_fields=["activo"])
+        return self.unidades.filter(activo=True).update(activo=False, desactivada_por_edificio=True)
+
+    @transaction.atomic
+    def reactivar(self):
+        """
+        Reactiva el edificio y solo las unidades que se apagaron junto con él (y que siguen
+        dentro de la configuración de pisos y viviendas). Devuelve cuántas se reactivaron.
+        """
+        self.activo = True
+        self.save(update_fields=["activo"])
+        apagadas = self.unidades.filter(desactivada_por_edificio=True)
+        dentro = apagadas
+        if self.numero_pisos and self.viviendas_por_piso:
+            dentro = apagadas.filter(piso__lte=self.numero_pisos, posicion__lte=self.viviendas_por_piso)
+        reactivadas = dentro.update(activo=True, desactivada_por_edificio=False)
+        apagadas.update(desactivada_por_edificio=False)  # las que quedaron fuera de la configuración siguen inactivas
+        return reactivadas
+
     def sincronizar_unidades(self, configuracion_anterior=None):
         """Agrega los espacios faltantes y desactiva los que quedan fuera de la configuración."""
         if not self.numero_pisos or not self.viviendas_por_piso:
@@ -208,6 +231,9 @@ class Unidad(models.Model):
     numero_unidad = models.CharField(max_length=10)
     activo = models.BooleanField(default=True)
     cantidad_residentes = models.PositiveSmallIntegerField(null=True, blank=True, validators=[MinValueValidator(1), MaxValueValidator(20)],)
+    # True si la unidad quedó inactiva porque se desactivó su edificio (no a mano).
+    # Al reactivar el edificio se reactivan solo estas; las desactivadas a mano siguen inactivas.
+    desactivada_por_edificio = models.BooleanField(default=False)
     propietario_vive = models.BooleanField(default=True)
     dueno = models.ForeignKey("Usuario",on_delete=models.PROTECT,null=True,blank=True,related_name="unidades_propias",)
     arrendatario = models.ForeignKey("Usuario",on_delete=models.SET_NULL,null=True,blank=True,related_name="unidades_arrendadas",)

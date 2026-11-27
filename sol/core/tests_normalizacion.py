@@ -318,3 +318,50 @@ class NombresDeImagenesTests(TestCase):
         self.assertEqual(r["Cache-Control"], "private, no-cache")
         r2 = self.client.get(url, HTTP_IF_MODIFIED_SINCE=r["Last-Modified"])
         self.assertEqual(r2.status_code, 304)
+
+
+class DesactivarEdificioTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        ciudad = Ciudad.objects.create(nombre="Santiago")
+        self.condominio = Condominio.objects.create(nombre="C", direccion="X", ciudad=ciudad, edificios=1)
+        self.edificio = Edificio.objects.get(condominio=self.condominio)
+        self.edificio.numero_pisos = 2
+        self.edificio.viviendas_por_piso = 2
+        self.edificio.save()  # genera 4 unidades
+        su = Usuario.objects.create(user=User.objects.create_user("su", password="x"), nombre="S", apellido="U",
+                                    email="su@x.cl", rol=Usuario.Rol.SUPER)
+        self.client.force_login(su.user)
+        self.url = reverse("edificio_cambiar_estado", args=[self.edificio.pk])
+
+    def activas(self):
+        return self.edificio.unidades.filter(activo=True).count()
+
+    def test_desactivar_edificio_desactiva_sus_unidades_y_reactivar_las_devuelve(self):
+        # Una unidad ya estaba desactivada a mano
+        a_mano = self.edificio.unidades.order_by("pk").first()
+        self.client.post(reverse("unidad_cambiar_estado", args=[a_mano.pk]))
+        self.assertEqual(self.activas(), 3)
+
+        self.client.post(self.url)
+        self.edificio.refresh_from_db()
+        self.assertFalse(self.edificio.activo)
+        self.assertEqual(self.activas(), 0)
+
+        self.client.post(self.url)
+        self.edificio.refresh_from_db()
+        self.assertTrue(self.edificio.activo)
+        self.assertEqual(self.activas(), 3)          # vuelven las 3 que apagó el edificio
+        a_mano.refresh_from_db()
+        self.assertFalse(a_mano.activo)               # la desactivada a mano sigue inactiva
+
+    def test_con_edificio_inactivo_no_se_puede_activar_una_unidad(self):
+        self.client.post(self.url)
+        u = self.edificio.unidades.first()
+        self.client.post(reverse("unidad_cambiar_estado", args=[u.pk]))
+        u.refresh_from_db()
+        self.assertFalse(u.activo)
+
+    def test_pide_confirmacion_si_tiene_unidades_activas(self):
+        r = self.client.get(reverse("edificios_lista", args=[self.condominio.pk]))
+        self.assertContains(r, "junto con sus 4 unidades activas")
